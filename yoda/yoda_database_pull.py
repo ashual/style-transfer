@@ -46,8 +46,9 @@ def remove_yoda_template(sent):
     return re.sub(r', hmm', '', translation_w)
 
 script = open('original.text', 'r')
-yoda_english = open('yoda_english.text', 'w')
-yoda_english_without = open('yoda_english_without_stupid_words.text', 'w')
+plain = open('plain.text', 'w')
+yoda_english = open('english_yoda.text', 'w')
+yoda_english_without = open('english.text', 'w')
 for sentence in script:
     if not is_valid_sentence(sentence, 3, 10):
         continue
@@ -56,12 +57,13 @@ for sentence in script:
     if not yoda_sentence:
         continue
     yoda_sentence_strip = strip_sentence(yoda_sentence)
-    yoda_sentence_without = remove_yoda_template(yoda_sentence_strip)
-
-    if yoda_sentence_without.upper() != sentence.upper():
-        yoda_english.write(sentence + '\n')
-        yoda_english_without.write(sentence + '\n')
-        yoda_english.write(yoda_sentence_strip + '\n')
-        yoda_english_without.write(yoda_sentence_without + '\n')
+    yoda_sentence_strip_lower = 'START ' + yoda_sentence_strip.lower()
+    yoda_sentence_without_lower = 'START ' + remove_yoda_template(yoda_sentence_strip).lower()
+    sentence_lower = 'START ' + sentence.lower()
+    if yoda_sentence_without_lower != sentence_lower:
+        plain.write(sentence + '\n')
+        yoda_english.write(yoda_sentence_strip_lower + '\n')
+        yoda_english_without.write(yoda_sentence_without_lower + '\n')
+        plain.flush()
         yoda_english.flush()
         yoda_english_without.flush()
