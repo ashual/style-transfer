@@ -1,6 +1,7 @@
 import tensorflow as tf
+import numpy as np
 from load_word_embeddings import load_from_files
-from nltk import word_tokenize
+
 
 class EncoderDecoderReconstruction:
     def __init__(self, vocabulary_size, embedding_size, hidden_vector_size, number_of_layers, learning_rate = 0.01):
@@ -60,6 +61,7 @@ with open(r"C:\Users\user\Dropbox\projects\StyleTransfer\yoda\english_yoda.text"
     yoda_sentences = yoda_file.readlines()
 
 print(len(yoda_sentences))
+np.random.shuffle(yoda_sentences)
 yoda_tokenized = [word_tokenize(s) for s in yoda_sentences]
 
 vocab = {i:w for i,w in enumerate(vocab)}
@@ -71,8 +73,17 @@ def find_in_vocab(w, reverse_vocab):
     return reverse_vocab['UNK']
 
 yoda_indexed = [[find_in_vocab(w, reverse_vocab) for w in s] for s in yoda_tokenized]
-print(yoda_sentences[0])
-print(yoda_tokenized[0])
-print(yoda_indexed[0])
+
+# print(yoda_sentences[0])
+# print(yoda_tokenized[0])
+# print(yoda_indexed[0])
+
+print(np.asarray(np.unique([len(s) for s in yoda_indexed], return_counts=True)).T)
+
+train_size = int(len(yoda_sentences)*0.7)
+train = yoda_indexed[:train_size]
+test = yoda_indexed[train_size:]
+
+
 
 
