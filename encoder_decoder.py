@@ -1,4 +1,6 @@
 import tensorflow as tf
+from load_word_embeddings import load_from_files
+from nltk import word_tokenize
 
 class EncoderDecoderReconstruction:
     def __init__(self, vocabulary_size, embedding_size, hidden_vector_size, number_of_layers, learning_rate = 0.01):
@@ -12,8 +14,8 @@ class EncoderDecoderReconstruction:
 
         w = tf.Variable(tf.constant(0.0, shape=[vocabulary_size, embedding_size]),
                         trainable=False, name="WordVectors")
-        embedding_placeholder = tf.placeholder(tf.float32, [vocabulary_size, embedding_size])
-        w = w.assign(embedding_placeholder)
+        self.embedding_placeholder = tf.placeholder(tf.float32, [vocabulary_size, embedding_size])
+        w = w.assign(self.embedding_placeholder)
         self.embedding = tf.nn.embedding_lookup(w, inputs)
 
         current_input = self.embedding
@@ -48,7 +50,29 @@ class EncoderDecoderReconstruction:
         delta = int(float(hidden_vector_size - embedding_size) / (number_of_layers))
         return [l*delta + embedding_size for l in range(number_of_layers+1)]
 
-# print(generate_layers_hidden_sizes(100,400,5))
-# print(generate_layers_hidden_sizes(100,400,3))
-# print(generate_layers_hidden_sizes(100,400,2))
-# print(generate_layers_hidden_sizes(100,400,1))
+# for first time users do the following in shell:
+# import nltk
+# nltk.download()
+
+
+vocab, embedding_np, embedding_filepath = load_from_files(r"C:\temp\data\style\glove.6B\glove.6B.50d.txt")
+with open(r"C:\Users\user\Dropbox\projects\StyleTransfer\yoda\english_yoda.text", "r") as yoda_file:
+    yoda_sentences = yoda_file.readlines()
+
+print(len(yoda_sentences))
+yoda_tokenized = [word_tokenize(s) for s in yoda_sentences]
+
+vocab = {i:w for i,w in enumerate(vocab)}
+reverse_vocab = {vocab[i]:i for i in vocab}
+
+def find_in_vocab(w, reverse_vocab):
+    if w in reverse_vocab:
+        return reverse_vocab[w]
+    return reverse_vocab['UNK']
+
+yoda_indexed = [[find_in_vocab(w, reverse_vocab) for w in s] for s in yoda_tokenized]
+print(yoda_sentences[0])
+print(yoda_tokenized[0])
+print(yoda_indexed[0])
+
+
