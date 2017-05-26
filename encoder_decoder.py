@@ -1,6 +1,5 @@
 import tensorflow as tf
-import numpy as np
-from load_word_embeddings import load_from_files
+from input_utils import InputPipeline, EmbeddingHandler
 
 
 class EncoderDecoderReconstruction:
@@ -9,7 +8,7 @@ class EncoderDecoderReconstruction:
         # all inputs should have a start of sentence and end of sentence tokens
         self.inputs = tf.placeholder(tf.int32, (None, None))  # (batch, time, in)
         inputs = tf.identity(self.inputs)
-        inputs = self.print_tensor_with_shape(inputs, "inputs")
+        # inputs = self.print_tensor_with_shape(inputs, "inputs")
 
         batch_size = tf.shape(inputs)[0]
 
@@ -55,34 +54,40 @@ class EncoderDecoderReconstruction:
 # import nltk
 # nltk.download()
 
+# create input pipeline
+embedding_handler = EmbeddingHandler(pretrained_glove_file=r"C:\temp\data\style\glove.6B\glove.6B.50d.txt",
+                                     force_vocab=False, start_of_sentence_token='START', unknown_token='UNK')
+input_stream = InputPipeline(text_file=r"C:\Users\user\Dropbox\projects\StyleTransfer\yoda\english_yoda.text",
+                             embedding_handler=embedding_handler)
 
-vocab, embedding_np, embedding_filepath = load_from_files(r"C:\temp\data\style\glove.6B\glove.6B.50d.txt")
-with open(r"C:\Users\user\Dropbox\projects\StyleTransfer\yoda\english_yoda.text", "r") as yoda_file:
-    yoda_sentences = yoda_file.readlines()
+# model
+model = EncoderDecoderReconstruction(embedding_handler.vocab_len, embedding_handler.embedding_size,
+                                     hidden_vector_size=100, number_of_layers=2)
+session = tf.Session()
+# For some reason it is our job to do this:
+session.run(tf.global_variables_initializer())
 
-print(len(yoda_sentences))
-np.random.shuffle(yoda_sentences)
-yoda_tokenized = [word_tokenize(s) for s in yoda_sentences]
+for epoch in range(10):
+    epoch_error = 0
+    data_iter = input_stream.batch_iterator(shuffle=True, maximal_batch=2)
+    for i, (batch, indexed_batch) in enumerate(data_iter):
+        epoch_error += session.run([model.loss, model.train], {
+            model.inputs: indexed_batch,
+        })[0]
+    epoch_error /= (i+1)
+    print("Epoch %d, train error: %.2f, %%" % (epoch, epoch_error))
 
-vocab = {i:w for i,w in enumerate(vocab)}
-reverse_vocab = {vocab[i]:i for i in vocab}
+    # TODO: add validation error + hidden vector of the same sentence
+    # validation_error = 0
+    # data_iter = test_pipe.batch_iterator(1, shuffle=True)
+    # for i, (x, y) in enumerate(data_iter):
+    #     validation_error += session.run(lstm_model.accuracy, {
+    #         lstm_model.inputs:  x,
+    #         lstm_model.outputs: y,
+    #     })
+    # validation_error /= (i+1)
+    # print("Epoch %d, train error: %.2f, valid accuracy: %.1f %%" % (epoch, epoch_error, validation_error * 100.0))
 
-def find_in_vocab(w, reverse_vocab):
-    if w in reverse_vocab:
-        return reverse_vocab[w]
-    return reverse_vocab['UNK']
-
-yoda_indexed = [[find_in_vocab(w, reverse_vocab) for w in s] for s in yoda_tokenized]
-
-# print(yoda_sentences[0])
-# print(yoda_tokenized[0])
-# print(yoda_indexed[0])
-
-print(np.asarray(np.unique([len(s) for s in yoda_indexed], return_counts=True)).T)
-
-train_size = int(len(yoda_sentences)*0.7)
-train = yoda_indexed[:train_size]
-test = yoda_indexed[train_size:]
 
 
 
