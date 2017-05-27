@@ -4,7 +4,6 @@ from input_utils import InputPipeline, EmbeddingHandler
 
 class EncoderDecoderReconstruction:
     def __init__(self, vocabulary_size, embedding_size, hidden_states, learning_rate = 0.01):
-        number_of_layers = len(hidden_states)
         self.should_print = tf.placeholder_with_default(False, shape=())
         # all inputs should have a start of sentence and end of sentence tokens
         self.inputs = tf.placeholder(tf.int32, (None, None))  # (batch, time, in)
@@ -34,7 +33,12 @@ class EncoderDecoderReconstruction:
             rnn_outputs, rnn_states = tf.nn.dynamic_rnn(multilayer_encoder, current_input,
                                                         initial_state=initial_state,
                                                         time_major=False)
-        self.encoded_vector = tuple([rnn_states[number_of_layers-i-1] for i in range(number_of_layers)])
+        # self.encoded_vector = tuple([rnn_states[number_of_layers-i-1] for i in range(number_of_layers)])
+        self.encoded_vector = rnn_outputs[:, -1, :]
+        decoder_inputs = tf.expand_dims(self.encoded_vector, 1)
+        timesteps = tf.shape(rnn_outputs)[1]
+        decoder_inputs = tf.tile(decoder_inputs, [1, timesteps, 1])
+        decoder_inputs = tf.concat((self.embedding, decoder_inputs), axis=2)
 
         with tf.variable_scope('decoder'):
             decoder_cells = []
@@ -42,11 +46,12 @@ class EncoderDecoderReconstruction:
             for hidden_size in all_state_sizes[1:]:
                 decoder_cells.append(tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True))
             multilayer_decoder = tf.contrib.rnn.MultiRNNCell(decoder_cells)
-            rnn_outputs, rnn_states = tf.nn.dynamic_rnn(multilayer_decoder, current_input,
-                                                        initial_state=self.encoded_vector,
+            initial_state = multilayer_decoder.zero_state(batch_size, tf.float32)
+            rnn_outputs, rnn_states = tf.nn.dynamic_rnn(multilayer_decoder, decoder_inputs,
+                                                        initial_state=initial_state,
                                                         time_major=False)
 
-        self.decoded_vector = rnn_outputs[-1]
+        self.decoded_vector = rnn_outputs
         # self.encoded_vector = rnn_states[-1]
 
         # current_input = inputs
@@ -88,15 +93,16 @@ session = tf.Session()
 # For some reason it is our job to do this:
 session.run(tf.global_variables_initializer())
 
-for epoch in range(10):
+for epoch in range(100):
     epoch_error = 0
     data_iter = input_stream.batch_iterator(shuffle=True, maximal_batch=2)
     for i, (batch, indexed_batch) in enumerate(data_iter):
         epoch_error += session.run([model.loss, model.train], {
             model.inputs: indexed_batch,
+            model.embedding_placeholder: embedding_handler.embedding_np
         })[0]
     epoch_error /= (i+1)
-    print("Epoch %d, train error: %.2f, %%" % (epoch, epoch_error))
+    print("Epoch %d, train error: %.2f" % (epoch, epoch_error))
 
     # TODO: add validation error + hidden vector of the same sentence
     # validation_error = 0
