@@ -1,5 +1,7 @@
 import tensorflow as tf
 from input_utils import InputPipeline, EmbeddingHandler
+from load_word_embeddings import PRETRAINED_GLOVE_FILE
+import copy
 
 
 class EncoderDecoderReconstruction:
@@ -19,7 +21,7 @@ class EncoderDecoderReconstruction:
         embedding = self.print_tensor_with_shape(self.embedding, "embedding")
 
         # holds all the relevant sizes of the output sizes for the RNNs
-        all_state_sizes = hidden_states.copy()
+        all_state_sizes = copy.deepcopy(hidden_states)
         all_state_sizes.insert(0, embedding_size)
 
         # important sized
@@ -86,14 +88,11 @@ class EncoderDecoderReconstruction:
                            [tf.shape(tensor)], message=name + " shape:"),
                        lambda: tf.identity(tensor))
 
-# for first time users do the following in shell:
-# import nltk
-# nltk.download()
 
 # create input pipeline
-embedding_handler = EmbeddingHandler(pretrained_glove_file=r"C:\temp\data\style\glove.6B\glove.6B.50d.txt",
+embedding_handler = EmbeddingHandler(pretrained_glove_file=PRETRAINED_GLOVE_FILE,
                                      force_vocab=False, start_of_sentence_token='START', unknown_token='UNK')
-input_stream = InputPipeline(text_file=r"C:\Users\user\Dropbox\projects\StyleTransfer\yoda\english_yoda.text",
+input_stream = InputPipeline(text_file=r"./yoda/english_yoda.text",
                              embedding_handler=embedding_handler)
 
 model = EncoderDecoderReconstruction(embedding_handler.vocab_len, embedding_handler.embedding_size,

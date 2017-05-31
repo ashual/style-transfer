@@ -1,3 +1,5 @@
 .idea
 /encdec/bin
 /encdec/lib
+/data/glove.6B
+*.pyc

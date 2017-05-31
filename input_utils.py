@@ -2,7 +2,10 @@ import os.path
 import tensorflow as tf
 import numpy as np
 import pickle
+import copy
+from nltk import download as nltk_download
 from nltk import word_tokenize
+from load_word_embeddings import PRETRAINED_GLOVE_FILE
 
 
 class EmbeddingHandler:
@@ -34,7 +37,7 @@ class EmbeddingHandler:
         def load_GloVe(filename):
             vocab = []
             embd = []
-            file = open(filename, 'r', encoding="utf8")
+            file = open(filename, 'r')
             for line in file.readlines():
                 row = line.strip().split(' ')
                 vocab.append(row[0])
@@ -82,6 +85,7 @@ class EmbeddingHandler:
         vocab_filename, np_embedding_file, embedding_file = self.get_pretrained_files()
         return pickle.load(open(vocab_filename, "rb")), np.load(np_embedding_file), embedding_file
 
+
 class InputPipeline:
     def __init__(self, text_file, embedding_handler):
         self.embedding_handler = embedding_handler
@@ -96,7 +100,7 @@ class InputPipeline:
                 return reverse_vocab[w]
             return reverse_vocab['UNK']
 
-        sentences = self.sentences.copy()
+        sentences = copy.deepcopy(self.sentences)
         if shuffle:
             np.random.shuffle(sentences)
         sentences_by_length = {}
@@ -105,8 +109,8 @@ class InputPipeline:
             len_s = len(indexed_sentence)
             if len_s not in sentences_by_length:
                 sentences_by_length[len_s] = []
-            sentences_by_length[len_s].append((sentence,indexed_sentence))
-        while len(sentences_by_length)>0:
+            sentences_by_length[len_s].append((sentence, indexed_sentence))
+        while len(sentences_by_length) > 0:
             len_s = np.random.choice(list(sentences_by_length.keys()), 1)[0]
             current_bucket = sentences_by_length[len_s]
             to_take = np.min((len(current_bucket), maximal_batch))
@@ -122,10 +126,13 @@ class InputPipeline:
             # return the result
             yield batch, indexed_batch
 
+
 if __name__ == '__main__':
-    embedding_handler = EmbeddingHandler(pretrained_glove_file=r"C:\temp\data\style\glove.6B\glove.6B.50d.txt",
+    # Download NLTK tokenizer
+    nltk_download('punkt')
+    embedding_handler = EmbeddingHandler(pretrained_glove_file=PRETRAINED_GLOVE_FILE,
                                          force_vocab=False, start_of_sentence_token='START', unknown_token='UNK')
-    input_stream = InputPipeline(text_file=r"C:\Users\user\Dropbox\projects\StyleTransfer\yoda\english_yoda.text",
+    input_stream = InputPipeline(text_file=r"./yoda/english_yoda.text",
                                  embedding_handler=embedding_handler)
     for batch, indexed_batch in input_stream.batch_iterator(shuffle=True, maximal_batch=3):
         print('batch size {}'.format(len(batch)))

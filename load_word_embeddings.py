@@ -2,11 +2,13 @@ import tensorflow as tf
 import numpy as np
 import pickle
 
+PRETRAINED_GLOVE_FILE = r"./data/glove.6B/glove.6B.50d.txt"
+
 
 def load_GloVe(filename):
     vocab = []
     embd = []
-    file = open(filename, 'r', encoding="utf8")
+    file = open(filename, 'r')
     for line in file.readlines():
         row = line.strip().split(' ')
         vocab.append(row[0])
@@ -68,7 +70,7 @@ def load_from_files(filename):
     return pickle.load(open(vocab_filename, "rb")), np.load(np_embedding_file), embedding_file
 
 if __name__ == "__main__":
-    save_embedding(r"C:\temp\data\style\glove.6B\glove.6B.50d.txt", 'START', 'UNK')
+    save_embedding(PRETRAINED_GLOVE_FILE, 'START', 'UNK')
 
 # def load_embedding_example(embedding_file):
 #     # we only load the embeddings to get the size of W
