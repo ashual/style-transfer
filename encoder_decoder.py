@@ -3,26 +3,30 @@ from input_utils import InputPipeline, EmbeddingHandler
 
 
 class EncoderDecoderReconstruction:
-    def __init__(self, vocabulary_size, embedding_size, hidden_states, learning_rate = 0.01):
+    def __init__(self, vocabulary_size, embedding_size, hidden_states, learning_rate=0.00001, words_loss_constant=0.001):
         self.should_print = tf.placeholder_with_default(False, shape=())
         # all inputs should have a start of sentence and end of sentence tokens
         self.inputs = tf.placeholder(tf.int32, (None, None))  # (batch, time, in)
-        inputs = tf.identity(self.inputs)
-        # inputs = self.print_tensor_with_shape(inputs, "inputs")
+        inputs = self.print_tensor_with_shape(self.inputs, "inputs")
 
-        batch_size = tf.shape(inputs)[0]
-
+        # embedding
+        # may change to https://www.tensorflow.org/api_docs/python/tf/contrib/layers/embed_sequence
         w = tf.Variable(tf.constant(0.0, shape=[vocabulary_size, embedding_size]),
                         trainable=False, name="WordVectors")
         self.embedding_placeholder = tf.placeholder(tf.float32, [vocabulary_size, embedding_size])
         w = w.assign(self.embedding_placeholder)
         self.embedding = tf.nn.embedding_lookup(w, inputs)
+        embedding = self.print_tensor_with_shape(self.embedding, "embedding")
 
+        # holds all the relevant sizes of the output sizes for the RNNs
         all_state_sizes = hidden_states.copy()
         all_state_sizes.insert(0, embedding_size)
 
-        current_input = self.embedding
+        # important sized
+        batch_size = tf.shape(inputs)[0]
+        sentence_length = tf.shape(inputs)[1]
 
+        # encoder
         with tf.variable_scope('encoder'):
             encoder_cells = []
             for hidden_size in all_state_sizes[1:]:
@@ -30,16 +34,20 @@ class EncoderDecoderReconstruction:
 
             multilayer_encoder = tf.contrib.rnn.MultiRNNCell(encoder_cells)
             initial_state = multilayer_encoder.zero_state(batch_size, tf.float32)
-            rnn_outputs, rnn_states = tf.nn.dynamic_rnn(multilayer_encoder, current_input,
-                                                        initial_state=initial_state,
-                                                        time_major=False)
-        # self.encoded_vector = tuple([rnn_states[number_of_layers-i-1] for i in range(number_of_layers)])
+            rnn_outputs, _ = tf.nn.dynamic_rnn(multilayer_encoder, embedding,
+                                               initial_state=initial_state,
+                                               time_major=False)
         self.encoded_vector = rnn_outputs[:, -1, :]
-        decoder_inputs = tf.expand_dims(self.encoded_vector, 1)
+        encoded_vector = self.print_tensor_with_shape(self.encoded_vector, "encoded_vector")
+
+        # decoder input - append encoded vector to embedding of each input
+        decoder_inputs = tf.expand_dims(encoded_vector, 1)
         timesteps = tf.shape(rnn_outputs)[1]
         decoder_inputs = tf.tile(decoder_inputs, [1, timesteps, 1])
-        decoder_inputs = tf.concat((self.embedding, decoder_inputs), axis=2)
+        decoder_inputs = tf.concat((embedding, decoder_inputs), axis=2)
+        decoder_inputs = self.print_tensor_with_shape(decoder_inputs, "decoder_inputs")
 
+        # decoder
         with tf.variable_scope('decoder'):
             decoder_cells = []
             all_state_sizes.reverse()
@@ -47,31 +55,36 @@ class EncoderDecoderReconstruction:
                 decoder_cells.append(tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True))
             multilayer_decoder = tf.contrib.rnn.MultiRNNCell(decoder_cells)
             initial_state = multilayer_decoder.zero_state(batch_size, tf.float32)
-            rnn_outputs, rnn_states = tf.nn.dynamic_rnn(multilayer_decoder, decoder_inputs,
-                                                        initial_state=initial_state,
-                                                        time_major=False)
-
+            rnn_outputs, _ = tf.nn.dynamic_rnn(multilayer_decoder, decoder_inputs,
+                                               initial_state=initial_state,
+                                               time_major=False)
         self.decoded_vector = rnn_outputs
-        # self.encoded_vector = rnn_states[-1]
+        decoded_vector = self.print_tensor_with_shape(self.decoded_vector, "decoded_vector")
 
-        # current_input = inputs
-        # for i, hidden_size in enumerate(encoder_hidden_states.reverse()[1:]):
-        #     cell = tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True)
-        #     initial_state = encoder_hidden_states[i][:, -1, :]
-        #     rnn_outputs, rnn_states = tf.nn.dynamic_rnn(cell, current_input, initial_state=initial_state,
-        #                                                 time_major=False)
-        #     current_input = rnn_outputs
-        self.loss = tf.reduce_mean(tf.squared_difference(self.embedding, self.decoded_vector))
-        self.train = tf.train.AdamOptimizer().minimize(self.loss)
+        # compute loss
+        loss_embedding = tf.reduce_mean(tf.squared_difference(embedding, decoded_vector))
+        self.loss = loss_embedding
 
+        if words_loss_constant > 0.0:
+            # linear layer
+            decoder_reshaped = tf.reshape(decoded_vector, (batch_size * sentence_length, embedding_size))
+            vocab_logits = tf.contrib.layers.linear(decoder_reshaped, vocabulary_size)
+            logits_reshaped = tf.reshape(vocab_logits, (batch_size, sentence_length, vocabulary_size))
+            logits_argmax = tf.reduce_max(logits_reshaped, axis=2)
 
+            loss_words = words_loss_constant * tf.reduce_mean(
+                tf.nn.softmax_cross_entropy_with_logits(labels=inputs, logits=logits_argmax))
+            self.loss += loss_words
 
-    @staticmethod
-    def generate_layers_hidden_sizes(embedding_size, hidden_vector_size, number_of_layers):
-        delta = int(float(hidden_vector_size - embedding_size) / (number_of_layers))
-        res = [l*delta + embedding_size for l in range(number_of_layers+1)]
-        res[-1] = hidden_vector_size
-        return res
+        # train step
+        self.train = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(self.loss)
+
+    def print_tensor_with_shape(self, tensor, name):
+        return tf.cond(self.should_print,
+                       lambda: tf.Print(
+                           tf.Print(tensor, [tensor], message=name + ":"),
+                           [tf.shape(tensor)], message=name + " shape:"),
+                       lambda: tf.identity(tensor))
 
 # for first time users do the following in shell:
 # import nltk
@@ -83,12 +96,8 @@ embedding_handler = EmbeddingHandler(pretrained_glove_file=r"C:\temp\data\style\
 input_stream = InputPipeline(text_file=r"C:\Users\user\Dropbox\projects\StyleTransfer\yoda\english_yoda.text",
                              embedding_handler=embedding_handler)
 
-# model
-# model = EncoderDecoderReconstruction(embedding_handler.vocab_len, embedding_handler.embedding_size,
-#                                      hidden_vector_size=int(embedding_handler.embedding_size / 2),
-#                                      number_of_layers=2)
 model = EncoderDecoderReconstruction(embedding_handler.vocab_len, embedding_handler.embedding_size,
-                                     hidden_states=[10, 5])
+                                     hidden_states=[10, 5], words_loss_constant=0.0, learning_rate=0.001)
 session = tf.Session()
 # For some reason it is our job to do this:
 session.run(tf.global_variables_initializer())
