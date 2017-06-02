@@ -1,8 +1,11 @@
 import tensorflow as tf
 import numpy as np
 import pickle
+from os import getcwd
+from os.path import join
 
-PRETRAINED_GLOVE_FILE = r"./data/glove.6B/glove.6B.50d.txt"
+
+PRETRAINED_GLOVE_FILE = join(getcwd(), "data", "glove.6B", "glove.6B.50d.txt")
 
 
 def load_GloVe(filename):

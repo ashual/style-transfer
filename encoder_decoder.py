@@ -1,7 +1,9 @@
 import tensorflow as tf
 from input_utils import InputPipeline, EmbeddingHandler
-from load_word_embeddings import PRETRAINED_GLOVE_FILE
 import copy
+from os import getcwd
+from os.path import join
+
 
 
 class EncoderDecoderReconstruction:
@@ -71,12 +73,22 @@ class EncoderDecoderReconstruction:
             # linear layer
             decoder_reshaped = tf.reshape(decoded_vector, (batch_size * sentence_length, embedding_size))
             vocab_logits = tf.contrib.layers.linear(decoder_reshaped, vocabulary_size)
-            logits_reshaped = tf.reshape(vocab_logits, (batch_size, sentence_length, vocabulary_size))
-            logits_argmax = tf.reduce_max(logits_reshaped, axis=2)
+            inputs_reshaped = tf.reshape(inputs, (batch_size * sentence_length, ))
 
             loss_words = words_loss_constant * tf.reduce_mean(
-                tf.nn.softmax_cross_entropy_with_logits(labels=inputs, logits=logits_argmax))
+                tf.nn.sparse_softmax_cross_entropy_with_logits(labels=inputs_reshaped, logits=vocab_logits))
             self.loss += loss_words
+
+        # if words_loss_constant > 0.0:
+        #     # linear layer
+        #     decoder_reshaped = tf.reshape(decoded_vector, (batch_size * sentence_length, embedding_size))
+        #     vocab_logits = tf.contrib.layers.linear(decoder_reshaped, vocabulary_size)
+        #     logits_reshaped = tf.reshape(vocab_logits, (batch_size, sentence_length, vocabulary_size))
+        #     logits_argmax = tf.reduce_max(logits_reshaped, axis=2)
+        #
+        #     loss_words = words_loss_constant * tf.reduce_mean(
+        #         tf.nn.softmax_cross_entropy_with_logits(labels=inputs, logits=logits_argmax))
+        #     self.loss += loss_words
 
         # train step
         self.train = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(self.loss)
@@ -89,14 +101,17 @@ class EncoderDecoderReconstruction:
                        lambda: tf.identity(tensor))
 
 
+glove_file = join(getcwd(), "data", "glove.6B", "glove.6B.50d.txt")
+yoda_file = join(getcwd(), "yoda", "english_yoda.text")
+
 # create input pipeline
-embedding_handler = EmbeddingHandler(pretrained_glove_file=PRETRAINED_GLOVE_FILE,
+embedding_handler = EmbeddingHandler(pretrained_glove_file=glove_file,
                                      force_vocab=False, start_of_sentence_token='START', unknown_token='UNK')
-input_stream = InputPipeline(text_file=r"./yoda/english_yoda.text",
+input_stream = InputPipeline(text_file=yoda_file,
                              embedding_handler=embedding_handler)
 
 model = EncoderDecoderReconstruction(embedding_handler.vocab_len, embedding_handler.embedding_size,
-                                     hidden_states=[10, 5], words_loss_constant=0.0, learning_rate=0.001)
+                                     hidden_states=[10, 5], words_loss_constant=0.001, learning_rate=0.001)
 session = tf.Session()
 # For some reason it is our job to do this:
 session.run(tf.global_variables_initializer())

@@ -37,7 +37,7 @@ class EmbeddingHandler:
         def load_GloVe(filename):
             vocab = []
             embd = []
-            file = open(filename, 'r')
+            file = open(filename, 'r', encoding="utf8")
             for line in file.readlines():
                 row = line.strip().split(' ')
                 vocab.append(row[0])
