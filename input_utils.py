@@ -87,11 +87,13 @@ class EmbeddingHandler:
 
 
 class InputPipeline:
-    def __init__(self, text_file, embedding_handler):
+    def __init__(self, text_file, embedding_handler, limit_sentences=None):
         self.embedding_handler = embedding_handler
         self.text_file = text_file
         with open(text_file, "r") as f:
             self.sentences = f.readlines()
+        if limit_sentences is not None and limit_sentences < len(self.sentences):
+            self.sentences = self.sentences[:limit_sentences]
 
     def batch_iterator(self, shuffle=True, maximal_batch=100):
 
