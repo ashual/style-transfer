@@ -167,11 +167,12 @@ class EncoderDecoderReconstruction:
 
 
 glove_file = join(getcwd(), "data", "glove.6B", "glove.6B.50d.txt")
-yoda_file = join(getcwd(), "yoda", "english_yoda.text")
+yoda_file = join(getcwd(), "yoda", "english.text")
 
 # create input pipeline
 embedding_handler = EmbeddingHandler(pretrained_glove_file=glove_file,
-                                     force_vocab=False, start_of_sentence_token='START', unknown_token='UNK')
+                                     force_vocab=False, start_of_sentence_token='START', end_of_sentence_token='END',
+                                     unknown_token='UNK')
 input_stream = InputPipeline(text_file=yoda_file, embedding_handler=embedding_handler, limit_sentences=10)
 
 model = EncoderDecoderReconstruction(embedding_handler.vocab_len, embedding_handler.embedding_size,
@@ -193,6 +194,7 @@ for epoch in range(100):
         num_sentences += len(batch)
         epoch_loss += session.run([model.loss, model.train], {
             model.inputs: indexed_batch,
+            model.should_print: True,
         })[0]
     epoch_loss /= num_sentences
     elapsed = timeit.default_timer() - start_time
