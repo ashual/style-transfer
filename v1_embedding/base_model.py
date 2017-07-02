@@ -2,8 +2,8 @@ import tensorflow as tf
 
 
 class BaseModel:
-    def __init__(self, should_print=False):
-        self.should_print = should_print
+    def __init__(self):
+        self.should_print = tf.placeholder_with_default(False, shape=())
 
     def print_tensor_with_shape(self, tensor, name):
         return tf.cond(self.should_print,
