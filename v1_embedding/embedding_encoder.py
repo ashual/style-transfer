@@ -3,15 +3,17 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingEncoder(BaseModel):
-    def __init__(self, embedding_size, hidden_states, should_print=False):
-        super(EmbeddingEncoder, self).__init__(should_print)
-
+    """
+        use self.inputs and self.domain_identifier in order to call self.encoded_vector.
+        can also take the encoder model using self.multilayer_encoder
+    """
+    def __init__(self, embedding_size, hidden_states):
         # placeholders:
         # domain identifier
         self.domain_identifier = tf.placeholder(tf.int32, shape=())
-        domain_identifier = self.print_tensor_with_shape(self.inputs, "domain_identifier")
+        domain_identifier = self.print_tensor_with_shape(self.domain_identifier, "domain_identifier")
         # the input sequence s.t (batch, time, embedding)
-        self.inputs = tf.placeholder(tf.float32, (None, None, embedding_size))
+        self.inputs = tf.placeholder(tf.float32, shape=(None, None, embedding_size))
         inputs = self.print_tensor_with_shape(self.inputs, "inputs")
 
         # important sizes
@@ -19,7 +21,8 @@ class EmbeddingEncoder(BaseModel):
         sentence_length = tf.shape(inputs)[1]
 
         # create the input: (batch, time, embedding;domain)
-        domain_identifier_tiled = tf.tile(domain_identifier, [batch_size, sentence_length, 1])
+        domain_identifier_tiled = tf.tile(tf.expand_dims(tf.exp(domain_identifier, 0), 0),
+                                          [batch_size, sentence_length, 1])
         encoder_inputs = tf.concat((inputs, domain_identifier_tiled), axis=2)
 
         # encoder - model
