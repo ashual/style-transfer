@@ -7,11 +7,20 @@ class EmbeddingEncoder(BaseModel):
         super(EmbeddingEncoder, self).__init__(should_print)
 
         # placeholders:
-        self.inputs = tf.placeholder(tf.float32, (None, None, embedding_size))  # (batch, time, embedding)
+        # domain identifier
+        self.domain_identifier = tf.placeholder(tf.int32, shape=())
+        domain_identifier = self.print_tensor_with_shape(self.inputs, "domain_identifier")
+        # the input sequence s.t (batch, time, embedding)
+        self.inputs = tf.placeholder(tf.float32, (None, None, embedding_size))
         inputs = self.print_tensor_with_shape(self.inputs, "inputs")
 
         # important sizes
         batch_size = tf.shape(inputs)[0]
+        sentence_length = tf.shape(inputs)[1]
+
+        # create the input: (batch, time, embedding;domain)
+        domain_identifier_tiled = tf.tile(domain_identifier, [batch_size, sentence_length, 1])
+        encoder_inputs = tf.concat((inputs, domain_identifier_tiled), axis=2)
 
         # encoder - model
         with tf.variable_scope('encoder'):
@@ -23,8 +32,10 @@ class EmbeddingEncoder(BaseModel):
 
         # run the encoder
         with tf.variable_scope('encoder_run'):
+            # define the initial state as empty
             initial_state = self.multilayer_encoder.zero_state(batch_size, tf.float32)
-            rnn_outputs, _ = tf.nn.dynamic_rnn(self.multilayer_encoder, self.inputs,
+            # run the model
+            rnn_outputs, _ = tf.nn.dynamic_rnn(self.multilayer_encoder, encoder_inputs,
                                                initial_state=initial_state,
                                                time_major=False)
             encoded_vector = self.print_tensor_with_shape(rnn_outputs[:, -1, :], "encoded")
