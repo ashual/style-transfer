@@ -37,11 +37,15 @@ class EmbeddingDecoder(BaseModel):
         decoder_inputs = tf.expand_dims(encoded_vector, 1)
         decoder_inputs = tf.tile(decoder_inputs, [1, sentence_length, 1])
         decoder_inputs = tf.concat((inputs, decoder_inputs), axis=2)
+        domain_identifier_tiled = tf.tile(tf.expand_dims(tf.exp(domain_identifier, 0), 0),
+                                          [batch_size, sentence_length, 1])
+        decoder_inputs = tf.concat((decoder_inputs, domain_identifier_tiled), axis=2)
         decoder_inputs = self.print_tensor_with_shape(decoder_inputs, "decoder_inputs")
 
         with tf.variable_scope('decoder_run'):
             decoded_vector, decoder_last_state = tf.nn.dynamic_rnn(self.multilayer_decoder, decoder_inputs,
-                                                               initial_state=initial_decoder_state, time_major=False)
+                                                                   initial_state=initial_decoder_state,
+                                                                   time_major=False)
             self.decoded_vector = self.print_tensor_with_shape(decoded_vector, "decoded_vector")
             self.decoder_last_state = self.print_tensor_with_shape(decoder_last_state, "decoder_last_state")
 
