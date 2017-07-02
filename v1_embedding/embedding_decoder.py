@@ -15,7 +15,6 @@ class EmbeddingDecoder(BaseModel):
         self.encoded_vector = tf.placeholder(tf.float32, shape=(None, embedding_size))
         encoded_vector = self.print_tensor_with_shape(self.encoded_vector, "encoded_vector")
 
-
         # important sizes
         batch_size = tf.shape(inputs)[0]
         sentence_length = tf.shape(inputs)[1]
@@ -41,7 +40,8 @@ class EmbeddingDecoder(BaseModel):
         decoder_inputs = self.print_tensor_with_shape(decoder_inputs, "decoder_inputs")
 
         with tf.variable_scope('decoder_run'):
-            decoded_vector, last_state = tf.nn.dynamic_rnn(self.multilayer_decoder, decoder_inputs,
-                                                           initial_state=initial_decoder_state, time_major=False)
-        return decoded_vector, last_state
+            decoded_vector, decoder_last_state = tf.nn.dynamic_rnn(self.multilayer_decoder, decoder_inputs,
+                                                               initial_state=initial_decoder_state, time_major=False)
+            self.decoded_vector = self.print_tensor_with_shape(decoded_vector, "decoded_vector")
+            self.decoder_last_state = self.print_tensor_with_shape(decoder_last_state, "decoder_last_state")
 
