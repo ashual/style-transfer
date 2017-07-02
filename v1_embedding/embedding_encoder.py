@@ -7,7 +7,7 @@ class EmbeddingEncoder(BaseModel):
         use self.inputs and self.domain_identifier in order to call self.encoded_vector.
         can also take the encoder model using self.multilayer_encoder
     """
-    def __init__(self, embedding_size, hidden_states):
+    def __init__(self, embedding_size, hidden_states, context_vector_size):
         # placeholders:
         # domain identifier
         self.domain_identifier = tf.placeholder(tf.int32, shape=())
@@ -30,7 +30,7 @@ class EmbeddingEncoder(BaseModel):
             encoder_cells = []
             for hidden_size in hidden_states:
                 encoder_cells.append(tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True))
-
+            encoder_cells.append(tf.contrib.rnn.BasicLSTMCell(context_vector_size, state_is_tuple=True))
             self.multilayer_encoder = tf.contrib.rnn.MultiRNNCell(encoder_cells)
 
         # run the encoder

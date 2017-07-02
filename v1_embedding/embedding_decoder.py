@@ -3,7 +3,15 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingDecoder(BaseModel):
-    def __init__(self, embedding_size, hidden_states):
+    """
+    there are several exposed methods
+    1. use domain_identifier, encoded_vector, inputs and initial_decoder_state to do a prediction.
+    returns decoded_vector and decoded_last_state
+    call this method iteratively for inputs of size 1 to do sequential prediction (not teacher helping mode)
+
+    2. use decoder_zero_state to get the zero state of the decoder (can be used to execute the above method)
+    """
+    def __init__(self, embedding_size, hidden_states, context_vector_size):
         # placeholders:
         # domain identifier
         self.domain_identifier = tf.placeholder(tf.int32, shape=())
@@ -11,8 +19,8 @@ class EmbeddingDecoder(BaseModel):
         # the input sequence s.t (batch, time, embedding)
         self.inputs = tf.placeholder(tf.float32, shape=(None, None, embedding_size))
         inputs = self.print_tensor_with_shape(self.inputs, "inputs")
-        # encoded vector (batch, embedding)
-        self.encoded_vector = tf.placeholder(tf.float32, shape=(None, embedding_size))
+        # encoded vector (batch, context)
+        self.encoded_vector = tf.placeholder(tf.float32, shape=(None, context_vector_size))
         encoded_vector = self.print_tensor_with_shape(self.encoded_vector, "encoded_vector")
 
         # important sizes
@@ -27,7 +35,7 @@ class EmbeddingDecoder(BaseModel):
             decoder_cells.append(tf.contrib.rnn.BasicLSTMCell(embedding_size, state_is_tuple=True))
             self.multilayer_decoder = tf.contrib.rnn.MultiRNNCell(decoder_cells)
 
-        self.decoder_initial_state = self.multilayer_decoder.zero_state(batch_size, tf.float32)
+        self.decoder_zero_state = self.multilayer_decoder.zero_state(batch_size, tf.float32)
 
         # initial decoder state
         self.initial_decoder_state = tf.placeholder(tf.float32, shape=tf.shape(self.decoder_initial_state))
