@@ -1,9 +1,11 @@
-import tensorflow as tf
-from input_utils import InputPipeline, EmbeddingHandler
 import copy
+import timeit
 from os import getcwd
 from os.path import join
-import timeit
+
+import tensorflow as tf
+
+from v0.input_utils import InputPipeline, EmbeddingHandler
 
 
 class EncoderDecoderReconstruction:

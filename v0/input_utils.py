@@ -1,11 +1,13 @@
-import os.path
-import tensorflow as tf
-import numpy as np
-import pickle
 import copy
+import os.path
+import pickle
+
+import numpy as np
+import tensorflow as tf
 from nltk import download as nltk_download
 from nltk import word_tokenize
-from load_word_embeddings import PRETRAINED_GLOVE_FILE
+
+from v0.load_word_embeddings import PRETRAINED_GLOVE_FILE
 
 
 class EmbeddingHandler:
