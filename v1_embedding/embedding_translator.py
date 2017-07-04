@@ -3,9 +3,15 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingTranslator(BaseModel):
-    def __init__(self, embedding_size, vocabulary_size, translation_hidden_size):
-        # placeholders
+    def __init__(self, embedding_size, vocabulary_size, translation_hidden_size, start_token_index, stop_token_index,
+                 unknown_token_index, pad_token_index):
+        self.start_token_index = start_token_index
+        self.stop_token_index = stop_token_index
+        self.unknown_token_index = unknown_token_index
+        self.pad_token_index = pad_token_index
+        self.vocabulary_size = vocabulary_size
 
+        # placeholders
         # placeholder to initiate the embedding weights
         self.embedding_placeholder = tf.placeholder(tf.float32, shape=[vocabulary_size, embedding_size])
         # placeholder to translate inputs to embedding vectors (batch, time)=> index of word
@@ -50,3 +56,12 @@ class EmbeddingTranslator(BaseModel):
         with tf.variable_scope('vocabulary_logits_to_words'):
             actual_words = tf.argmax(logits_vector, axis=2)
             return self.print_tensor_with_shape(actual_words, "actual_words")
+
+    def get_special_word(self, word_index):
+        with tf.variable_scope('get_special_word'):
+            return tf.one_hot(word_index, self.vocabulary_size)
+
+    def is_special_word(self, word_index, logits_vector):
+        with tf.variable_scope('is_special_word'):
+            word_argmax = self.translate_logits_to_words(logits_vector)
+            return tf.equal(word_argmax, word_index)

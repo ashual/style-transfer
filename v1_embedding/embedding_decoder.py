@@ -3,15 +3,10 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingDecoder(BaseModel):
-    """
-    there are several exposed methods
-    1. use domain_identifier, encoded_vector, inputs and initial_decoder_state to do a prediction.
-    returns decoded_vector and decoded_last_state
-    call this method iteratively for inputs of size 1 to do sequential prediction (not teacher helping mode)
 
-    2. use decoder_zero_state to get the zero state of the decoder (can be used to execute the above method)
-    """
-    def __init__(self, embedding_size, hidden_states, context_vector_size):
+    def __init__(self, embedding_size, hidden_states, embedding_translator):
+        self.embedding_translator = embedding_translator
+
         # placeholders:
         # domain identifier
         self.domain_identifier = tf.placeholder(tf.int32, shape=())
@@ -59,4 +54,40 @@ class EmbeddingDecoder(BaseModel):
             decoder_last_state = self.print_tensor_with_shape(decoder_last_state, "decoder_last_state")
 
             return decoded_vector, decoder_last_state
+
+    def do_iterative_decoding(self, encoded_vector):
+        def _while_body(input, state, inputs_from_start):
+            decoded_vector, decoder_last_state = self.decode_vector_to_sequence(encoded_vector, state, input)
+            # translate to logits
+            input_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(decoded_vector)
+            inputs_from_start = tf.concat((inputs_from_start, input_logits), axis=0)
+            return [input_logits, decoder_last_state, inputs_from_start]
+
+        current_state = self.get_zero_state()
+        current_input = self.embedding_translator.get_special_word(self.embedding_translator.start_token_index)
+        all_inputs = current_input
+        # desired shape for all inputs
+        all_inputs_shape = all_inputs.get_shape().as_list()
+        all_inputs_shape[0] = tf.Dimension(None)
+        all_inputs_shape_invariant = tf.TensorShape(all_inputs_shape)
+        _,_, all_inputs = tf.while_loop(
+            # while cond
+            lambda input, state, inputs_from_start:
+            tf.not_equal(input,
+                         self.embedding_translator.is_special_word(self.embedding_translator.start_token_index)[0]
+                         ),
+            # while body
+            _while_body,
+            # loop variables:
+            [current_input, current_state, all_inputs],
+            # shape invariants
+            shape_invariants=[
+                current_input.get_shape(),
+                current_state.get_shape(),
+                all_inputs_shape_invariant
+            ],
+            parallel_iterations=1,
+            back_prop=True
+        )
+
 

@@ -4,7 +4,7 @@ from v1_embedding.base_model import BaseModel
 
 class EmbeddingEncoder(BaseModel):
     def __init__(self, hidden_states, context_vector_size):
-        # placeholders:
+                # placeholders:
         # domain identifier
         self.domain_identifier = tf.placeholder(tf.int32, shape=())
 
