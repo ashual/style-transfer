@@ -55,13 +55,23 @@ class EmbeddingDecoder(BaseModel):
 
             return decoded_vector, decoder_last_state
 
-    def do_iterative_decoding(self, encoded_vector):
-        def _while_body(input, state, inputs_from_start):
+    def do_iterative_decoding(self, encoded_vector, iterations_limit=-1):
+        def _while_cond(iteration_counter, input, state, inputs_from_start):
+            return tf.cond(
+                tf.logical_or(iterations_limit != -1, tf.less(iteration_counter, iterations_limit)),
+                tf.not_equal(input,
+                             self.embedding_translator.is_special_word(self.embedding_translator.start_token_index)[0]
+                             ),
+                False
+            )
+
+        def _while_body(iteration_counter, input, state, inputs_from_start):
+            iteration_counter += 1
             decoded_vector, decoder_last_state = self.decode_vector_to_sequence(encoded_vector, state, input)
             # translate to logits
             input_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(decoded_vector)
             inputs_from_start = tf.concat((inputs_from_start, input_logits), axis=0)
-            return [input_logits, decoder_last_state, inputs_from_start]
+            return [iteration_counter, input_logits, decoder_last_state, inputs_from_start]
 
         current_state = self.get_zero_state()
         current_input = self.embedding_translator.get_special_word(self.embedding_translator.start_token_index)
@@ -70,18 +80,18 @@ class EmbeddingDecoder(BaseModel):
         all_inputs_shape = all_inputs.get_shape().as_list()
         all_inputs_shape[0] = tf.Dimension(None)
         all_inputs_shape_invariant = tf.TensorShape(all_inputs_shape)
+        # iteration counter
+        iteration_counter = tf.Variable(0, trainable=False)
         _,_, all_inputs = tf.while_loop(
             # while cond
-            lambda input, state, inputs_from_start:
-            tf.not_equal(input,
-                         self.embedding_translator.is_special_word(self.embedding_translator.start_token_index)[0]
-                         ),
+            _while_cond,
             # while body
             _while_body,
             # loop variables:
-            [current_input, current_state, all_inputs],
+            [iteration_counter, current_input, current_state, all_inputs],
             # shape invariants
             shape_invariants=[
+                iteration_counter.get_shape(),
                 current_input.get_shape(),
                 current_state.get_shape(),
                 all_inputs_shape_invariant
