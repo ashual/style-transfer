@@ -3,8 +3,8 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingDecoder(BaseModel):
-
     def __init__(self, embedding_size, hidden_states, embedding_translator):
+        BaseModel.__init__(self)
         self.embedding_translator = embedding_translator
 
         # placeholders:
@@ -60,7 +60,7 @@ class EmbeddingDecoder(BaseModel):
             return tf.cond(
                 tf.logical_or(iterations_limit != -1, tf.less(iteration_counter, iterations_limit)),
                 tf.not_equal(input,
-                             self.embedding_translator.is_special_word(self.embedding_translator.start_token_index)[0]
+                             self.embedding_translator.is_special_word(self.embedding_translator.stop_token_index)[0]
                              ),
                 False
             )
@@ -73,7 +73,9 @@ class EmbeddingDecoder(BaseModel):
             inputs_from_start = tf.concat((inputs_from_start, input_logits), axis=0)
             return [iteration_counter, input_logits, decoder_last_state, inputs_from_start]
 
+        # TODO: Add batch size
         current_state = self.get_zero_state()
+        # Assigning current_input the start token
         current_input = self.embedding_translator.get_special_word(self.embedding_translator.start_token_index)
         all_inputs = current_input
         # desired shape for all inputs

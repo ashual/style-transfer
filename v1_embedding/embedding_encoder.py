@@ -4,7 +4,8 @@ from v1_embedding.base_model import BaseModel
 
 class EmbeddingEncoder(BaseModel):
     def __init__(self, hidden_states, context_vector_size):
-                # placeholders:
+        BaseModel.__init__(self)
+        # placeholders:
         # domain identifier
         self.domain_identifier = tf.placeholder(tf.int32, shape=())
 
@@ -40,4 +41,3 @@ class EmbeddingEncoder(BaseModel):
                                                initial_state=initial_state,
                                                time_major=False)
             return self.print_tensor_with_shape(rnn_outputs[:, -1, :], "encoded")
-
