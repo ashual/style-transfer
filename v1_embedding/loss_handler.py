@@ -1,5 +1,6 @@
 import tensorflow as tf
 from v1_embedding.base_model import BaseModel
+from tensorflow.contrib.losses import sigmoid_cross_entropy
 
 
 class LossHandler(BaseModel):
@@ -24,3 +25,14 @@ class LossHandler(BaseModel):
     def get_professor_forcing_loss(self, inputs, generated_inputs):
         squared_difference = tf.squared_difference(inputs, generated_inputs)
         return tf.reduce_mean(squared_difference)
+
+    def get_discriminator_loss(self, logits, is_real_images):
+        if is_real_images:
+            d_loss_target = tf.zeros_like(logits)
+            g_loss_target = tf.ones_like(logits)
+        else:
+            d_loss_target = tf.ones_like(logits)
+            g_loss_target = tf.zeros_like(logits)
+        d_loss = sigmoid_cross_entropy(logits, d_loss_target)
+        g_loss = sigmoid_cross_entropy(logits, g_loss_target)
+        return d_loss, g_loss
