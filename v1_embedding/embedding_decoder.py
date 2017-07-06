@@ -99,5 +99,3 @@ class EmbeddingDecoder(BaseModel):
             parallel_iterations=1,
             back_prop=True
         )
-
-
