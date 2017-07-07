@@ -73,8 +73,8 @@ class EmbeddingDecoder(BaseModel):
             inputs_from_start = tf.concat((inputs_from_start, input_logits), axis=0)
             return [iteration_counter, input_logits, decoder_last_state, inputs_from_start]
 
-        # TODO: Add batch size
-        current_state = self.get_zero_state()
+        batch_size = tf.shape(encoded_vector)[0]
+        current_state = self.get_zero_state(batch_size)
         # Assigning current_input the start token
         current_input = self.embedding_translator.get_special_word(self.embedding_translator.start_token_index)
         all_inputs = current_input
