@@ -7,10 +7,6 @@ class EmbeddingDecoder(BaseModel):
         BaseModel.__init__(self)
         self.embedding_translator = embedding_translator
 
-        # placeholders:
-        # domain identifier
-        self.domain_identifier = tf.placeholder(tf.int32, shape=())
-
         # decoder - model
         with tf.variable_scope('decoder'):
             decoder_cells = []
@@ -23,14 +19,14 @@ class EmbeddingDecoder(BaseModel):
         with tf.variable_scope('decoder_get_zero_state'):
             return self.multilayer_decoder.zero_state(batch_size, tf.float32)
 
-    def decode_vector_to_sequence(self, encoded_vector, initial_decoder_state, inputs):
+    def decode_vector_to_sequence(self, encoded_vector, initial_decoder_state, inputs, domain_identifier):
         with tf.variable_scope('decoder_preprocessing'):
             # encoded vector (batch, context)
             encoded_vector = self.print_tensor_with_shape(encoded_vector, "encoded_vector")
             # the input sequence s.t (batch, time, embedding)
             inputs = self.print_tensor_with_shape(inputs, "inputs")
 
-            domain_identifier = self.print_tensor_with_shape(self.domain_identifier, "domain_identifier")
+            domain_identifier = self.print_tensor_with_shape(domain_identifier, "domain_identifier")
             initial_decoder_state = self.print_tensor_with_shape(initial_decoder_state, "initial_decoder_state")
 
             # important sizes
@@ -55,7 +51,7 @@ class EmbeddingDecoder(BaseModel):
 
             return decoded_vector, decoder_last_state
 
-    def do_iterative_decoding(self, encoded_vector, iterations_limit=-1):
+    def do_iterative_decoding(self, encoded_vector, domain_identifier, iterations_limit=-1):
         def _while_cond(iteration_counter, input, state, inputs_from_start):
             return tf.cond(
                 tf.logical_or(iterations_limit != -1, tf.less(iteration_counter, iterations_limit)),
@@ -67,10 +63,11 @@ class EmbeddingDecoder(BaseModel):
 
         def _while_body(iteration_counter, input, state, inputs_from_start):
             iteration_counter += 1
-            decoded_vector, decoder_last_state = self.decode_vector_to_sequence(encoded_vector, state, input)
+            decoded_vector, decoder_last_state = self.decode_vector_to_sequence(encoded_vector, state, input,
+                                                                                domain_identifier)
+            inputs_from_start = tf.concat((inputs_from_start, decoded_vector), axis=0)
             # translate to logits
             input_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(decoded_vector)
-            inputs_from_start = tf.concat((inputs_from_start, input_logits), axis=0)
             return [iteration_counter, input_logits, decoder_last_state, inputs_from_start]
 
         batch_size = tf.shape(encoded_vector)[0]

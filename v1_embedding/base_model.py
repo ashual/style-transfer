@@ -17,3 +17,6 @@ class BaseModel:
         w = tf.Variable(tf.random_normal(shape=(input_size, output_size)), dtype=tf.float32)
         b = tf.Variable(tf.random_normal(shape=(output_size,)), dtype=tf.float32)
         return w, b
+
+    def get_trainable_parameters(self):
+        pass

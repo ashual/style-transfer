@@ -5,14 +5,9 @@ from tensorflow.contrib.losses import sigmoid_cross_entropy
 
 class LossHandler(BaseModel):
 
-    def __init__(self, embedding_translator, encoder, decoder, discriminator):
-        self.embedding_translator = embedding_translator
-        self.encoder = encoder
-        self.decoder = decoder
-        self.discriminator = discriminator
+    def __init__(self):
+        BaseModel.__init__(self)
 
-    def get_w_loss(self):
-        pass
 
     def get_context_vector_distance_loss(self, encoded_source, encoded_dest):
         squared_difference = tf.squared_difference(encoded_source, encoded_dest)
