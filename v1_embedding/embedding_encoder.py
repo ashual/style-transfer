@@ -3,14 +3,18 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingEncoder(BaseModel):
-    def __init__(self, hidden_states, context_vector_size):
+    def __init__(self, hidden_states, context_vector_size, namespace_prefix=None):
         BaseModel.__init__(self)
+        if namespace_prefix is not None and not namespace_prefix[-1] == '_':
+            namespace_prefix += '_'
+        self.namespace_prefix = namespace_prefix
+
         # placeholders:
         # domain identifier
         self.domain_identifier = tf.placeholder(tf.int32, shape=())
 
         # encoder - model
-        with tf.variable_scope('encoder'):
+        with tf.variable_scope('{}encoder'.format(self.namespace_prefix)):
             encoder_cells = []
             for hidden_size in hidden_states:
                 encoder_cells.append(tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True))
@@ -18,7 +22,7 @@ class EmbeddingEncoder(BaseModel):
             self.multilayer_encoder = tf.contrib.rnn.MultiRNNCell(encoder_cells)
 
     def encode_inputs_to_vector(self, inputs):
-        with tf.variable_scope('encoder_preprocessing'):
+        with tf.variable_scope('{}encoder_preprocessing'.format(self.namespace_prefix)):
             # the input sequence s.t (batch, time, embedding)
             inputs = self.print_tensor_with_shape(inputs, "inputs")
 
@@ -33,7 +37,7 @@ class EmbeddingEncoder(BaseModel):
             encoder_inputs = tf.concat((inputs, domain_identifier_tiled), axis=2)
 
         # run the encoder
-        with tf.variable_scope('encoder_run'):
+        with tf.variable_scope('{}encoder_run'.format(self.namespace_prefix)):
             # define the initial state as empty
             initial_state = self.multilayer_encoder.zero_state(batch_size, tf.float32)
             # run the model
