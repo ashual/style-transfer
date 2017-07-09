@@ -78,7 +78,7 @@ class EmbeddingDecoder(BaseModel):
         all_inputs_shape_invariant = tf.TensorShape(all_inputs_shape)
         # iteration counter
         iteration_counter = tf.Variable(0, trainable=False)
-        _,_, all_inputs = tf.while_loop(
+        _,_,_, all_inputs = tf.while_loop(
             # while cond
             _while_cond,
             # while body
