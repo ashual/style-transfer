@@ -8,7 +8,6 @@ class LossHandler(BaseModel):
     def __init__(self):
         BaseModel.__init__(self)
 
-
     def get_context_vector_distance_loss(self, encoded_source, encoded_dest):
         squared_difference = tf.squared_difference(encoded_source, encoded_dest)
         return tf.reduce_mean(squared_difference)
@@ -22,6 +21,7 @@ class LossHandler(BaseModel):
         return tf.reduce_mean(squared_difference)
 
     def get_discriminator_loss(self, logits, is_real_images):
+        # TODO - need to fix to w-loss (best to change to a 2 elements logits
         if is_real_images:
             d_loss_target = tf.zeros_like(logits)
             g_loss_target = tf.ones_like(logits)

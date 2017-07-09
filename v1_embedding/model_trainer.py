@@ -33,7 +33,7 @@ class ModelTrainer(BaseModel):
         target_batch = self.print_tensor_with_shape(self.target_batch, 'target_batch')
         target_embbeding = self.embedding_translator.embed_inputs(target_batch)
         discriminator_prediction_on_target = self.discriminator.encode_inputs_to_vector(target_embbeding)
-        target_loss = self.loss_handler.get_discriminator_loss(discriminator_prediction_on_target, True)
+        target_loss = self.loss_handler.get_discriminator_loss(discriminator_prediction_on_target, True)[0]
 
         source_batch = self.print_tensor_with_shape(self.source_batch, 'source_batch')
         source_embbeding = self.embedding_translator.embed_inputs(source_batch)
@@ -42,7 +42,7 @@ class ModelTrainer(BaseModel):
         decoded_fake_target = self.decoder.do_iterative_decoding(encoded_source, tf.ones(shape=()),
                                                                  iterations_limit=sentence_length)
         discriminator_prediction_on_fake = self.discriminator.encode_inputs_to_vector(decoded_fake_target)
-        fake_loss = self.loss_handler.get_discriminator_loss(discriminator_prediction_on_fake, False)
+        fake_loss = self.loss_handler.get_discriminator_loss(discriminator_prediction_on_fake, False)[0]
 
         total_loss = target_loss + fake_loss
         var_list = self.discriminator.get_trainable_parameters()
