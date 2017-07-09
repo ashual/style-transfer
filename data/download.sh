@@ -7,3 +7,5 @@ if [ $? -eq 0 ]; then
 else
     echo 'Unzipping Failed'
 fi
+pip install -U textblob
+python -m textblob.download_corpora lite
