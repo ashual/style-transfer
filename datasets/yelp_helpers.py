@@ -1,5 +1,7 @@
 import json
-
+import pickle
+from textblob import TextBlob
+from textblob.classifiers import NaiveBayesClassifier
 
 def extract_non_indifferent_sentences(max_sentences=10, max_words=15):
     '''
@@ -68,3 +70,65 @@ def get_negative_sentences():
     with open('yelp/negative_reviews.json') as yelp:
         content = yelp.readlines()
     return content
+
+def classify_sentence(sentence, cl):
+    blob = TextBlob(sentence, classifier=cl)
+    for s in blob.sentences:
+        print(s)
+        print(s.classify())
+
+
+TRAIN_SIZE = 500000
+TEST_SIZE = 10000
+
+
+def train_and_test():
+    train = []
+    test = []
+    counter = 0
+    for sen in get_negative_sentences():
+        a = json.loads(sen)
+        sample = (a['text'], 'neg')
+
+        if counter < TRAIN_SIZE:
+            train.append(sample)
+        elif counter < TRAIN_SIZE + TEST_SIZE:
+            test.append(sample)
+        else:
+            break
+        counter += 1
+
+    counter = 0
+    for sen in get_positive_sentences():
+        a = json.loads(sen)
+        sample = (a['text'], 'pos')
+        if counter < TRAIN_SIZE:
+            train.append(sample)
+        elif counter < TRAIN_SIZE + TEST_SIZE:
+            test.append(sample)
+        else:
+            break
+        counter += 1
+    print('training')
+    cl = NaiveBayesClassifier(train)
+    print(cl.accuracy(test))
+    with open('classifier.obj', 'wb') as file:
+        pickle.dump(cl, file)
+
+def format_json():
+    train = []
+    counter = 0
+    with open('negative.json', 'w') as negative:
+        for sen in get_negative_sentences():
+            sen = json.loads(sen)
+            obj = {'text': sen['text'], 'label': 'neg'}
+            train.append(obj)
+            if counter > 1000:
+                break
+        json.dump(train, negative, indent=True)
+
+#format_json()
+# with open('negative.json', 'r') as fp:
+#     cl = NaiveBayesClassifier(fp, format='json')
+
+train_and_test()
