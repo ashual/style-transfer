@@ -53,13 +53,10 @@ class EmbeddingDecoder(BaseModel):
 
     def do_iterative_decoding(self, encoded_vector, domain_identifier, iterations_limit=-1):
         def _while_cond(iteration_counter, input, state, inputs_from_start):
-            return tf.cond(
-                tf.logical_or(iterations_limit != -1, tf.less(iteration_counter, iterations_limit)),
-                tf.not_equal(input,
-                             self.embedding_translator.is_special_word(self.embedding_translator.stop_token_index)[0]
-                             ),
-                False
-            )
+            if iterations_limit == -1:
+                return tf.not_equal(input, self.embedding_translator.is_special_word(
+                    self.embedding_translator.stop_token_index)[0]),
+            return tf.less(iteration_counter, iterations_limit)
 
         def _while_body(iteration_counter, input, state, inputs_from_start):
             iteration_counter += 1
