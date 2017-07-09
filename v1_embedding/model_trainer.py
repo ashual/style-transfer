@@ -45,8 +45,10 @@ class ModelTrainer(BaseModel):
         fake_loss = self.loss_handler.get_discriminator_loss(discriminator_prediction_on_fake, False)
 
         total_loss = target_loss + fake_loss
-        # TODO add adam optimizer only on discriminator
-        pass
+        var_list = self.discriminator.get_trainable_parameters()
+        train_step = tf.train.AdamOptimizer(learning_rate=self.config.learning_rate).minimize(total_loss,
+                                                                                              var_list=var_list)
+        return train_step, total_loss
 
     def train_generator(self):
         pass
