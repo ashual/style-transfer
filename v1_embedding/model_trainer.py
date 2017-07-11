@@ -44,7 +44,7 @@ class ModelTrainer(BaseModel):
         self.embedding_translator = EmbeddingTranslator(vocabulary_handler.embedding_size,
                                                         vocabulary_handler.vocabulary_size,
                                                         translation_hidden_size,
-                                                        True,
+                                                        config['train_embeddings'],
                                                         vocabulary_handler.start_token_index,
                                                         vocabulary_handler.stop_token_index,
                                                         vocabulary_handler.unknown_token_index,
