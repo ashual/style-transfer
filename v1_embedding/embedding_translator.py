@@ -3,8 +3,8 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingTranslator(BaseModel):
-    def __init__(self, embedding_size, vocabulary_size, translation_hidden_size, start_token_index, stop_token_index,
-                 unknown_token_index, pad_token_index, inputs):
+    def __init__(self, embedding_size, vocabulary_size, translation_hidden_size, train_embeddings,
+                 start_token_index, stop_token_index, unknown_token_index, pad_token_index):
         BaseModel.__init__(self)
         self.start_token_index = start_token_index
         self.stop_token_index = stop_token_index
@@ -19,7 +19,7 @@ class EmbeddingTranslator(BaseModel):
         with tf.variable_scope('embedding_parameters'):
             # embedding
             self.w = tf.Variable(tf.random_normal(shape=[vocabulary_size, embedding_size]),
-                                 trainable=False, name="word_vectors")
+                                 trainable=train_embeddings, name="word_vectors")
 
             # weights to translate embedding to vocabulary
             self.w1, self.b1 = BaseModel.create_input_parameters(embedding_size, translation_hidden_size)
