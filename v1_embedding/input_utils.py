@@ -12,24 +12,31 @@ from v0.load_word_embeddings import PRETRAINED_GLOVE_FILE
 
 class EmbeddingHandler:
     def __init__(self, pretrained_glove_file, force_vocab=False, start_of_sentence_token=None,
-                 end_of_sentence_token=None, unknown_token=None):
+                 end_of_sentence_token=None, unknown_token=None, pad_token=None):
         self.pretrained_glove_file = pretrained_glove_file
         vocab_filename, np_embedding_file, embedding_file = self.get_pretrained_files()
         # check if need to compute local files
         if not os.path.exists(vocab_filename) or force_vocab:
-            self.save_embedding(start_of_sentence_token, end_of_sentence_token, unknown_token)
+            self.save_embedding(start_of_sentence_token, end_of_sentence_token, unknown_token, pad_token)
         # load relevant data
         self.vocab, self.embedding_np, tf_embedding_filepath = self.load_from_files()
         self.vocab_len = len(self.vocab)
+        self.vocabulary_size = len(self.vocab)
         self.embedding_size = self.embedding_np.shape[1]
-        self.start_of_sentence_token = self.vocab[-3]
+        self.start_of_sentence_token = self.vocab[-4]
         assert (self.start_of_sentence_token == start_of_sentence_token)
-        self.end_of_sentence_token = self.vocab[-2]
+        self.end_of_sentence_token = self.vocab[-3]
         assert (self.end_of_sentence_token == end_of_sentence_token)
-        self.unknown_token = self.vocab[-1]
+        self.unknown_token = self.vocab[-2]
         assert (self.unknown_token == unknown_token)
+        self.pad_token = self.vocab[-1]
+        assert (self.pad_token == pad_token)
         self.index_to_word = {i: w for i, w in enumerate(self.vocab)}
         self.word_to_index = {self.index_to_word[i]: i for i in self.index_to_word}
+        self.start_token_index = self.word_to_index[start_of_sentence_token]
+        self.stop_token_index = self.word_to_index[end_of_sentence_token]
+        self.unknown_token_index = self.word_to_index[unknown_token]
+        self.pad_token_index = self.word_to_index[pad_token]
 
     def get_pretrained_files(self):
         vocab_filename = self.pretrained_glove_file + '.vocab'
@@ -37,7 +44,7 @@ class EmbeddingHandler:
         embedding_file = self.pretrained_glove_file + '.ckpt'
         return vocab_filename, np_embedding_file, embedding_file
 
-    def save_embedding(self, start_of_sentence_token, end_of_sentence_token, unknown_token):
+    def save_embedding(self, start_of_sentence_token, end_of_sentence_token, unknown_token, pad_token):
 
         def load_GloVe(filename):
             vocab = []
@@ -68,6 +75,8 @@ class EmbeddingHandler:
             vocab, embedding = set_new_token(end_of_sentence_token, vocab, embedding)
         if unknown_token is not None:
             vocab, embedding = set_new_token(unknown_token, vocab, embedding)
+        if pad_token is not None:
+            vocab, embedding = set_new_token(pad_token, vocab, embedding)
         vocab_size = len(vocab)
 
         w = tf.Variable(tf.constant(0.0, shape=[vocab_size, embedding_dim]),

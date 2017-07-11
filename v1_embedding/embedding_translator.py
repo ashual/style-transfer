@@ -4,7 +4,7 @@ from v1_embedding.base_model import BaseModel
 
 class EmbeddingTranslator(BaseModel):
     def __init__(self, embedding_size, vocabulary_size, translation_hidden_size, start_token_index, stop_token_index,
-                 unknown_token_index, pad_token_index):
+                 unknown_token_index, pad_token_index, inputs):
         BaseModel.__init__(self)
         self.start_token_index = start_token_index
         self.stop_token_index = stop_token_index
@@ -16,7 +16,7 @@ class EmbeddingTranslator(BaseModel):
         # placeholder to initiate the embedding weights
         self.embedding_placeholder = tf.placeholder(tf.float32, shape=[vocabulary_size, embedding_size])
         # placeholder to translate inputs to embedding vectors (batch, time)=> index of word
-        self.inputs = tf.placeholder(tf.int32, shape=(None, None))
+        self.inputs = inputs
         # placeholder to translate embedding vector to words
         self.linear_layer_input = tf.placeholder(tf.int32, shape=(None, None, embedding_size))
 

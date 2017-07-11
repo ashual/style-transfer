@@ -95,3 +95,5 @@ class EmbeddingDecoder(BaseModel):
             parallel_iterations=1,
             back_prop=True
         )
+        # TODO: talk with Tom
+        return all_inputs

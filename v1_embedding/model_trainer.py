@@ -1,19 +1,33 @@
 import tensorflow as tf
 from v1_embedding.base_model import BaseModel
 from v1_embedding.embedding_translator import EmbeddingTranslator
+from v1_embedding.input_utils import InputPipeline, EmbeddingHandler
+from v1_embedding.embedding_encoder import EmbeddingEncoder
+from v1_embedding.embedding_decoder import EmbeddingDecoder
+from v1_embedding.loss_handler import LossHandler
+from v1_embedding.embedding_discriminator import EmbeddingDiscriminator
+
+from os import getcwd
+from os.path import join
+
+GLOVE_FILE = join(getcwd(), "..", "data", "glove.6B", "glove.6B.50d.txt")
+SRC_FILE = join(getcwd(), "yoda", "english.text")
 
 
 class ModelTrainer(BaseModel):
-    def __init__(self, config, vocabulary_handler, loss_handler, encoder, decoder, discriminator,
+    def __init__(self, config, vocabulary_handler,
                  source_reconstruction_loss_coefficient=0, target_reconstruction_loss_coefficient=0,
                  source_professor_loss_coefficient=0, target_professor_loss_coefficient=0,
-                 semantic_distance_loss_coefficient=0, anti_discriminator_loss_coefficient=0,):
+                 semantic_distance_loss_coefficient=0, anti_discriminator_loss_coefficient=0, ):
         BaseModel.__init__(self)
         self.config = config
+        translation_hidden_size = config['translation_hidden_size']
+
         self.vocabulary_handler = vocabulary_handler
 
         self.source_identifier = tf.ones(shape=())
         self.target_identifier = -1 * tf.ones(shape=())
+        self.domain_identifier = tf.placeholder(tf.int32, shape=())
 
         self.source_reconstruction_loss_coefficient = source_reconstruction_loss_coefficient
         self.target_reconstruction_loss_coefficient = target_reconstruction_loss_coefficient
@@ -22,13 +36,6 @@ class ModelTrainer(BaseModel):
         self.semantic_distance_loss_coefficient = semantic_distance_loss_coefficient
         self.anti_discriminator_loss_coefficient = anti_discriminator_loss_coefficient
 
-        # TODO init the below here (instead of get them as inputs)
-        self.loss_handler = loss_handler
-        self.encoder = encoder
-        self.decoder = decoder
-        self.discriminator = discriminator
-        # end of TODO
-
         # placeholder for source sentences (batch, time)=> index of word
         self.source_batch = tf.placeholder(tf.int32, shape=(None, None))
         # placeholder for source sentences (batch, time)=> index of word
@@ -36,11 +43,17 @@ class ModelTrainer(BaseModel):
 
         self.embedding_translator = EmbeddingTranslator(vocabulary_handler.embedding_size,
                                                         vocabulary_handler.vocabulary_size,
-                                                        config.translation_hidden_size,
+                                                        translation_hidden_size,
                                                         vocabulary_handler.start_token_index,
                                                         vocabulary_handler.stop_token_index,
                                                         vocabulary_handler.unknown_token_index,
-                                                        vocabulary_handler.pad_token_index)
+                                                        vocabulary_handler.pad_token_index,
+                                                        self.source_batch)
+        self.encoder = EmbeddingEncoder(config['encoder_hidden_states'], translation_hidden_size)
+        self.decoder = EmbeddingDecoder(translation_hidden_size, config['decoder_hidden_states'],
+                                        self.embedding_translator)
+        self.discriminator = EmbeddingDiscriminator(config['discriminator_hidden_states'], translation_hidden_size)
+        self.loss_handler = LossHandler()
 
     def train_discriminator(self):
         target_batch = self.print_tensor_with_shape(self.target_batch, 'target_batch')
@@ -138,3 +151,67 @@ class ModelTrainer(BaseModel):
         train_step = tf.train.AdamOptimizer(learning_rate=self.config.learning_rate).minimize(total_loss,
                                                                                               var_list=var_list)
         return train_step, total_loss
+
+    def overfit(self):
+        sentence_limit = 10
+        loss = self.create_model(sentence_limit)
+
+        with tf.Session() as sess:
+            sess.run(tf.global_variables_initializer())
+            training_losses = []
+            # TODO: Understand this weird code!!!! Tom please take a look, it seems super wrong!!!
+            # # embedding
+            # w = tf.Variable(tf.random_normal(shape=[self.vocabulary_handler.vocabulary_size,
+            #                                         self.vocabulary_handler.embedding_size]),
+            #                 trainable=False, name="word_vectors")
+
+            # # you can call assign embedding op to init the embedding
+            # self.assign_embedding = tf.assign(w, self.embedding_translator.w)
+            # self.w = w
+
+            # sess.run(self.assign_embedding, {self.embedding_translator.w: embedding_handler.embedding_np})
+            sess.run(self.embedding_translator.assign_embedding(), {
+                self.embedding_translator.embedding_placeholder: self.vocabulary_handler.embedding_np
+            })
+
+            epoch_iter = self.epochs_iterator(self.vocabulary_handler, sentence_limit)
+            for idx, batch in epoch_iter:
+                feed_dict = {self.source_batch: batch,
+                             self.target_batch: batch,
+                             self.domain_identifier: self.source_identifier,
+                             self.should_print: True
+                             }
+                mean = sess.run(loss, feed_dict)
+                print('mean batch {}: {}:'.format(idx, mean))
+                training_losses.append(mean)
+
+    def epochs_iterator(self, embedding_handler, sentence_limit):
+        input_stream = InputPipeline(text_file=SRC_FILE, embedding_handler=embedding_handler,
+                                     limit_sentences=sentence_limit)
+        return input_stream.batch_iterator(shuffle=True, maximal_batch=2)
+
+    def create_model(self, sentence_limit):
+        # "One Hot Vector" -> Embedded Vector (w2v)
+        net = self.embedding_translator.embed_inputs(self.source_batch)
+        # Embedded Vector (w2v) -> Encoded (constant length)
+        net = self.encoder.encode_inputs_to_vector(net, self.domain_identifier)
+        # Encoded -> Decoded
+        net = self.decoder.do_iterative_decoding(net, self.domain_identifier, sentence_limit)
+        # Reconstruction Loss (Embedded, Decoded)
+        loss = self.loss_handler.get_sentence_reconstruction_loss(self.source_batch, net)
+        tf.train.AdamOptimizer(0.0003).minimize(loss)
+        return loss
+
+
+config = {'translation_hidden_size': 10,
+          'encoder_hidden_states': [10, 10],
+          'decoder_hidden_states': [10, 10],
+          'discriminator_hidden_states': [10, 10]
+          }
+vocabulary_handler = EmbeddingHandler(pretrained_glove_file=GLOVE_FILE,
+                                      force_vocab=False,
+                                      start_of_sentence_token='<START>',
+                                      end_of_sentence_token='<END>',
+                                      unknown_token='<UNK>',
+                                      pad_token='<PAD>')
+ModelTrainer(config, vocabulary_handler).overfit()
