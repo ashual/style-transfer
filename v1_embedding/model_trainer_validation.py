@@ -15,7 +15,7 @@ GLOVE_FILE = join(getcwd(), "..", "data", "glove.6B", "glove.6B.50d.txt")
 SRC_FILE = join(getcwd(), "..", "datasets", "yoda", "english.text")
 
 
-class ModelTrainer(BaseModel):
+class ModelTrainerValidation(BaseModel):
     def __init__(self, config, vocabulary_handler,
                  source_reconstruction_loss_coefficient=0, target_reconstruction_loss_coefficient=0,
                  source_professor_loss_coefficient=0, target_professor_loss_coefficient=0,
@@ -233,4 +233,4 @@ vocabulary_handler = EmbeddingHandler(pretrained_glove_file=GLOVE_FILE,
                                       end_of_sentence_token='END',
                                       unknown_token='UNK',
                                       pad_token='PAD')
-ModelTrainer(config, vocabulary_handler).overfit()
+ModelTrainerValidation(config, vocabulary_handler).overfit()

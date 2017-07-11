@@ -15,10 +15,6 @@ class EmbeddingTranslator(BaseModel):
         # placeholders
         # placeholder to initiate the embedding weights
         self.embedding_placeholder = tf.placeholder(tf.float32, shape=[vocabulary_size, embedding_size])
-        # placeholder to translate inputs to embedding vectors (batch, time)=> index of word
-        self.inputs = inputs
-        # placeholder to translate embedding vector to words
-        self.linear_layer_input = tf.placeholder(tf.int32, shape=(None, None, embedding_size))
 
         with tf.variable_scope('embedding_parameters'):
             # embedding
@@ -34,9 +30,9 @@ class EmbeddingTranslator(BaseModel):
             embedding = self.print_tensor_with_shape(self.embedding_placeholder, "embedding")
             return tf.assign(self.w, embedding)
 
-    def embed_inputs(self):
+    def embed_inputs(self, inputs):
         with tf.variable_scope('words_to_embeddings'):
-            inputs = self.print_tensor_with_shape(self.inputs, "inputs")
+            inputs = self.print_tensor_with_shape(inputs, "inputs")
             # to get vocabulary indices to embeddings
             embedded_inputs = tf.nn.embedding_lookup(self.w, inputs)
             return self.print_tensor_with_shape(embedded_inputs, "embedded_inputs")

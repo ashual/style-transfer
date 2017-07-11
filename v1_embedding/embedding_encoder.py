@@ -25,8 +25,10 @@ class EmbeddingEncoder(BaseModel):
 
             # create the input: (batch, time, embedding; domain)
             domain_identifier = self.print_tensor_with_shape(domain_identifier, "domain_identifier")
-            domain_identifier_tiled = tf.tile(tf.expand_dims(tf.exp(domain_identifier, 0), 0),
-                                              [batch_size, sentence_length, 1])
+            domain_identifier_tiled = tf.tile(
+                tf.expand_dims(tf.expand_dims(tf.expand_dims(domain_identifier, 0), 0), 0),
+                [batch_size, sentence_length, 1]
+            )
             encoder_inputs = tf.concat((inputs, domain_identifier_tiled), axis=2)
 
         # run the encoder

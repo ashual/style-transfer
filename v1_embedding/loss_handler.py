@@ -13,7 +13,8 @@ class LossHandler(BaseModel):
         return tf.reduce_mean(squared_difference)
 
     def get_sentence_reconstruction_loss(self, source_logits, dest_logits):
-        cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=source_logits, logits=dest_logits)
+        one_hot = tf.one_hot(source_logits, tf.shape(dest_logits)[-1])
+        cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=one_hot, logits=dest_logits)
         return tf.reduce_mean(cross_entropy)
 
     def get_professor_forcing_loss(self, inputs, generated_inputs):

@@ -27,7 +27,7 @@ class EmbeddingDecoder(BaseModel):
             inputs = self.print_tensor_with_shape(inputs, "inputs")
 
             domain_identifier = self.print_tensor_with_shape(domain_identifier, "domain_identifier")
-            initial_decoder_state = self.print_tensor_with_shape(initial_decoder_state, "initial_decoder_state")
+            # initial_decoder_state = self.print_tensor_with_shape(initial_decoder_state, "initial_decoder_state")
 
             # important sizes
             batch_size = tf.shape(inputs)[0]
@@ -37,8 +37,10 @@ class EmbeddingDecoder(BaseModel):
             decoder_inputs = tf.expand_dims(encoded_vector, 1)
             decoder_inputs = tf.tile(decoder_inputs, [1, sentence_length, 1])
             decoder_inputs = tf.concat((inputs, decoder_inputs), axis=2)
-            domain_identifier_tiled = tf.tile(tf.expand_dims(tf.exp(domain_identifier, 0), 0),
-                                              [batch_size, sentence_length, 1])
+            domain_identifier_tiled = tf.tile(
+                tf.expand_dims(tf.expand_dims(tf.expand_dims(domain_identifier, 0), 0), 0),
+                [batch_size, sentence_length, 1]
+            )
             decoder_inputs = tf.concat((decoder_inputs, domain_identifier_tiled), axis=2)
             decoder_inputs = self.print_tensor_with_shape(decoder_inputs, "decoder_inputs")
 
@@ -47,9 +49,15 @@ class EmbeddingDecoder(BaseModel):
                                                                    initial_state=initial_decoder_state,
                                                                    time_major=False)
             decoded_vector = self.print_tensor_with_shape(decoded_vector, "decoded_vector")
-            decoder_last_state = self.print_tensor_with_shape(decoder_last_state, "decoder_last_state")
+            # decoder_last_state = self.print_tensor_with_shape(decoder_last_state, "decoder_last_state")
 
             return decoded_vector, decoder_last_state
+
+    def do_teacher_forcing(self, encoded_vector, inputs, domain_identifier):
+        zero_state = self.get_zero_state(tf.shape(inputs)[0])
+        result = self.decode_vector_to_sequence(encoded_vector, zero_state, inputs, domain_identifier)[0]
+        result = tf.concat((inputs[:, 0:1, :], result), axis=1)
+        return result
 
     def do_iterative_decoding(self, encoded_vector, domain_identifier, iterations_limit=-1):
         def _while_cond(iteration_counter, input, state, inputs_from_start):
@@ -95,5 +103,4 @@ class EmbeddingDecoder(BaseModel):
             parallel_iterations=1,
             back_prop=True
         )
-        # TODO: talk with Tom
         return all_inputs
