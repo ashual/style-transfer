@@ -77,6 +77,9 @@ class ModelTrainerValidation(BaseModel):
 
                     string_output = [[self.vocabulary_handler.index_to_word[decoded_to_vocab(x)]
                                       for x in r] for r in decoded_output]
+                    # if epoch_num % 100 == 0:
+                    #     self.save_model(sess, 'validationModel' + str(epoch_num))
+                    #     print('saving model')
                     print('batch-index {} loss {} reconstructed: {}'.format(i, loss_output, string_output))
                     training_losses.append(loss_output)
 

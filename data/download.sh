@@ -1,5 +1,5 @@
 #!/bin/sh
-wget http://nlp.stanford.edu/data/glove.6B.zip
+#curl "http://nlp.stanford.edu/data/glove.6B.zip" -o "glove.6B.zip"
 mkdir glove.6B
 unzip glove.6B.zip -d glove.6B
 if [ $? -eq 0 ]; then
