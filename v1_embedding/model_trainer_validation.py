@@ -1,5 +1,5 @@
 import numpy as np
-import yaml_1
+import yaml
 import tensorflow as tf
 from datasets.batch_iterator import BatchIterator
 from v1_embedding.base_model import BaseModel
@@ -47,7 +47,7 @@ class ModelTrainerValidation(BaseModel):
         self.discriminator = EmbeddingDiscriminator(config['discriminator_hidden_states'], translation_hidden_size)
         self.loss_handler = LossHandler()
 
-        self.batch_iterator = BatchIterator('yelp_positive',
+        self.batch_iterator = BatchIterator('yelp_negative',
                                             self.vocabulary_handler,
                                             sentence_len=config['sentence_length'],
                                             batch_size=config['batch_size'],
@@ -87,7 +87,7 @@ class ModelTrainerValidation(BaseModel):
                     #     self.save_model(sess, 'validationModel' + str(epoch_num))
                     #     print('saving model')
                     print('batch-index {} loss {}'.format(i, loss_output))
-                    print('original: {}'.format(batch))
+                    print('original: {}'.format([[self.vocabulary_handler.index_to_word[x] for x in s] for s in batch]))
                     print('reconstructed: {}'.format(string_output))
                     print()
                     training_losses.append(loss_output)
@@ -107,6 +107,6 @@ class ModelTrainerValidation(BaseModel):
 
 if __name__ == "__main__":
     with open("config/validation.yml", 'r') as ymlfile:
-        config = yaml_1.load(ymlfile)
+        config = yaml.load(ymlfile)
 
     ModelTrainerValidation(config).overfit()
