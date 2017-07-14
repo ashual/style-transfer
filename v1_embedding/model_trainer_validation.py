@@ -1,5 +1,5 @@
 import numpy as np
-import yaml
+import yaml_1
 import tensorflow as tf
 from datasets.batch_iterator import BatchIterator
 from v1_embedding.base_model import BaseModel
@@ -55,10 +55,13 @@ class ModelTrainerValidation(BaseModel):
 
     def overfit(self):
         def decoded_to_vocab(decoded):
-            square = np.abs(self.vocabulary_handler.embedding_np - decoded)
+            square = np.square(self.vocabulary_handler.embedding_np - decoded)
             dist = np.sum(square, axis=1)
             best_index = np.argmin(dist, 0)
             return best_index
+
+        def decoded_sentences_to_vocab(sentences_indices):
+            return [[self.vocabulary_handler.index_to_word[decoded_to_vocab(x)] for x in r] for r in sentences_indices]
 
         train_step, loss, decoded = self.create_model()
 
@@ -79,12 +82,14 @@ class ModelTrainerValidation(BaseModel):
                     }
                     _, loss_output, decoded_output = sess.run([train_step, loss, decoded], feed_dict)
 
-                    string_output = [[self.vocabulary_handler.index_to_word[decoded_to_vocab(x)]
-                                      for x in r] for r in decoded_output]
+                    string_output = decoded_sentences_to_vocab(decoded_output)
                     # if epoch_num % 100 == 0:
                     #     self.save_model(sess, 'validationModel' + str(epoch_num))
                     #     print('saving model')
-                    print('batch-index {} loss {} reconstructed: {}'.format(i, loss_output, string_output))
+                    print('batch-index {} loss {}'.format(i, loss_output))
+                    print('original: {}'.format(batch))
+                    print('reconstructed: {}'.format(string_output))
+                    print()
                     training_losses.append(loss_output)
 
     def create_model(self, ):
@@ -102,6 +107,6 @@ class ModelTrainerValidation(BaseModel):
 
 if __name__ == "__main__":
     with open("config/validation.yml", 'r') as ymlfile:
-        config = yaml.load(ymlfile)
+        config = yaml_1.load(ymlfile)
 
     ModelTrainerValidation(config).overfit()
