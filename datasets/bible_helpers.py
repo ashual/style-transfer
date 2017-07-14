@@ -41,18 +41,16 @@ class Bibles:
     def __next__(self):
         return self.first_bible.next()[4], self.second_bible.next()[4]
 
-    next = __next__  # Python 2.7
-
     @staticmethod
     def print_all_options():
         dict = csv_to_dict('bible-corpus/bible_version_key.csv')
         for row in dict.values():
             print(row['table'], row['version'], row['info_url'])
 
+if 'name' == '__main__':
+    for idx, (first, second) in enumerate(Bibles('t_asv', 't_ylt')):
+        print(first, second)
+        if idx > 10:
+            break
 
-for idx, (first, second) in enumerate(Bibles('t_asv', 't_ylt')):
-    print(first, second)
-    if idx > 10:
-        break
-
-Bibles.print_all_options()
+    Bibles.print_all_options()

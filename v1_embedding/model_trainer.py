@@ -2,7 +2,6 @@ import numpy as np
 import tensorflow as tf
 from v1_embedding.base_model import BaseModel
 from v1_embedding.embedding_translator import EmbeddingTranslator
-from v1_embedding.input_utils import InputPipeline, EmbeddingHandler
 from v1_embedding.embedding_encoder import EmbeddingEncoder
 from v1_embedding.embedding_decoder import EmbeddingDecoder
 from v1_embedding.loss_handler import LossHandler
@@ -46,7 +45,7 @@ class ModelTrainer(BaseModel):
                                                         translation_hidden_size,
                                                         config['train_embeddings'],
                                                         vocabulary_handler.start_token_index,
-                                                        vocabulary_handler.stop_token_index,
+                                                        vocabulary_handler.end_token_index,
                                                         vocabulary_handler.unknown_token_index,
                                                         vocabulary_handler.pad_token_index,
                                                         self.source_batch)

@@ -63,7 +63,7 @@ class EmbeddingDecoder(BaseModel):
         def _while_cond(iteration_counter, input, state, inputs_from_start):
             if iterations_limit == -1:
                 return tf.not_equal(input, self.embedding_translator.is_special_word(
-                    self.embedding_translator.stop_token_index)[0]),
+                    self.embedding_translator.end_token_index)[0]),
             return tf.less(iteration_counter, iterations_limit)
 
         def _while_body(iteration_counter, input, state, inputs_from_start):

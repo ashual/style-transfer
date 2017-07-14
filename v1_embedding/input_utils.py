@@ -1,13 +1,11 @@
-import copy
 import os.path
 import pickle
 
 import numpy as np
 import tensorflow as tf
 from nltk import download as nltk_download
-from nltk import word_tokenize
 
-from v0.load_word_embeddings import PRETRAINED_GLOVE_FILE
+from v1_embedding.load_word_embeddings import PRETRAINED_GLOVE_FILE
 
 
 class EmbeddingHandler:
@@ -34,7 +32,7 @@ class EmbeddingHandler:
         self.index_to_word = {i: w for i, w in enumerate(self.vocab)}
         self.word_to_index = {self.index_to_word[i]: i for i in self.index_to_word}
         self.start_token_index = self.word_to_index[start_of_sentence_token]
-        self.stop_token_index = self.word_to_index[end_of_sentence_token]
+        self.end_token_index = self.word_to_index[end_of_sentence_token]
         self.unknown_token_index = self.word_to_index[unknown_token]
         self.pad_token_index = self.word_to_index[pad_token]
 
@@ -101,48 +99,6 @@ class EmbeddingHandler:
         vocab_filename, np_embedding_file, embedding_file = self.get_pretrained_files()
         return pickle.load(open(vocab_filename, "rb")), np.load(np_embedding_file), embedding_file
 
-
-class InputPipeline:
-    def __init__(self, text_file, embedding_handler, limit_sentences=None):
-        self.embedding_handler = embedding_handler
-        self.text_file = text_file
-        with open(text_file, "r") as f:
-            self.sentences = f.readlines()
-        if limit_sentences is not None and limit_sentences < len(self.sentences):
-            self.sentences = self.sentences[:limit_sentences]
-
-    def batch_iterator(self, shuffle=True, maximal_batch=100):
-
-        def find_in_vocab(w, reverse_vocab):
-            if w in reverse_vocab:
-                return reverse_vocab[w]
-            return reverse_vocab['UNK']
-
-        sentences = copy.deepcopy(self.sentences)
-        if shuffle:
-            np.random.shuffle(sentences)
-        sentences_by_length = {}
-        for sentence in sentences:
-            indexed_sentence = [find_in_vocab(w, self.embedding_handler.word_to_index) for w in word_tokenize(sentence)]
-            len_s = len(indexed_sentence)
-            if len_s not in sentences_by_length:
-                sentences_by_length[len_s] = []
-            sentences_by_length[len_s].append((sentence, indexed_sentence))
-        while len(sentences_by_length) > 0:
-            len_s = np.random.choice(list(sentences_by_length.keys()), 1)[0]
-            current_bucket = sentences_by_length[len_s]
-            to_take = np.min((len(current_bucket), maximal_batch))
-            # these are the return values
-            batch = [x for x, _ in current_bucket[:to_take]]
-            indexed_batch = [x for _, x in current_bucket[:to_take]]
-            # remove from next iterations
-            current_bucket = current_bucket[to_take:]
-            if len(current_bucket) == 0:
-                sentences_by_length.pop(len_s)
-            else:
-                sentences_by_length[len_s] = current_bucket
-            # return the result
-            yield batch, indexed_batch
 
 
 if __name__ == '__main__':
