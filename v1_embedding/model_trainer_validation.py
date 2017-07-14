@@ -78,7 +78,9 @@ class ModelTrainerValidation(BaseModel):
                     feed_dict = {
                         self.source_batch: batch,
                         self.target_batch: batch,
-                        self.should_print: True
+                        self.encoder.should_print: self.config['debug'],
+                        self.decoder.should_print: self.config['debug'],
+                        self.loss_handler.should_print: self.config['debug']
                     }
                     _, loss_output, decoded_output = sess.run([train_step, loss, decoded], feed_dict)
 
