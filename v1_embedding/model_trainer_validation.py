@@ -72,7 +72,6 @@ class ModelTrainerValidation(BaseModel):
 
             for epoch_num in range(1000):
                 for i, batch in enumerate(self.batch_iterator):
-                    print(batch)
                     feed_dict = {
                         self.source_batch: batch,
                         self.target_batch: batch,
