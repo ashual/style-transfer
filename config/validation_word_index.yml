@@ -1,6 +1,6 @@
 source_file: 'datasets/yelp/negative_reviews.json'
 load_model: True
-limit_sentences: 1000
+limit_sentences: 10
 number_of_epochs: 1000
 batch_size: 5
 translation_hidden_size: 1000

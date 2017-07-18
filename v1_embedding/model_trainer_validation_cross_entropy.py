@@ -38,6 +38,10 @@ class ModelTrainerValidation(BaseModel):
         self.discriminator = EmbeddingDiscriminator(config['discriminator_hidden_states'], translation_hidden_size)
         self.loss_handler = LossHandler()
 
+        self.batch_iterator = BatchIterator('yelp_negative', self.vocabulary_handler,
+                                            sentence_len=config['sentence_length'], batch_size=config['batch_size'],
+                                            limit_sentences=config['limit_sentences'])
+
     def overfit(self):
         saver = tf.train.Saver()
         last_save_time = time.time()
@@ -64,10 +68,8 @@ class ModelTrainerValidation(BaseModel):
 
             for epoch_num in range(config['number_of_epochs']):
                 print('epoch {} of {}'.format(epoch_num+1, config['number_of_epochs']))
-                batch_iterator = BatchIterator('yelp_negative', self.vocabulary_handler,
-                                               sentence_len=config['sentence_length'], batch_size=config['batch_size'],
-                                               limit_sentences=config['limit_sentences'])
-                for i, batch in enumerate(batch_iterator):
+
+                for i, batch in enumerate(self.batch_iterator):
                     feed_dict = {
                         self.source_batch: batch,
                         self.target_batch: batch,

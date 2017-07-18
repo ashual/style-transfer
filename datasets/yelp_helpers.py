@@ -1,5 +1,5 @@
 import json
-from random import shuffle
+
 
 
 class YelpSentences:
@@ -10,11 +10,5 @@ class YelpSentences:
         else:
             with open('datasets/yelp/negative_reviews.json') as yelp:
                 content = yelp.readlines()
-        shuffle(content)
-        self.content_iterator = iter(content)
+        self.content = [json.loads(s)['text'] for s in content]
 
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        return json.loads(next(self.content_iterator))['text']
