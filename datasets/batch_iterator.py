@@ -34,20 +34,14 @@ class BatchIterator:
                 self.counter += 1
         return sentences
 
-    def find_in_vocab(self, word):
-        reverse_vocab = self.embedding_handler.word_to_index
-        if word in reverse_vocab:
-            return reverse_vocab[word]
-        return reverse_vocab[self.embedding_handler.end_of_sentence_token]
-
     def normalized_sentence(self, sentence):
-        sentence_arr = word_tokenize(sentence)
-
-        sentence_indexes = [self.find_in_vocab(x.lower()) for x in sentence_arr]
-        sentence_indexes.insert(0, self.embedding_handler.start_token_index)
-        sentence_indexes.append(self.embedding_handler.end_token_index)
-        sentence_indexes = sentence_indexes[:self.sentence_len+1]
-        for idx in range(len(sentence_indexes), self.sentence_len + 1):
-            sentence_indexes.append(self.embedding_handler.pad_token_index)
-
-        return sentence_indexes
+        # get the words in lower case + start and end tokens
+        sentence_arr = [self.embedding_handler.start_of_sentence_token] + \
+                       [x.lower() for x in word_tokenize(sentence)] + \
+                       [self.embedding_handler.end_of_sentence_token]
+        # cut to the allowed size
+        sentence_arr = sentence_arr[:self.sentence_len+1]
+        # add padding if needed
+        sentence_arr += [self.embedding_handler.pad_token] * (self.sentence_len + 1 - len(sentence_arr))
+        # return as indices sentence
+        return self.embedding_handler.get_word_to_index([sentence_arr])[0]

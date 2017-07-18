@@ -1,0 +1,14 @@
+source_file: 'datasets/yelp/negative_reviews.json'
+load_model: True
+limit_sentences: 1000
+number_of_epochs: 1000
+batch_size: 5
+translation_hidden_size: 1000
+train_embeddings: True
+word_embedding_size: 50
+encoder_hidden_states: [500, 100]
+decoder_hidden_states: [100, 500]
+discriminator_hidden_states: [10, 10]
+learn_rate: 0.001
+sentence_length: 3
+debug: False

@@ -3,27 +3,23 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingTranslator(BaseModel):
-    def __init__(self, embedding_size, vocabulary_size, translation_hidden_size, train_embeddings,
-                 start_token_index, end_token_index, unknown_token_index, pad_token_index):
+    def __init__(self, embedding_handler, translation_hidden_size, train_embeddings):
         BaseModel.__init__(self)
-        self.start_token_index = start_token_index
-        self.end_token_index = end_token_index
-        self.unknown_token_index = unknown_token_index
-        self.pad_token_index = pad_token_index
-        self.vocabulary_size = vocabulary_size
+        self.embedding_handler = embedding_handler
 
         # placeholders
         # placeholder to initiate the embedding weights
-        self.embedding_placeholder = tf.placeholder(tf.float32, shape=[vocabulary_size, embedding_size])
+        embedding_shape = [embedding_handler.get_vocabulary_length(), embedding_handler.get_embedding_size()]
+        self.embedding_placeholder = tf.placeholder(tf.float32, shape=embedding_shape)
 
         with tf.variable_scope('embedding_parameters'):
             # embedding
-            self.w = tf.Variable(tf.random_normal(shape=[vocabulary_size, embedding_size]),
+            self.w = tf.Variable(tf.random_normal(shape=embedding_shape),
                                  trainable=train_embeddings, name="word_vectors")
 
             # weights to translate embedding to vocabulary
-            self.w1, self.b1 = BaseModel.create_input_parameters(embedding_size, translation_hidden_size)
-            self.w2, self.b2 = BaseModel.create_input_parameters(translation_hidden_size, vocabulary_size)
+            self.w1, self.b1 = BaseModel.create_input_parameters(embedding_shape[1], translation_hidden_size)
+            self.w2, self.b2 = BaseModel.create_input_parameters(translation_hidden_size, embedding_shape[0])
 
     def assign_embedding(self):
         with tf.variable_scope('assign_embedding'):
@@ -56,7 +52,7 @@ class EmbeddingTranslator(BaseModel):
 
     def get_special_word(self, word_index):
         with tf.variable_scope('get_special_word'):
-            return tf.one_hot(word_index, self.vocabulary_size)
+            return tf.one_hot(word_index, self.embedding_handler.get_vocabulary_length())
 
     def is_special_word(self, word_index, logits_vector):
         with tf.variable_scope('is_special_word'):

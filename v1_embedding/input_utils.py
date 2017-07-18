@@ -5,7 +5,10 @@ import numpy as np
 import tensorflow as tf
 from nltk import download as nltk_download
 
-from v1_embedding.load_word_embeddings import PRETRAINED_GLOVE_FILE
+from os import getcwd
+from os.path import join
+
+PRETRAINED_GLOVE_FILE = join(getcwd(), "data", "glove.6B", "glove.6B.50d.txt")
 
 
 class EmbeddingHandler:
