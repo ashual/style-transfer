@@ -58,11 +58,10 @@ class ModelTrainerValidation(BaseModel):
         print('models are saved to: {}'.format(self.saver_dir))
         print()
 
-        summary_writer = tf.summary.FileWriter(self.summaries_dir)
-
         train_step, loss, outputs, acc, merge = self.create_model()
 
         with tf.Session() as sess:
+            summary_writer = tf.summary.FileWriter(self.summaries_dir, sess.graph)
             sess.run(tf.global_variables_initializer())
             checkpoint_path = tf.train.get_checkpoint_state(self.saver_dir)
             if config['load_model'] and checkpoint_path is not None:
