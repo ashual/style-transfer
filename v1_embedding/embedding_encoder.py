@@ -14,6 +14,9 @@ class EmbeddingEncoder(BaseModel):
             encoder_cells.append(tf.contrib.rnn.BasicLSTMCell(context_vector_size, state_is_tuple=True))
             self.multilayer_encoder = tf.contrib.rnn.MultiRNNCell(encoder_cells)
 
+    def get_trainable_parameters(self):
+        return [v for v in tf.trainable_variables() if v.name.startswith('encoder_run')]
+
     def encode_inputs_to_vector(self, inputs, domain_identifier):
         with tf.variable_scope('encoder_preprocessing'):
             # the input sequence s.t (batch, time, embedding)

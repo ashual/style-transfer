@@ -15,6 +15,9 @@ class EmbeddingDecoder(BaseModel):
             decoder_cells.append(tf.contrib.rnn.BasicLSTMCell(embedding_size, state_is_tuple=True))
             self.multilayer_decoder = tf.contrib.rnn.MultiRNNCell(decoder_cells)
 
+    def get_trainable_parameters(self):
+        return [v for v in tf.trainable_variables() if v.name.startswith('decoder_run')]
+
     def get_zero_state(self, batch_size):
         with tf.variable_scope('decoder_get_zero_state'):
             return self.multilayer_decoder.zero_state(batch_size, tf.float32)

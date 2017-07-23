@@ -18,13 +18,14 @@ class ModelTrainerValidation(BaseModel):
         BaseModel.__init__(self)
         self.saver_dir = os.path.join(os.getcwd(), 'models', 'validation_cross_entropy')
         self.saver_path = os.path.join(self.saver_dir, 'validation_cross_entropy')
-        self.embedding_path = os.path.join(self.saver_dir, 'embedding')
+        self.embedding_dir = os.path.join(self.saver_dir, 'embedding')
+        self.summaries_dir = os.path.join(self.saver_dir, 'tensorboard')
 
         self.config = config_file
         translation_hidden_size = config['translation_hidden_size']
 
         self.dataset = YelpSentences(positive=False, limit_sentences=config['limit_sentences'])
-        self.embedding_handler = WordIndexingEmbeddingHandler(self.embedding_path, self.dataset,
+        self.embedding_handler = WordIndexingEmbeddingHandler(self.embedding_dir, self.dataset,
                                                               config['word_embedding_size'])
 
         self.source_identifier = tf.ones(shape=())
@@ -57,7 +58,9 @@ class ModelTrainerValidation(BaseModel):
         print('models are saved to: {}'.format(self.saver_dir))
         print()
 
-        train_step, loss, outputs, acc = self.create_model()
+        summary_writer = tf.summary.FileWriter(self.summaries_dir)
+
+        train_step, loss, outputs, acc, merge = self.create_model()
 
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
@@ -82,7 +85,8 @@ class ModelTrainerValidation(BaseModel):
                         self.decoder.should_print: self.config['debug'],
                         self.loss_handler.should_print: self.config['debug']
                     }
-                    _, loss_output, decoded_output, batch_acc = sess.run([train_step, loss, outputs, acc], feed_dict)
+                    _, loss_output, decoded_output, batch_acc, s = sess.run([train_step, loss, outputs, acc, merge], feed_dict)
+                    summary_writer.add_summary(s)
                     training_losses.append(loss_output)
 
                     if i % 100 == 0:
@@ -116,10 +120,17 @@ class ModelTrainerValidation(BaseModel):
         logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(decoded)
         # cross entropy loss
         loss = self.loss_handler.get_sentence_reconstruction_loss(self.source_batch, logits)
+        # train step
         train_step = tf.train.AdamOptimizer(self.config['learn_rate']).minimize(loss)
+        # maximal word for each step
         outputs = self.embedding_translator.translate_logits_to_words(logits)
+        # accuracy
         accuracy = tf.reduce_mean(tf.cast(tf.equal(self.source_batch, outputs), tf.float32))
-        return train_step, loss, outputs, accuracy
+        # summaries
+        for v in self.embedding_translator.get_trainable_parameters() + self.encoder.get_trainable_parameters() + self.decoder.get_trainable_parameters():
+            tf.summary.histogram(v.name, v.read_value())
+        merge = tf.summary.merge_all()
+        return train_step, loss, outputs, accuracy, merge
 
 if __name__ == "__main__":
     with open("config/validation_word_index.yml", 'r') as ymlfile:

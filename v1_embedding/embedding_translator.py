@@ -21,6 +21,9 @@ class EmbeddingTranslator(BaseModel):
             self.w1, self.b1 = BaseModel.create_input_parameters(embedding_shape[1], translation_hidden_size)
             self.w2, self.b2 = BaseModel.create_input_parameters(translation_hidden_size, embedding_shape[0])
 
+    def get_trainable_parameters(self):
+        return [v for v in tf.trainable_variables() if v.name.startswith('embedding_parameters')]
+
     def assign_embedding(self):
         with tf.variable_scope('assign_embedding'):
             embedding = self.print_tensor_with_shape(self.embedding_placeholder, "embedding")
