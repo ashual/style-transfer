@@ -1,7 +1,9 @@
-
+import os
+import pickle
+import numpy as np
 
 class EmbeddingHandler:
-    def __init__(self):
+    def __init__(self, save_directory):
         self.start_of_sentence_token = 'START'
         self.end_of_sentence_token = 'END'
         self.unknown_token = 'UNK'
@@ -10,6 +12,43 @@ class EmbeddingHandler:
         self.word_to_index = None
         self.index_to_word = None
         self.embedding_np = None
+
+        self.save_directory = save_directory
+        self.initialized_from_cache = self.load_files()
+
+    def load_files(self):
+        word_to_index_path, index_to_word_path, embedding_np_path = self.get_cache_file_names()
+        if os.path.exists(word_to_index_path) and os.path.exists(index_to_word_path) and os.path.exists(embedding_np_path):
+            try:
+                self.word_to_index = pickle.load(open(word_to_index_path, "rb"))
+                self.index_to_word = pickle.load(open(index_to_word_path, "rb"))
+                self.embedding_np = np.load(embedding_np_path)
+                print('initialized embedding from cache')
+                return True
+            except:
+                self.word_to_index = None
+                self.index_to_word = None
+                self.embedding_np = None
+        return False
+
+    def save_files(self):
+        if not os.path.exists(self.save_directory):
+            os.makedirs(self.save_directory)
+        word_to_index_path, index_to_word_path, embedding_np_path = self.get_cache_file_names()
+        try:
+            pickle.dump(self.word_to_index, open(word_to_index_path, 'wb'))
+            pickle.dump(self.index_to_word, open(index_to_word_path, 'wb'))
+            np.save(embedding_np_path, self.embedding_np)
+            return True
+        except Exception as e:
+            print(str(e))
+            return False
+
+    def get_cache_file_names(self):
+        word_to_index_path = os.path.join(self.save_directory, 'w2i.p')
+        index_to_word_path = os.path.join(self.save_directory, 'i2w.p')
+        embedding_np_path = os.path.join(self.save_directory, 'embedding.npy')
+        return word_to_index_path, index_to_word_path, embedding_np_path
 
     def vocabulary_to_internals(self, vocabulary):
         self.index_to_word = {i: w for i, w in enumerate(vocabulary)}

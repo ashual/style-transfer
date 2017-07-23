@@ -16,11 +16,16 @@ from v1_embedding.embedding_discriminator import EmbeddingDiscriminator
 class ModelTrainerValidation(BaseModel):
     def __init__(self, config_file):
         BaseModel.__init__(self)
+        self.saver_dir = os.path.join(os.getcwd(), 'models', 'validation_cross_entropy')
+        self.saver_path = os.path.join(self.saver_dir, 'validation_cross_entropy')
+        self.embedding_path = os.path.join(self.saver_dir, 'embedding')
+
         self.config = config_file
         translation_hidden_size = config['translation_hidden_size']
 
         self.dataset = YelpSentences(positive=False, limit_sentences=config['limit_sentences'])
-        self.embedding_handler = WordIndexingEmbeddingHandler(self.dataset, config['word_embedding_size'])
+        self.embedding_handler = WordIndexingEmbeddingHandler(self.embedding_path, self.dataset,
+                                                              config['word_embedding_size'])
 
         self.source_identifier = tf.ones(shape=())
         self.target_identifier = -1 * tf.ones(shape=())
@@ -46,18 +51,17 @@ class ModelTrainerValidation(BaseModel):
     def overfit(self):
         saver = tf.train.Saver()
         last_save_time = time.time()
-        saver_dir = os.path.join(os.getcwd(), 'models', 'validation_cross_entropy')
-        saver_path = os.path.join(saver_dir, 'validation_cross_entropy')
-        if not os.path.exists(saver_dir):
-                os.makedirs(saver_dir)
-        print('models are saved to: {}'.format(saver_dir))
+
+        if not os.path.exists(self.saver_dir):
+                os.makedirs(self.saver_dir)
+        print('models are saved to: {}'.format(self.saver_dir))
         print()
 
         train_step, loss, outputs, acc = self.create_model()
 
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
-            checkpoint_path = tf.train.get_checkpoint_state(saver_dir)
+            checkpoint_path = tf.train.get_checkpoint_state(self.saver_dir)
             if config['load_model'] and checkpoint_path is not None:
                 saver.restore(sess, checkpoint_path.model_checkpoint_path)
                 print('Model restored from file: {}'.format(checkpoint_path.model_checkpoint_path))
@@ -92,7 +96,7 @@ class ModelTrainerValidation(BaseModel):
                     if (time.time() - last_save_time) >= (60 * 5):
                         try:
                             # save model
-                            saver.save(sess, saver_path)
+                            saver.save(sess, self.saver_path)
                             last_save_time = time.time()
                             print('Model saved')
                             print()

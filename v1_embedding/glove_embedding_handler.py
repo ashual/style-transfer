@@ -1,36 +1,23 @@
 from v1_embedding.embedding_handler import EmbeddingHandler
-
-import pickle
-
 import numpy as np
-
-from os.path import exists
 from os import getcwd
 from os.path import join
 
 
 class GloveEmbeddingHandler(EmbeddingHandler):
-    def __init__(self, pretrained_glove_file=None, force_vocab=False):
-        EmbeddingHandler.__init__(self)
-        if pretrained_glove_file is None:
-            self.pretrained_glove_file = join(getcwd(), "data", "glove.6B", "glove.6B.50d.txt")
-        else:
-            self.pretrained_glove_file = pretrained_glove_file
-        vocab_filename, np_embedding_file = self.get_pretrained_files()
-        # check if need to compute local files
-        if not exists(vocab_filename) or force_vocab:
-            self.save_embedding()
-        # load relevant data
-        vocab, self.embedding_np = self.load_from_files()
+    def __init__(self, save_dir, pretrained_glove_file=None, force_vocab=False):
+        EmbeddingHandler.__init__(self, save_dir)
+        if not self.initialized_from_cache:
+            if pretrained_glove_file is None:
+                self.pretrained_glove_file = join(getcwd(), "data", "glove.6B", "glove.6B.50d.txt")
+            else:
+                self.pretrained_glove_file = pretrained_glove_file
+            vocab, self.embedding_np = self.load_from_files()
+            self.vocabulary_to_internals(vocab)
+            self.save_files()
+            print('used glove for embedding')
 
-        self.vocabulary_to_internals(vocab)
-
-    def get_pretrained_files(self):
-        vocab_filename = self.pretrained_glove_file + '.vocab'
-        np_embedding_file = self.pretrained_glove_file + '.npy'
-        return vocab_filename, np_embedding_file
-
-    def save_embedding(self):
+    def load_from_files(self):
         def load_glove(filename):
             vocab = []
             embd = []
@@ -61,12 +48,5 @@ class GloveEmbeddingHandler(EmbeddingHandler):
             vocab, embedding = set_new_token(self.unknown_token, vocab, embedding)
         if self.pad_token not in vocab:
             vocab, embedding = set_new_token(self.pad_token, vocab, embedding)
-        vocab_filename, np_embedding_file = self.get_pretrained_files()
-        # save vocab
-        pickle.dump(vocab, open(vocab_filename, 'wb'))
-        # save np embedding
-        np.save(np_embedding_file, embedding)
+        return vocab, embedding
 
-    def load_from_files(self):
-        vocab_filename, np_embedding_file = self.get_pretrained_files()
-        return pickle.load(open(vocab_filename, "rb")), np.load(np_embedding_file)
