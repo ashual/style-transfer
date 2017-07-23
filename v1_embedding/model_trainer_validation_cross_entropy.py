@@ -3,6 +3,7 @@ import yaml
 import time
 import tensorflow as tf
 from datasets.batch_iterator import BatchIterator
+from datasets.yelp_helpers import YelpSentences
 from v1_embedding.base_model import BaseModel
 from v1_embedding.embedding_translator import EmbeddingTranslator
 from v1_embedding.word_indexing_embedding_handler import WordIndexingEmbeddingHandler
@@ -18,29 +19,29 @@ class ModelTrainerValidation(BaseModel):
         self.config = config_file
         translation_hidden_size = config['translation_hidden_size']
 
-        self.vocabulary_handler = WordIndexingEmbeddingHandler(config['source_file'], config['word_embedding_size'])
+        self.dataset = YelpSentences(positive=False, limit_sentences=config['limit_sentences'])
+        self.embedding_handler = WordIndexingEmbeddingHandler(self.dataset, config['word_embedding_size'])
 
         self.source_identifier = tf.ones(shape=())
         self.target_identifier = -1 * tf.ones(shape=())
+
+        self.embedding_translator = EmbeddingTranslator(self.embedding_handler,
+                                                        translation_hidden_size,
+                                                        config['train_embeddings'],
+                                                        )
+        self.encoder = EmbeddingEncoder(config['encoder_hidden_states'], translation_hidden_size)
+        self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(), config['decoder_hidden_states'],
+                                        self.embedding_translator)
+        self.discriminator = EmbeddingDiscriminator(config['discriminator_hidden_states'], translation_hidden_size)
+        self.loss_handler = LossHandler()
+
+        self.batch_iterator = BatchIterator(self.dataset, self.embedding_handler,
+                                            sentence_len=config['sentence_length'], batch_size=config['batch_size'])
 
         # placeholder for source sentences (batch, time)=> index of word
         self.source_batch = tf.placeholder(tf.int64, shape=(None, None))
         # placeholder for source sentences (batch, time)=> index of word
         self.target_batch = tf.placeholder(tf.int64, shape=(None, None))
-
-        self.embedding_translator = EmbeddingTranslator(self.vocabulary_handler,
-                                                        translation_hidden_size,
-                                                        config['train_embeddings'],
-                                                        )
-        self.encoder = EmbeddingEncoder(config['encoder_hidden_states'], translation_hidden_size)
-        self.decoder = EmbeddingDecoder(self.vocabulary_handler.get_embedding_size(), config['decoder_hidden_states'],
-                                        self.embedding_translator)
-        self.discriminator = EmbeddingDiscriminator(config['discriminator_hidden_states'], translation_hidden_size)
-        self.loss_handler = LossHandler()
-
-        self.batch_iterator = BatchIterator('yelp_negative', self.vocabulary_handler,
-                                            sentence_len=config['sentence_length'], batch_size=config['batch_size'],
-                                            limit_sentences=config['limit_sentences'])
 
     def overfit(self):
         saver = tf.train.Saver()
@@ -63,7 +64,7 @@ class ModelTrainerValidation(BaseModel):
             training_losses = []
 
             sess.run(self.embedding_translator.assign_embedding(), {
-                self.embedding_translator.embedding_placeholder: self.vocabulary_handler.embedding_np
+                self.embedding_translator.embedding_placeholder: self.embedding_handler.embedding_np
             })
 
             for epoch_num in range(config['number_of_epochs']):
@@ -83,17 +84,21 @@ class ModelTrainerValidation(BaseModel):
                     if i % 100 == 0:
                         print('batch-index: {} acc: {} loss: {}'.format(i, batch_acc, loss_output))
                         print('original:')
-                        print(self.vocabulary_handler.get_index_to_word(batch))
+                        print(self.embedding_handler.get_index_to_word(batch))
                         print('reconstructed:')
-                        print(self.vocabulary_handler.get_index_to_word(decoded_output))
+                        print(self.embedding_handler.get_index_to_word(decoded_output))
                         print()
 
                     if (time.time() - last_save_time) >= (60 * 5):
-                        # save model
-                        saver.save(sess, saver_path)
-                        last_save_time = time.time()
-                        print('Model saved')
-                        print()
+                        try:
+                            # save model
+                            saver.save(sess, saver_path)
+                            last_save_time = time.time()
+                            print('Model saved')
+                            print()
+                        except:
+                            print('Failed to save model')
+                            print()
 
     def create_model(self, ):
         # "One Hot Vector" -> Embedded Vector (w2v)

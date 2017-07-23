@@ -8,7 +8,7 @@ class EmbeddingDecoder(BaseModel):
         self.embedding_translator = embedding_translator
 
         # decoder - model
-        with tf.variable_scope('decoder'):
+        with tf.variable_scope('decoder', initializer=tf.random_uniform_initializer(-0.008, 0.008)):
             decoder_cells = []
             for hidden_size in hidden_states:
                 decoder_cells.append(tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True))

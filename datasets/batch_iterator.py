@@ -1,28 +1,19 @@
-from datasets.bible_helpers import Bibles
-import datasets.yelp_helpers as yelp
 from nltk import word_tokenize
 from random import shuffle
 
+
 class BatchIterator:
-    def __init__(self, dataset, embedding_handler, sentence_len, batch_size, limit_sentences=None):
+    def __init__(self, dataset, embedding_handler, sentence_len, batch_size):
+        self.dataset = dataset
         self.embedding_handler = embedding_handler
-        if dataset == 'bible':
-            # TODO: decide how to return both params
-            # TODO: include limit sentences
-            self.text_iterator = Bibles('a', 'b')
-        elif dataset == 'yelp_positive':
-            self.content = yelp.YelpSentences(positive=True).content
-        elif dataset == 'yelp_negative':
-            self.content = yelp.YelpSentences(positive=False).content
-        if limit_sentences is not None:
-            self.content = self.content[:limit_sentences]
         self.sentence_len = sentence_len
         self.batch_size = batch_size
         self.text_iterator = None
 
     def __iter__(self):
-        shuffle(self.content)
-        self.text_iterator = iter(self.content)
+        content = self.dataset.get_content()
+        shuffle(content)
+        self.text_iterator = iter(content)
         return self
 
     def __next__(self):

@@ -7,7 +7,7 @@ class EmbeddingEncoder(BaseModel):
         BaseModel.__init__(self)
 
         # encoder - model
-        with tf.variable_scope('encoder'):
+        with tf.variable_scope('encoder', initializer=tf.random_uniform_initializer(-0.008, 0.008)):
             encoder_cells = []
             for hidden_size in hidden_states:
                 encoder_cells.append(tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True))
