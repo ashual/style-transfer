@@ -3,9 +3,9 @@ limit_sentences:
 batch_size: 10
 translation_hidden_size: 10
 train_embeddings: False
-encoder_hidden_states: [100, 50]
-decoder_hidden_states: [50, 100]
+encoder_hidden_states: [1000, 500]
+decoder_hidden_states: [1000]
 discriminator_hidden_states: [10, 10]
-learn_rate: 0.01
+learn_rate: 0.001
 sentence_length: 5
 debug: False

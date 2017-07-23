@@ -18,7 +18,9 @@ class EmbeddingHandler:
 
     def load_files(self):
         word_to_index_path, index_to_word_path, embedding_np_path = self.get_cache_file_names()
-        if os.path.exists(word_to_index_path) and os.path.exists(index_to_word_path) and os.path.exists(embedding_np_path):
+        if os.path.exists(word_to_index_path) and \
+                os.path.exists(index_to_word_path) and \
+                os.path.exists(embedding_np_path):
             try:
                 self.word_to_index = pickle.load(open(word_to_index_path, "rb"))
                 self.index_to_word = pickle.load(open(index_to_word_path, "rb"))

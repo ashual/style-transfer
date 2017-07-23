@@ -1,7 +1,9 @@
 import numpy as np
 import yaml
 import tensorflow as tf
+import os
 from datasets.batch_iterator import BatchIterator
+from datasets.yelp_helpers import YelpSentences
 from v1_embedding.base_model import BaseModel
 from v1_embedding.embedding_translator import EmbeddingTranslator
 from v1_embedding.glove_embedding_handler import GloveEmbeddingHandler
@@ -16,8 +18,17 @@ class ModelTrainerValidation(BaseModel):
         BaseModel.__init__(self)
         self.config = config_file
         translation_hidden_size = config['translation_hidden_size']
+        self.saver_dir = os.path.join(os.getcwd(), 'models', 'validation')
+        self.saver_path = os.path.join(self.saver_dir, 'validation')
+        self.embedding_dir = os.path.join(self.saver_dir, 'embedding')
 
-        self.vocabulary_handler = GloveEmbeddingHandler(pretrained_glove_file=config['glove_file'], force_vocab=False)
+        self.dataset = YelpSentences(positive=False, limit_sentences=config['limit_sentences'])
+        self.vocabulary_handler = GloveEmbeddingHandler(
+            save_dir=self.embedding_dir,
+            pretrained_glove_file=config['glove_file'],
+            force_vocab=False,
+            dataset=self.dataset
+        )
 
         self.source_identifier = tf.ones(shape=())
         self.target_identifier = -1 * tf.ones(shape=())
@@ -27,21 +38,32 @@ class ModelTrainerValidation(BaseModel):
         # placeholder for source sentences (batch, time)=> index of word
         self.target_batch = tf.placeholder(tf.int32, shape=(None, None))
 
-        self.embedding_translator = EmbeddingTranslator(self.vocabulary_handler,
-                                                        translation_hidden_size,
-                                                        config['train_embeddings'],
-                                                        )
-        self.encoder = EmbeddingEncoder(config['encoder_hidden_states'], translation_hidden_size)
-        self.decoder = EmbeddingDecoder(self.vocabulary_handler.get_embedding_size(), config['decoder_hidden_states'],
-                                        self.embedding_translator)
-        self.discriminator = EmbeddingDiscriminator(config['discriminator_hidden_states'], translation_hidden_size)
+        self.embedding_translator = EmbeddingTranslator(
+            self.vocabulary_handler,
+            translation_hidden_size,
+            config['train_embeddings'],
+        )
+        self.encoder = EmbeddingEncoder(
+            config['encoder_hidden_states'],
+            translation_hidden_size
+        )
+        self.decoder = EmbeddingDecoder(
+            self.vocabulary_handler.get_embedding_size(),
+            config['decoder_hidden_states'],
+            self.embedding_translator
+        )
+        self.discriminator = EmbeddingDiscriminator(
+            config['discriminator_hidden_states'],
+            translation_hidden_size
+        )
         self.loss_handler = LossHandler()
 
-        self.batch_iterator = BatchIterator('yelp_negative',
-                                            self.vocabulary_handler,
-                                            sentence_len=config['sentence_length'],
-                                            batch_size=config['batch_size'],
-                                            limit_sentences=config['limit_sentences'])
+        self.batch_iterator = BatchIterator(
+            self.dataset,
+            self.vocabulary_handler,
+            sentence_len=config['sentence_length'],
+            batch_size=config['batch_size']
+        )
 
     def overfit(self):
         def decoded_to_vocab(decoded):
