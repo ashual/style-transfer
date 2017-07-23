@@ -1,6 +1,7 @@
 import json
-from v1_embedding.dataset import Dataset
 from random import shuffle
+
+from datasets.dataset import Dataset
 
 
 class YelpSentences(Dataset):
