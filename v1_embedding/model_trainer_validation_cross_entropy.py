@@ -1,6 +1,5 @@
 import os
 import yaml
-import time
 import tensorflow as tf
 from datasets.batch_iterator import BatchIterator
 from datasets.yelp_helpers import YelpSentences
@@ -44,21 +43,53 @@ class ModelTrainerValidation(BaseModel):
         self.batch_iterator = BatchIterator(self.dataset, self.embedding_handler,
                                             sentence_len=config['sentence_length'], batch_size=config['batch_size'])
 
+        self.batch_iterator_validation = BatchIterator(self.dataset, self.embedding_handler,
+                                                       sentence_len=config['sentence_length'], batch_size=1000)
+
         # placeholder for source sentences (batch, time)=> index of word
         self.source_batch = tf.placeholder(tf.int64, shape=(None, None))
         # placeholder for source sentences (batch, time)=> index of word
         self.target_batch = tf.placeholder(tf.int64, shape=(None, None))
 
+        # "One Hot Vector" -> Embedded Vector (w2v)
+        embeddings = self.embedding_translator.embed_inputs(self.source_batch)
+        # Embedded Vector (w2v) -> Encoded (constant length)
+        encoded = self.encoder.encode_inputs_to_vector(embeddings, self.source_identifier)
+        # Encoded -> Decoded
+        partial_embedding = embeddings[:, :-1, :]
+        decoded = self.decoder.do_teacher_forcing(encoded, partial_embedding, self.source_identifier)
+        # decoded -> logits
+        logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(decoded)
+        # cross entropy loss
+        self.loss = self.loss_handler.get_sentence_reconstruction_loss(self.source_batch, logits)
+        # train step
+        self.train_step = tf.train.AdamOptimizer(self.config['learn_rate']).minimize(self.loss)
+        # maximal word for each step
+        self.outputs = self.embedding_translator.translate_logits_to_words(logits)
+        # accuracy
+        self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.source_batch, self.outputs), tf.float32))
+        # summaries
+        for v in self.embedding_translator.get_trainable_parameters() + self.encoder.get_trainable_parameters() + self.decoder.get_trainable_parameters():
+            tf.summary.histogram(v.name, v.read_value())
+        self.summaries = tf.summary.merge_all()
+
     def overfit(self):
+        def print_side_by_side(original, reconstructed):
+            translated_original = self.embedding_handler.get_index_to_word(original)
+            translated_reconstructed = self.embedding_handler.get_index_to_word(reconstructed)
+            for i in range(len(translated_original)):
+                print('original:')
+                print(translated_original[i])
+                print('reconstructed:')
+                print(translated_reconstructed[i])
+
         saver = tf.train.Saver()
-        last_save_time = time.time()
+        best_validation_acc = -1.0
 
         if not os.path.exists(self.saver_dir):
                 os.makedirs(self.saver_dir)
         print('models are saved to: {}'.format(self.saver_dir))
         print()
-
-        train_step, loss, outputs, acc, merge = self.create_model()
 
         with tf.Session() as sess:
             summary_writer = tf.summary.FileWriter(self.summaries_dir, sess.graph)
@@ -67,12 +98,12 @@ class ModelTrainerValidation(BaseModel):
             if config['load_model'] and checkpoint_path is not None:
                 saver.restore(sess, checkpoint_path.model_checkpoint_path)
                 print('Model restored from file: {}'.format(checkpoint_path.model_checkpoint_path))
-            training_losses = []
 
             sess.run(self.embedding_translator.assign_embedding(), {
                 self.embedding_translator.embedding_placeholder: self.embedding_handler.embedding_np
             })
 
+            global_step = 0
             for epoch_num in range(config['number_of_epochs']):
                 print('epoch {} of {}'.format(epoch_num+1, config['number_of_epochs']))
 
@@ -84,52 +115,54 @@ class ModelTrainerValidation(BaseModel):
                         self.decoder.should_print: self.config['debug'],
                         self.loss_handler.should_print: self.config['debug']
                     }
-                    _, loss_output, decoded_output, batch_acc, s = sess.run([train_step, loss, outputs, acc, merge], feed_dict)
-                    summary_writer.add_summary(s)
-                    training_losses.append(loss_output)
+                    _, loss_output, decoded_output, batch_acc, s = sess.run([self.train_step, self.loss, self.outputs,
+                                                                             self.accuracy, self.summaries], feed_dict)
+                    summary_writer.add_summary(s, global_step=global_step)
+                    global_step += 1
 
                     if i % 100 == 0:
-                        print('batch-index: {} acc: {} loss: {}'.format(i, batch_acc, loss_output))
-                        print('original:')
-                        print(self.embedding_handler.get_index_to_word(batch))
-                        print('reconstructed:')
-                        print(self.embedding_handler.get_index_to_word(decoded_output))
+                        print_side_by_side(batch, decoded_output)
+                        print('epoch-index: {} batch-index: {} acc: {} loss: {}'.format(epoch_num, i, batch_acc,
+                                                                                        loss_output))
                         print()
+                        for validation_batch in self.batch_iterator_validation:
+                            feed_dict = {
+                                self.source_batch: validation_batch,
+                                self.target_batch: validation_batch,
+                                self.encoder.should_print: self.config['debug'],
+                                self.decoder.should_print: self.config['debug'],
+                                self.loss_handler.should_print: self.config['debug']
+                            }
+                            validation_acc = sess.run(self.accuracy, feed_dict)
+                            break
 
-                    if (time.time() - last_save_time) >= (60 * 5):
-                        try:
-                            # save model
-                            saver.save(sess, self.saver_path)
-                            last_save_time = time.time()
-                            print('Model saved')
-                            print()
-                        except:
-                            print('Failed to save model')
-                            print()
+                        if validation_acc > best_validation_acc:
+                            print('saving model, former best accuracy {} current best accuracy {}'.
+                                  format(best_validation_acc, validation_acc))
+                            try:
+                                # save model
+                                saver.save(sess, self.saver_path)
+                                best_validation_acc = validation_acc
+                                print('Model saved')
+                                print()
+                            except:
+                                print('Failed to save model')
+                                print()
 
-    def create_model(self, ):
-        # "One Hot Vector" -> Embedded Vector (w2v)
-        embeddings = self.embedding_translator.embed_inputs(self.source_batch)
-        # Embedded Vector (w2v) -> Encoded (constant length)
-        encoded = self.encoder.encode_inputs_to_vector(embeddings, self.source_identifier)
-        # Encoded -> Decoded
-        partial_embedding = embeddings[:, :-1, :]
-        decoded = self.decoder.do_teacher_forcing(encoded, partial_embedding, self.source_identifier)
-        # decoded -> logits
-        logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(decoded)
-        # cross entropy loss
-        loss = self.loss_handler.get_sentence_reconstruction_loss(self.source_batch, logits)
-        # train step
-        train_step = tf.train.AdamOptimizer(self.config['learn_rate']).minimize(loss)
-        # maximal word for each step
-        outputs = self.embedding_translator.translate_logits_to_words(logits)
-        # accuracy
-        accuracy = tf.reduce_mean(tf.cast(tf.equal(self.source_batch, outputs), tf.float32))
-        # summaries
-        for v in self.embedding_translator.get_trainable_parameters() + self.encoder.get_trainable_parameters() + self.decoder.get_trainable_parameters():
-            tf.summary.histogram(v.name, v.read_value())
-        merge = tf.summary.merge_all()
-        return train_step, loss, outputs, accuracy, merge
+            print('best validation accuracy: {}'.format(best_validation_acc))
+            # make sure the model is correct:
+            saver.restore(sess, self.saver_path)
+            for validation_batch in self.batch_iterator_validation:
+                feed_dict = {
+                    self.source_batch: validation_batch,
+                    self.target_batch: validation_batch,
+                    self.encoder.should_print: self.config['debug'],
+                    self.decoder.should_print: self.config['debug'],
+                    self.loss_handler.should_print: self.config['debug']
+                }
+                validation_acc = sess.run(self.accuracy, feed_dict)
+                break
+            print('tested validation accuracy: {}'.format(validation_acc))
 
 if __name__ == "__main__":
     with open("config/validation_word_index.yml", 'r') as ymlfile:
