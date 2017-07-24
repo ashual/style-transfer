@@ -62,16 +62,25 @@ class ModelTrainerValidation(BaseModel):
         logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(decoded)
         # cross entropy loss
         self.loss = self.loss_handler.get_sentence_reconstruction_loss(self.source_batch, logits)
-        # train step
-        self.train_step = tf.train.AdamOptimizer(self.config['learn_rate']).minimize(self.loss)
+        # training
+        optimizer = tf.train.AdamOptimizer(self.config['learn_rate'])
+        grads_and_vars = optimizer.compute_gradients(self.loss)
+        self.train_step = optimizer.apply_gradients(grads_and_vars)
         # maximal word for each step
         self.outputs = self.embedding_translator.translate_logits_to_words(logits)
         # accuracy
         self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.source_batch, self.outputs), tf.float32))
         # summaries
-        for v in self.embedding_translator.get_trainable_parameters() + self.encoder.get_trainable_parameters() + self.decoder.get_trainable_parameters():
-            tf.summary.histogram(v.name, v.read_value())
-        self.summaries = tf.summary.merge_all()
+        loss_summary = tf.summary.scalar('loss', self.loss)
+        accuracy_summary = tf.summary.scalar('accuracy', self.accuracy)
+        weight_summaries = tf.summary.merge(self.embedding_translator.get_trainable_parameters_summaries() +
+                                                 self.encoder.get_trainable_parameters_summaries() +
+                                                 self.decoder.get_trainable_parameters_summaries())
+        gradient_summaries = tf.summary.merge([item for sublist in
+                                               [BaseModel.create_summaries(g) for g, v in grads_and_vars]
+                                               for item in sublist])
+        self.train_summaries = tf.summary.merge([loss_summary, accuracy_summary, weight_summaries, gradient_summaries])
+        self.validation_summaries = tf.summary.merge([accuracy_summary, weight_summaries])
 
     def overfit(self):
         def print_side_by_side(original, reconstructed):
@@ -92,7 +101,10 @@ class ModelTrainerValidation(BaseModel):
         print()
 
         with tf.Session() as sess:
-            summary_writer = tf.summary.FileWriter(self.summaries_dir, sess.graph)
+            train_summaries_path = os.path.join(self.summaries_dir, 'train')
+            validation_summaries_path = os.path.join(self.summaries_dir, 'validation')
+            summary_writer_train = tf.summary.FileWriter(train_summaries_path, sess.graph)
+            summary_writer_validation = tf.summary.FileWriter(validation_summaries_path)
             sess.run(tf.global_variables_initializer())
             checkpoint_path = tf.train.get_checkpoint_state(self.saver_dir)
             if config['load_model'] and checkpoint_path is not None:
@@ -116,10 +128,9 @@ class ModelTrainerValidation(BaseModel):
                         self.loss_handler.should_print: self.config['debug']
                     }
                     _, loss_output, decoded_output, batch_acc, s = sess.run([self.train_step, self.loss, self.outputs,
-                                                                             self.accuracy, self.summaries], feed_dict)
-                    summary_writer.add_summary(s, global_step=global_step)
-                    global_step += 1
-
+                                                                             self.accuracy, self.train_summaries],
+                                                                            feed_dict)
+                    summary_writer_train.add_summary(s, global_step=global_step)
                     if i % 100 == 0:
                         print_side_by_side(batch, decoded_output)
                         print('epoch-index: {} batch-index: {} acc: {} loss: {}'.format(epoch_num, i, batch_acc,
@@ -133,8 +144,9 @@ class ModelTrainerValidation(BaseModel):
                                 self.decoder.should_print: self.config['debug'],
                                 self.loss_handler.should_print: self.config['debug']
                             }
-                            validation_acc = sess.run(self.accuracy, feed_dict)
+                            validation_acc, s = sess.run([self.accuracy, self.validation_summaries], feed_dict)
                             break
+                        summary_writer_validation.add_summary(s, global_step=global_step)
 
                         if validation_acc > best_validation_acc:
                             print('saving model, former best accuracy {} current best accuracy {}'.
@@ -148,6 +160,7 @@ class ModelTrainerValidation(BaseModel):
                             except:
                                 print('Failed to save model')
                                 print()
+                    global_step += 1
 
             print('best validation accuracy: {}'.format(best_validation_acc))
             # make sure the model is correct:

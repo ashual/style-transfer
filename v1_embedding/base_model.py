@@ -21,6 +21,19 @@ class BaseModel:
     def get_trainable_parameters(self):
         pass
 
+    @staticmethod
+    def create_summaries(v):
+        return [tf.summary.scalar(v.name +'_mean', tf.reduce_mean(v)),
+                tf.summary.scalar(v.name + '_l2_norm', tf.norm(v)),
+                tf.summary.scalar(v.name + '_max_norm', tf.reduce_max(tf.abs(v))),
+                tf.summary.histogram(v.name, v)]
+
+    def get_trainable_parameters_summaries(self):
+        res = []
+        for v in self.get_trainable_parameters():
+            res += BaseModel.create_summaries(v)
+        return res
+
     def save_model(self, sess, name, only_values = False):
         saver = tf.train.Saver()
         # saver.save(sess, name, None, not only_values)
