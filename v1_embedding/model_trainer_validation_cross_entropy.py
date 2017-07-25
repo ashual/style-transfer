@@ -34,7 +34,7 @@ class ModelTrainerValidation(BaseModel):
                                                         translation_hidden_size,
                                                         config['train_embeddings'],
                                                         )
-        self.encoder = EmbeddingEncoder(config['encoder_hidden_states'], translation_hidden_size, config['dropout'])
+        self.encoder = EmbeddingEncoder(config['encoder_hidden_states'], translation_hidden_size, config['dropout'], config['bidi'])
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(), config['decoder_hidden_states'],
                                         self.embedding_translator, config['dropout'])
         self.discriminator = EmbeddingDiscriminator(config['discriminator_hidden_states'], translation_hidden_size, config['discriminator_dropout'])

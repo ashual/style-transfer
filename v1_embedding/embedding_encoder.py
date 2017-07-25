@@ -1,11 +1,12 @@
 import tensorflow as tf
+import copy
 from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingEncoder(BaseModel):
-    def __init__(self, hidden_states, context_vector_size, dropout):
+    def __init__(self, hidden_states, context_vector_size, dropout, bidi):
         BaseModel.__init__(self)
-
+        self.bidi = bidi
         # encoder - model
         with tf.variable_scope('encoder', initializer=tf.random_uniform_initializer(-0.008, 0.008)):
             encoder_cells = []
@@ -16,7 +17,11 @@ class EmbeddingEncoder(BaseModel):
             cell = tf.contrib.rnn.BasicLSTMCell(context_vector_size, state_is_tuple=True)
             cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout)
             encoder_cells.append(cell)
-            self.multilayer_encoder = tf.contrib.rnn.MultiRNNCell(encoder_cells)
+            if bidi:
+                self.multilayer_encoder_fw = tf.contrib.rnn.MultiRNNCell(copy.copy(encoder_cells))
+                self.multilayer_encoder_bw = tf.contrib.rnn.MultiRNNCell(encoder_cells)
+            else:
+                self.multilayer_encoder = tf.contrib.rnn.MultiRNNCell(encoder_cells)
 
     def get_trainable_parameters(self):
         return [v for v in tf.trainable_variables() if v.name.startswith('encoder_run')]
@@ -40,10 +45,17 @@ class EmbeddingEncoder(BaseModel):
 
         # run the encoder
         with tf.variable_scope('encoder_run'):
-            # define the initial state as empty
-            initial_state = self.multilayer_encoder.zero_state(batch_size, tf.float32)
-            # run the model
-            rnn_outputs, _ = tf.nn.dynamic_rnn(self.multilayer_encoder, encoder_inputs,
-                                               initial_state=initial_state,
-                                               time_major=False)
+            # define the initial state as empty and run model
+            if self.bidi:
+                initial_state_bw = self.multilayer_encoder_bw.zero_state(batch_size, tf.float32)
+                initial_state_fw = self.multilayer_encoder_fw.zero_state(batch_size, tf.float32)
+                rnn_outputs, _ = tf.nn.bidirectional_dynamic_rnn(self.multilayer_encoder_fw, self.multilayer_encoder_bw,
+                                                                 encoder_inputs, initial_state_fw=initial_state_fw,
+                                                                 initial_state_bw=initial_state_bw, time_major=False)
+            else:
+                initial_state = self.multilayer_encoder.zero_state(batch_size, tf.float32)
+                rnn_outputs, _ = tf.nn.dynamic_rnn(self.multilayer_encoder, encoder_inputs,
+                                                   initial_state=initial_state,
+                                                   time_major=False)
+
             return self.print_tensor_with_shape(rnn_outputs[:, -1, :], "encoded")

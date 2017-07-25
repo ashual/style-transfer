@@ -14,3 +14,4 @@ sentence_length: 3
 debug: False
 dropout: 0.5
 discriminator_dropout: 0
+bidi: False
