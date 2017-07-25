@@ -4,7 +4,7 @@ from tensorflow.contrib.rnn import BasicLSTMCell, MultiRNNCell
 
 
 class EmbeddingDiscriminator(BaseModel):
-    def __init__(self, hidden_states, embedding_translator):
+    def __init__(self, hidden_states, embedding_translator, discriminator_droupout):
         BaseModel.__init__(self)
         self.embedding_translator = embedding_translator
 
@@ -12,8 +12,12 @@ class EmbeddingDiscriminator(BaseModel):
         with tf.variable_scope('discriminator_model') as vs:
             discriminator_cells = []
             for hidden_size in hidden_states:
-                discriminator_cells.append(BasicLSTMCell(hidden_size, state_is_tuple=True))
-            discriminator_cells.append(BasicLSTMCell(2, state_is_tuple=True))
+                cell = BasicLSTMCell(hidden_size, state_is_tuple=True)
+                cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - discriminator_droupout)
+                discriminator_cells.append(cell)
+            cell = BasicLSTMCell(2, state_is_tuple=True)
+            cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - discriminator_droupout)
+            discriminator_cells.append(cell)
             self.multilayer_discriminator = MultiRNNCell(discriminator_cells)
 
             # Retrieve just the LSTM variables.

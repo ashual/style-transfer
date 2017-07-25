@@ -3,7 +3,7 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingDecoder(BaseModel):
-    def __init__(self, embedding_size, hidden_states, embedding_translator):
+    def __init__(self, embedding_size, hidden_states, embedding_translator, dropout):
         BaseModel.__init__(self)
         self.embedding_translator = embedding_translator
 
@@ -11,8 +11,12 @@ class EmbeddingDecoder(BaseModel):
         with tf.variable_scope('decoder', initializer=tf.random_uniform_initializer(-0.008, 0.008)):
             decoder_cells = []
             for hidden_size in hidden_states:
-                decoder_cells.append(tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True))
-            decoder_cells.append(tf.contrib.rnn.BasicLSTMCell(embedding_size, state_is_tuple=True))
+                cell = tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True)
+                cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout)
+                decoder_cells.append(cell)
+            cell = tf.contrib.rnn.BasicLSTMCell(embedding_size, state_is_tuple=True)
+            cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout)
+            decoder_cells.append(cell)
             self.multilayer_decoder = tf.contrib.rnn.MultiRNNCell(decoder_cells)
 
     def get_trainable_parameters(self):

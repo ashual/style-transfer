@@ -3,15 +3,19 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingEncoder(BaseModel):
-    def __init__(self, hidden_states, context_vector_size):
+    def __init__(self, hidden_states, context_vector_size, dropout):
         BaseModel.__init__(self)
 
         # encoder - model
         with tf.variable_scope('encoder', initializer=tf.random_uniform_initializer(-0.008, 0.008)):
             encoder_cells = []
             for hidden_size in hidden_states:
-                encoder_cells.append(tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True))
-            encoder_cells.append(tf.contrib.rnn.BasicLSTMCell(context_vector_size, state_is_tuple=True))
+                cell = tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True)
+                cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout)
+                encoder_cells.append(cell)
+            cell = tf.contrib.rnn.BasicLSTMCell(context_vector_size, state_is_tuple=True)
+            cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout)
+            encoder_cells.append(cell)
             self.multilayer_encoder = tf.contrib.rnn.MultiRNNCell(encoder_cells)
 
     def get_trainable_parameters(self):
