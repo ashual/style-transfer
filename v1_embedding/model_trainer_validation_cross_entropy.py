@@ -79,7 +79,9 @@ class ModelTrainerValidation(BaseModel):
         gradient_summaries = tf.summary.merge([item for sublist in
                                                [BaseModel.create_summaries(g) for g, v in grads_and_vars]
                                                for item in sublist])
-        self.train_summaries = tf.summary.merge([loss_summary, accuracy_summary, weight_summaries, gradient_summaries])
+        gradient_global_norm = tf.summary.scalar('gradient_global_norm', tf.global_norm([g for g,v in grads_and_vars]))
+        self.train_summaries = tf.summary.merge([loss_summary, accuracy_summary, weight_summaries, gradient_summaries,
+                                                 gradient_global_norm])
         self.validation_summaries = tf.summary.merge([accuracy_summary, weight_summaries])
 
     def overfit(self):
