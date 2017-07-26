@@ -4,9 +4,9 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingEncoder(BaseModel):
-    def __init__(self, hidden_states, context_vector_size, dropout, bidi):
+    def __init__(self, hidden_states, context_vector_size, dropout, bidirectional):
         BaseModel.__init__(self)
-        self.bidi = bidi
+        self.bidirectional = bidirectional
         # encoder - model
         with tf.variable_scope('encoder', initializer=tf.random_uniform_initializer(-0.008, 0.008)):
             encoder_cells = []
@@ -17,7 +17,7 @@ class EmbeddingEncoder(BaseModel):
             cell = tf.contrib.rnn.BasicLSTMCell(context_vector_size, state_is_tuple=True)
             cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout)
             encoder_cells.append(cell)
-            if bidi:
+            if bidirectional:
                 self.multilayer_encoder_fw = tf.contrib.rnn.MultiRNNCell(copy.copy(encoder_cells))
                 self.multilayer_encoder_bw = tf.contrib.rnn.MultiRNNCell(encoder_cells)
             else:
@@ -46,7 +46,7 @@ class EmbeddingEncoder(BaseModel):
         # run the encoder
         with tf.variable_scope('encoder_run'):
             # define the initial state as empty and run model
-            if self.bidi:
+            if self.bidirectional:
                 initial_state_bw = self.multilayer_encoder_bw.zero_state(batch_size, tf.float32)
                 initial_state_fw = self.multilayer_encoder_fw.zero_state(batch_size, tf.float32)
                 rnn_outputs, _ = tf.nn.bidirectional_dynamic_rnn(self.multilayer_encoder_fw, self.multilayer_encoder_bw,
@@ -57,5 +57,5 @@ class EmbeddingEncoder(BaseModel):
                 rnn_outputs, _ = tf.nn.dynamic_rnn(self.multilayer_encoder, encoder_inputs,
                                                    initial_state=initial_state,
                                                    time_major=False)
-
-            return self.print_tensor_with_shape(rnn_outputs[:, -1, :], "encoded")
+            return (tf.concat([self.print_tensor_with_shape(rnn_outputs[0][:, -1, :], "encoded_fw"),
+                              self.print_tensor_with_shape(rnn_outputs[1][:, -1, :], "encoded_bw")], 1))
