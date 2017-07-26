@@ -39,8 +39,8 @@ class ModelTrainerValidation(BaseModel):
                                                         config['train_embeddings'],
                                                         )
         self.dropout_placeholder = tf.placeholder(tf.float32, shape=())
-        self.encoder = EmbeddingEncoder(config['encoder_hidden_states'], translation_hidden_size, config['dropout'],
-                                        config['bidirectional'])
+        self.encoder = EmbeddingEncoder(config['encoder_hidden_states'], translation_hidden_size,
+                                        self.dropout_placeholder, config['bidirectional'])
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(), config['decoder_hidden_states'],
                                         self.embedding_translator, self.dropout_placeholder)
         self.discriminator = EmbeddingDiscriminator(config['discriminator_hidden_states'], translation_hidden_size,
