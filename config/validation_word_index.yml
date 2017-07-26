@@ -6,12 +6,12 @@ batch_size: 3
 translation_hidden_size: 1000
 train_embeddings: True
 word_embedding_size: 50
-encoder_hidden_states: [500, 100]
-decoder_hidden_states: [100, 500]
+encoder_hidden_states: [1000, 500]
+decoder_hidden_states: [1000]
 discriminator_hidden_states: [10, 10]
 learn_rate: 0.001
 sentence_length: 3
 debug: False
-dropout: 0.5
+dropout: 0
 discriminator_dropout: 0
 bidi: False

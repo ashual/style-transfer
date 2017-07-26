@@ -34,9 +34,10 @@ class ModelTrainerValidation(BaseModel):
                                                         translation_hidden_size,
                                                         config['train_embeddings'],
                                                         )
-        self.encoder = EmbeddingEncoder(config['encoder_hidden_states'], translation_hidden_size, config['dropout'], config['bidi'])
+        self.dropout = tf.placeholder(tf.float32, shape=())
+        self.encoder = EmbeddingEncoder(config['encoder_hidden_states'], translation_hidden_size, self.dropout, config['bidi'])
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(), config['decoder_hidden_states'],
-                                        self.embedding_translator, config['dropout'])
+                                        self.embedding_translator, self.dropout)
         self.discriminator = EmbeddingDiscriminator(config['discriminator_hidden_states'], translation_hidden_size, config['discriminator_dropout'])
         self.loss_handler = LossHandler()
 
@@ -125,6 +126,7 @@ class ModelTrainerValidation(BaseModel):
                     feed_dict = {
                         self.source_batch: batch,
                         self.target_batch: batch,
+                        self.dropout: config['dropout'],
                         self.encoder.should_print: self.config['debug'],
                         self.decoder.should_print: self.config['debug'],
                         self.loss_handler.should_print: self.config['debug']
@@ -133,6 +135,8 @@ class ModelTrainerValidation(BaseModel):
                                                                              self.accuracy, self.train_summaries],
                                                                             feed_dict)
                     summary_writer_train.add_summary(s, global_step=global_step)
+
+                    # Validation
                     if i % 100 == 0:
                         print_side_by_side(batch, decoded_output)
                         print('epoch-index: {} batch-index: {} acc: {} loss: {}'.format(epoch_num, i, batch_acc,
@@ -142,6 +146,7 @@ class ModelTrainerValidation(BaseModel):
                             feed_dict = {
                                 self.source_batch: validation_batch,
                                 self.target_batch: validation_batch,
+                                self.dropout: 1,
                                 self.encoder.should_print: self.config['debug'],
                                 self.decoder.should_print: self.config['debug'],
                                 self.loss_handler.should_print: self.config['debug']
