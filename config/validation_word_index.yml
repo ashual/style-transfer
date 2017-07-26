@@ -1,4 +1,3 @@
-source_file: 'datasets/yelp/negative_reviews.json'
 load_model: True
 limit_sentences:
 min_word_occurrences: 2
