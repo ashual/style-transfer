@@ -24,8 +24,12 @@ class ModelTrainerValidation(BaseModel):
         translation_hidden_size = config['translation_hidden_size']
 
         self.dataset = YelpSentences(positive=False, limit_sentences=config['limit_sentences'])
-        self.embedding_handler = WordIndexingEmbeddingHandler(self.embedding_dir, self.dataset,
-                                                              config['word_embedding_size'])
+        self.embedding_handler = WordIndexingEmbeddingHandler(
+            self.embedding_dir,
+            self.dataset,
+            config['word_embedding_size'],
+            config['min_word_occurrences']
+        )
 
         self.source_identifier = tf.ones(shape=())
         self.target_identifier = -1 * tf.ones(shape=())
