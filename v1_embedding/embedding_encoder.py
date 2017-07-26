@@ -9,19 +9,29 @@ class EmbeddingEncoder(BaseModel):
         self.bidirectional = bidirectional
         # encoder - model
         with tf.variable_scope('encoder', initializer=tf.random_uniform_initializer(-0.008, 0.008)):
-            encoder_cells = []
-            for hidden_size in hidden_states:
-                cell = tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True)
-                cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout_placeholder)
-                encoder_cells.append(cell)
-            cell = tf.contrib.rnn.BasicLSTMCell(context_vector_size, state_is_tuple=True)
+
+            if bidirectional:
+                self.multilayer_encoder_fw = tf.contrib.rnn.MultiRNNCell(self.generate_cells(hidden_states,
+                                                                                             context_vector_size / 2,
+                                                                                             dropout_placeholder))
+                self.multilayer_encoder_bw = tf.contrib.rnn.MultiRNNCell(self.generate_cells(hidden_states,
+                                                                                             context_vector_size / 2,
+                                                                                             dropout_placeholder))
+            else:
+                self.multilayer_encoder = tf.contrib.rnn.MultiRNNCell(self.generate_cells(hidden_states,
+                                                                                          context_vector_size,
+                                                                                          dropout_placeholder))
+    @staticmethod
+    def generate_cells(hidden_states, context_vector_size, dropout_placeholder):
+        encoder_cells = []
+        for hidden_size in hidden_states:
+            cell = tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True)
             cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout_placeholder)
             encoder_cells.append(cell)
-            if bidirectional:
-                self.multilayer_encoder_fw = tf.contrib.rnn.MultiRNNCell(copy.copy(encoder_cells))
-                self.multilayer_encoder_bw = tf.contrib.rnn.MultiRNNCell(encoder_cells)
-            else:
-                self.multilayer_encoder = tf.contrib.rnn.MultiRNNCell(encoder_cells)
+        cell = tf.contrib.rnn.BasicLSTMCell(context_vector_size, state_is_tuple=True)
+        cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout_placeholder)
+        encoder_cells.append(cell)
+        return encoder_cells
 
     def get_trainable_parameters(self):
         return [v for v in tf.trainable_variables() if v.name.startswith('encoder_run')]
