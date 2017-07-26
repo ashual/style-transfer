@@ -52,10 +52,12 @@ class EmbeddingEncoder(BaseModel):
                 rnn_outputs, _ = tf.nn.bidirectional_dynamic_rnn(self.multilayer_encoder_fw, self.multilayer_encoder_bw,
                                                                  encoder_inputs, initial_state_fw=initial_state_fw,
                                                                  initial_state_bw=initial_state_bw, time_major=False)
+                res = tf.concat((rnn_outputs[0][:, -1, :], rnn_outputs[1][:, -1, :]), axis=-1)
             else:
                 initial_state = self.multilayer_encoder.zero_state(batch_size, tf.float32)
                 rnn_outputs, _ = tf.nn.dynamic_rnn(self.multilayer_encoder, encoder_inputs,
                                                    initial_state=initial_state,
                                                    time_major=False)
-            return (tf.concat([self.print_tensor_with_shape(rnn_outputs[0][:, -1, :], "encoded_fw"),
-                              self.print_tensor_with_shape(rnn_outputs[1][:, -1, :], "encoded_bw")], 1))
+                res = rnn_outputs[:, -1, :]
+            return self.print_tensor_with_shape(res, "encoded")
+

@@ -14,4 +14,4 @@ sentence_length: 5
 debug: False
 dropout: 0.1
 discriminator_dropout: 0
-bidirectional: True
+bidirectional: False
