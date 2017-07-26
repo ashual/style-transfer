@@ -38,11 +38,13 @@ class ModelTrainerValidation(BaseModel):
                                                         translation_hidden_size,
                                                         config['train_embeddings'],
                                                         )
-        self.dropout = tf.placeholder(tf.float32, shape=())
-        self.encoder = EmbeddingEncoder(config['encoder_hidden_states'], translation_hidden_size, config['dropout'], config['bidirectional'])
+        self.dropout_placeholder = tf.placeholder(tf.float32, shape=())
+        self.encoder = EmbeddingEncoder(config['encoder_hidden_states'], translation_hidden_size, config['dropout'],
+                                        config['bidirectional'])
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(), config['decoder_hidden_states'],
-                                        self.embedding_translator, self.dropout)
-        self.discriminator = EmbeddingDiscriminator(config['discriminator_hidden_states'], translation_hidden_size, config['discriminator_dropout'])
+                                        self.embedding_translator, self.dropout_placeholder)
+        self.discriminator = EmbeddingDiscriminator(config['discriminator_hidden_states'], translation_hidden_size,
+                                                    config['discriminator_dropout'])
         self.loss_handler = LossHandler()
 
         self.batch_iterator = BatchIterator(self.dataset, self.embedding_handler,
@@ -130,7 +132,7 @@ class ModelTrainerValidation(BaseModel):
                     feed_dict = {
                         self.source_batch: batch,
                         self.target_batch: batch,
-                        self.dropout: config['dropout'],
+                        self.dropout_placeholder: config['dropout'],
                         self.encoder.should_print: self.config['debug'],
                         self.decoder.should_print: self.config['debug'],
                         self.loss_handler.should_print: self.config['debug']
@@ -150,7 +152,7 @@ class ModelTrainerValidation(BaseModel):
                             feed_dict = {
                                 self.source_batch: validation_batch,
                                 self.target_batch: validation_batch,
-                                self.dropout: 1,
+                                self.dropout_placeholder: 0.0,
                                 self.encoder.should_print: self.config['debug'],
                                 self.decoder.should_print: self.config['debug'],
                                 self.loss_handler.should_print: self.config['debug']
@@ -180,6 +182,7 @@ class ModelTrainerValidation(BaseModel):
                 feed_dict = {
                     self.source_batch: validation_batch,
                     self.target_batch: validation_batch,
+                    self.dropout_placeholder: 0.0,
                     self.encoder.should_print: self.config['debug'],
                     self.decoder.should_print: self.config['debug'],
                     self.loss_handler.should_print: self.config['debug']
