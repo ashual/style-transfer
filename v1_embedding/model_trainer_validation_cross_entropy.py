@@ -38,7 +38,8 @@ class ModelTrainerValidation(BaseModel):
         self.encoder = EmbeddingEncoder(config['encoder_hidden_states'], translation_hidden_size, self.dropout, config['bidi'])
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(), config['decoder_hidden_states'],
                                         self.embedding_translator, self.dropout)
-        self.discriminator = EmbeddingDiscriminator(config['discriminator_hidden_states'], translation_hidden_size, config['discriminator_dropout'])
+        self.discriminator = EmbeddingDiscriminator(config['discriminator_hidden_states'], translation_hidden_size,
+                                                    config['discriminator_dropout'])
         self.loss_handler = LossHandler()
 
         self.batch_iterator = BatchIterator(self.dataset, self.embedding_handler,
@@ -52,6 +53,8 @@ class ModelTrainerValidation(BaseModel):
         # placeholder for source sentences (batch, time)=> index of word
         self.target_batch = tf.placeholder(tf.int64, shape=(None, None))
 
+        self.allowed_gradient_norm = tf.Variable(initial_value=float('Inf'), trainable=False)
+
         # "One Hot Vector" -> Embedded Vector (w2v)
         embeddings = self.embedding_translator.embed_inputs(self.source_batch)
         # Embedded Vector (w2v) -> Encoded (constant length)
@@ -63,9 +66,27 @@ class ModelTrainerValidation(BaseModel):
         logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(decoded)
         # cross entropy loss
         self.loss = self.loss_handler.get_sentence_reconstruction_loss(self.source_batch, logits)
-        # training
+        # optimizer
         optimizer = tf.train.AdamOptimizer(self.config['learn_rate'])
+        # compute gradients
         grads_and_vars = optimizer.compute_gradients(self.loss)
+        # clip gradients
+        grads = [g for g, v in grads_and_vars]
+        gradient_global_norm_true = tf.global_norm(grads)
+        allowed_norm = tf.cond(tf.is_inf(self.allowed_gradient_norm),
+                               lambda: gradient_global_norm_true,
+                               lambda: self.allowed_gradient_norm
+                               )
+        clipped_grads, gradient_global_norm_clipped = tf.clip_by_global_norm(grads, allowed_norm,
+                                                                             use_norm=gradient_global_norm_true)
+        grads_and_vars = [(clipped_grads[i], g_v[1]) for i, g_v in enumerate(grads_and_vars)]
+        new_allowed_grad = tf.cond(tf.is_inf(self.allowed_gradient_norm),
+                                   lambda: gradient_global_norm_clipped * config['allowed_grad_change'],
+                                   lambda: self.allowed_gradient_norm * config['grad_former_weight'] +
+                                           gradient_global_norm_clipped * config['allowed_grad_change'] *
+                                           (1.0 - config['grad_former_weight'])
+                                   )
+        self.allowed_gradient_norm = tf.assign(self.allowed_gradient_norm, new_allowed_grad)
         self.train_step = optimizer.apply_gradients(grads_and_vars)
         # maximal word for each step
         self.outputs = self.embedding_translator.translate_logits_to_words(logits)
@@ -75,14 +96,21 @@ class ModelTrainerValidation(BaseModel):
         loss_summary = tf.summary.scalar('loss', self.loss)
         accuracy_summary = tf.summary.scalar('accuracy', self.accuracy)
         weight_summaries = tf.summary.merge(self.embedding_translator.get_trainable_parameters_summaries() +
-                                                 self.encoder.get_trainable_parameters_summaries() +
-                                                 self.decoder.get_trainable_parameters_summaries())
+                                            self.encoder.get_trainable_parameters_summaries() +
+                                            self.decoder.get_trainable_parameters_summaries())
         gradient_summaries = tf.summary.merge([item for sublist in
                                                [BaseModel.create_summaries(g) for g, v in grads_and_vars]
                                                for item in sublist])
-        gradient_global_norm = tf.summary.scalar('gradient_global_norm', tf.global_norm([g for g,v in grads_and_vars]))
+        gradient_global_norm_true_summary = tf.summary.scalar('gradient_global_norm_true', gradient_global_norm_true)
+        gradient_global_norm_clipped_summary = tf.summary.scalar('gradient_global_norm_clipped',
+                                                                 gradient_global_norm_clipped)
+        clipped_gradient_difference_summary = tf.summary.scalar('clipped_gradient_difference',
+                                                                gradient_global_norm_true -
+                                                                gradient_global_norm_clipped)
         self.train_summaries = tf.summary.merge([loss_summary, accuracy_summary, weight_summaries, gradient_summaries,
-                                                 gradient_global_norm])
+                                                 gradient_global_norm_true_summary,
+                                                 gradient_global_norm_clipped_summary,
+                                                 clipped_gradient_difference_summary])
         self.validation_summaries = tf.summary.merge([accuracy_summary, weight_summaries])
 
     def overfit(self):
@@ -131,8 +159,9 @@ class ModelTrainerValidation(BaseModel):
                         self.decoder.should_print: self.config['debug'],
                         self.loss_handler.should_print: self.config['debug']
                     }
-                    _, loss_output, decoded_output, batch_acc, s = sess.run([self.train_step, self.loss, self.outputs,
-                                                                             self.accuracy, self.train_summaries],
+                    _, loss_output, decoded_output, batch_acc, s = sess.run([self.train_step, self.loss,
+                                                                                           self.outputs, self.accuracy,
+                                                                                           self.train_summaries],
                                                                             feed_dict)
                     summary_writer_train.add_summary(s, global_step=global_step)
 
