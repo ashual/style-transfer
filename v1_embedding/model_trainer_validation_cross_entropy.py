@@ -19,7 +19,6 @@ class ModelTrainerValidation:
         self.summaries_dir = os.path.join(self.saver_dir, 'tensorboard')
 
         self.config = config_file
-        translation_hidden_size = config['translation_hidden_size']
 
         self.dataset = YelpSentences(positive=False, limit_sentences=config['limit_sentences'])
         self.embedding_handler = WordIndexingEmbeddingHandler(
@@ -28,6 +27,7 @@ class ModelTrainerValidation:
             config['word_embedding_size'],
             config['min_word_occurrences']
         )
+
         self.dropout_placeholder = tf.placeholder(tf.float32, shape=())
         # placeholder for source sentences (batch, time)=> index of word
         self.source_batch = tf.placeholder(tf.int64, shape=(None, None))
@@ -37,7 +37,7 @@ class ModelTrainerValidation:
         self.source_identifier = tf.ones(shape=())
         self.target_identifier = -1 * tf.ones(shape=())
 
-        self.embedding_translator = EmbeddingTranslator(self.embedding_handler, translation_hidden_size,
+        self.embedding_translator = EmbeddingTranslator(self.embedding_handler, config['translation_hidden_size'],
                                                         config['train_embeddings'])
         self.encoder = EmbeddingEncoder(config['encoder_hidden_states'], self.dropout_placeholder,
                                         config['bidirectional_encoder'])
@@ -85,15 +85,16 @@ class ModelTrainerValidation:
                                                  gradient_global_norm])
         self.validation_summaries = tf.summary.merge([accuracy_summary, weight_summaries])
 
+    def print_side_by_side(self, original, reconstructed):
+        translated_original = self.embedding_handler.get_index_to_word(original)
+        translated_reconstructed = self.embedding_handler.get_index_to_word(reconstructed)
+        for i in range(len(translated_original)):
+            print('original:')
+            print(translated_original[i])
+            print('reconstructed:')
+            print(translated_reconstructed[i])
+
     def overfit(self):
-        def print_side_by_side(original, reconstructed):
-            translated_original = self.embedding_handler.get_index_to_word(original)
-            translated_reconstructed = self.embedding_handler.get_index_to_word(reconstructed)
-            for i in range(len(translated_original)):
-                print('original:')
-                print(translated_original[i])
-                print('reconstructed:')
-                print(translated_reconstructed[i])
 
         saver = tf.train.Saver()
         best_validation_acc = -1.0
@@ -110,7 +111,7 @@ class ModelTrainerValidation:
             summary_writer_validation = tf.summary.FileWriter(validation_summaries_path)
             sess.run(tf.global_variables_initializer())
             checkpoint_path = tf.train.get_checkpoint_state(self.saver_dir)
-            if config['load_model'] and checkpoint_path is not None:
+            if self.config['load_model'] and checkpoint_path is not None:
                 saver.restore(sess, checkpoint_path.model_checkpoint_path)
                 print('Model restored from file: {}'.format(checkpoint_path.model_checkpoint_path))
 
@@ -119,14 +120,14 @@ class ModelTrainerValidation:
             })
 
             global_step = 0
-            for epoch_num in range(config['number_of_epochs']):
-                print('epoch {} of {}'.format(epoch_num+1, config['number_of_epochs']))
+            for epoch_num in range(self.config['number_of_epochs']):
+                print('epoch {} of {}'.format(epoch_num+1, self.config['number_of_epochs']))
 
                 for i, batch in enumerate(self.batch_iterator):
                     feed_dict = {
                         self.source_batch: batch,
                         self.target_batch: batch,
-                        self.dropout_placeholder: config['dropout'],
+                        self.dropout_placeholder: self.config['dropout'],
                         self.encoder.should_print: self.config['debug'],
                         self.decoder.should_print: self.config['debug'],
                         self.loss_handler.should_print: self.config['debug']
@@ -138,7 +139,7 @@ class ModelTrainerValidation:
 
                     # Validation
                     if i % 100 == 0:
-                        print_side_by_side(batch, decoded_output)
+                        self.print_side_by_side(batch, decoded_output)
                         print('epoch-index: {} batch-index: {} acc: {} loss: {}'.format(epoch_num, i, batch_acc,
                                                                                         loss_output))
                         print()
@@ -171,7 +172,9 @@ class ModelTrainerValidation:
 
             print('best validation accuracy: {}'.format(best_validation_acc))
             # make sure the model is correct:
-            saver.restore(sess, self.saver_path)
+            checkpoint_path = tf.train.get_checkpoint_state(self.saver_dir)
+            saver.restore(sess, checkpoint_path.model_checkpoint_path)
+            # saver.restore(sess, self.saver_path)
             for validation_batch in self.batch_iterator_validation:
                 feed_dict = {
                     self.source_batch: validation_batch,
