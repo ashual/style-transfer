@@ -9,16 +9,16 @@ from v1_embedding.word_indexing_embedding_handler import WordIndexingEmbeddingHa
 from v1_embedding.embedding_encoder import EmbeddingEncoder
 from v1_embedding.embedding_decoder import EmbeddingDecoder
 from v1_embedding.loss_handler import LossHandler
+from v1_embedding.saver_wrapper import SaverWrapper
 
 
 class ModelTrainerValidation:
     def __init__(self, config_file):
-        self.saver_dir = os.path.join(os.getcwd(), 'models', 'validation_cross_entropy')
-        self.saver_path = os.path.join(self.saver_dir, 'validation_cross_entropy')
-        self.embedding_dir = os.path.join(self.saver_dir, 'embedding')
-        self.summaries_dir = os.path.join(self.saver_dir, 'tensorboard')
-
         self.config = config_file
+
+        self.work_dir = os.path.join(os.getcwd(), 'models')
+        self.embedding_dir = os.path.join(self.work_dir, 'embedding')
+        self.summaries_dir = os.path.join(self.work_dir, 'tensorboard')
 
         self.dataset = YelpSentences(positive=False, limit_sentences=config['limit_sentences'])
         self.embedding_handler = WordIndexingEmbeddingHandler(
@@ -95,14 +95,8 @@ class ModelTrainerValidation:
             print(translated_reconstructed[i])
 
     def overfit(self):
-
-        saver = tf.train.Saver()
+        saver_wrapper = SaverWrapper(self.work_dir, 'validation_cross_entropy')
         best_validation_acc = -1.0
-
-        if not os.path.exists(self.saver_dir):
-                os.makedirs(self.saver_dir)
-        print('models are saved to: {}'.format(self.saver_dir))
-        print()
 
         with tf.Session() as sess:
             train_summaries_path = os.path.join(self.summaries_dir, 'train')
@@ -110,10 +104,8 @@ class ModelTrainerValidation:
             summary_writer_train = tf.summary.FileWriter(train_summaries_path, sess.graph)
             summary_writer_validation = tf.summary.FileWriter(validation_summaries_path)
             sess.run(tf.global_variables_initializer())
-            checkpoint_path = tf.train.get_checkpoint_state(self.saver_dir)
-            if self.config['load_model'] and checkpoint_path is not None:
-                saver.restore(sess, checkpoint_path.model_checkpoint_path)
-                print('Model restored from file: {}'.format(checkpoint_path.model_checkpoint_path))
+            if self.config['load_model']:
+                saver_wrapper.load_model(sess)
 
             sess.run(self.embedding_translator.assign_embedding(), {
                 self.embedding_translator.embedding_placeholder: self.embedding_handler.embedding_np
@@ -159,22 +151,13 @@ class ModelTrainerValidation:
                         if validation_acc > best_validation_acc:
                             print('saving model, former best accuracy {} current best accuracy {}'.
                                   format(best_validation_acc, validation_acc))
-                            try:
-                                # save model
-                                saver.save(sess, self.saver_path)
+                            if saver_wrapper.save_model(sess):
                                 best_validation_acc = validation_acc
-                                print('Model saved')
-                                print()
-                            except:
-                                print('Failed to save model')
-                                print()
                     global_step += 1
 
             print('best validation accuracy: {}'.format(best_validation_acc))
             # make sure the model is correct:
-            checkpoint_path = tf.train.get_checkpoint_state(self.saver_dir)
-            saver.restore(sess, checkpoint_path.model_checkpoint_path)
-            # saver.restore(sess, self.saver_path)
+            saver_wrapper.load_model(sess)
             for validation_batch in self.batch_iterator_validation:
                 feed_dict = {
                     self.source_batch: validation_batch,
