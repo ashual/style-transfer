@@ -9,12 +9,10 @@ from v1_embedding.word_indexing_embedding_handler import WordIndexingEmbeddingHa
 from v1_embedding.embedding_encoder import EmbeddingEncoder
 from v1_embedding.embedding_decoder import EmbeddingDecoder
 from v1_embedding.loss_handler import LossHandler
-from v1_embedding.embedding_discriminator import EmbeddingDiscriminator
 
 
-class ModelTrainerValidation(BaseModel):
+class ModelTrainerValidation:
     def __init__(self, config_file):
-        BaseModel.__init__(self)
         self.saver_dir = os.path.join(os.getcwd(), 'models', 'validation_cross_entropy')
         self.saver_path = os.path.join(self.saver_dir, 'validation_cross_entropy')
         self.embedding_dir = os.path.join(self.saver_dir, 'embedding')
@@ -30,21 +28,21 @@ class ModelTrainerValidation(BaseModel):
             config['word_embedding_size'],
             config['min_word_occurrences']
         )
+        self.dropout_placeholder = tf.placeholder(tf.float32, shape=())
+        # placeholder for source sentences (batch, time)=> index of word
+        self.source_batch = tf.placeholder(tf.int64, shape=(None, None))
+        # placeholder for source sentences (batch, time)=> index of word
+        self.target_batch = tf.placeholder(tf.int64, shape=(None, None))
 
         self.source_identifier = tf.ones(shape=())
         self.target_identifier = -1 * tf.ones(shape=())
 
-        self.embedding_translator = EmbeddingTranslator(self.embedding_handler,
-                                                        translation_hidden_size,
-                                                        config['train_embeddings'],
-                                                        )
-        self.dropout_placeholder = tf.placeholder(tf.float32, shape=())
-        self.encoder = EmbeddingEncoder(config['encoder_hidden_states'], translation_hidden_size,
-                                        self.dropout_placeholder, config['bidirectional'])
+        self.embedding_translator = EmbeddingTranslator(self.embedding_handler, translation_hidden_size,
+                                                        config['train_embeddings'])
+        self.encoder = EmbeddingEncoder(config['encoder_hidden_states'], self.dropout_placeholder,
+                                        config['bidirectional_encoder'])
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(), config['decoder_hidden_states'],
                                         self.embedding_translator, self.dropout_placeholder)
-        self.discriminator = EmbeddingDiscriminator(config['discriminator_hidden_states'], translation_hidden_size,
-                                                    config['discriminator_dropout'])
         self.loss_handler = LossHandler()
 
         self.batch_iterator = BatchIterator(self.dataset, self.embedding_handler,
@@ -53,10 +51,6 @@ class ModelTrainerValidation(BaseModel):
         self.batch_iterator_validation = BatchIterator(self.dataset, self.embedding_handler,
                                                        sentence_len=config['sentence_length'], batch_size=1000)
 
-        # placeholder for source sentences (batch, time)=> index of word
-        self.source_batch = tf.placeholder(tf.int64, shape=(None, None))
-        # placeholder for source sentences (batch, time)=> index of word
-        self.target_batch = tf.placeholder(tf.int64, shape=(None, None))
 
         # "One Hot Vector" -> Embedded Vector (w2v)
         embeddings = self.embedding_translator.embed_inputs(self.source_batch)

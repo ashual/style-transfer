@@ -1,10 +1,9 @@
 import tensorflow as tf
-import copy
 from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingEncoder(BaseModel):
-    def __init__(self, hidden_states, context_vector_size, dropout_placeholder, bidirectional):
+    def __init__(self, hidden_states, dropout_placeholder, bidirectional):
         BaseModel.__init__(self)
         self.bidirectional = bidirectional
         # encoder - model
@@ -12,25 +11,19 @@ class EmbeddingEncoder(BaseModel):
 
             if bidirectional:
                 self.multilayer_encoder_fw = tf.contrib.rnn.MultiRNNCell(self.generate_cells(hidden_states,
-                                                                                             context_vector_size / 2,
                                                                                              dropout_placeholder))
                 self.multilayer_encoder_bw = tf.contrib.rnn.MultiRNNCell(self.generate_cells(hidden_states,
-                                                                                             context_vector_size / 2,
                                                                                              dropout_placeholder))
             else:
                 self.multilayer_encoder = tf.contrib.rnn.MultiRNNCell(self.generate_cells(hidden_states,
-                                                                                          context_vector_size,
                                                                                           dropout_placeholder))
     @staticmethod
-    def generate_cells(hidden_states, context_vector_size, dropout_placeholder):
+    def generate_cells(hidden_states, dropout_placeholder):
         encoder_cells = []
         for hidden_size in hidden_states:
             cell = tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True)
             cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout_placeholder)
             encoder_cells.append(cell)
-        cell = tf.contrib.rnn.BasicLSTMCell(context_vector_size, state_is_tuple=True)
-        cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout_placeholder)
-        encoder_cells.append(cell)
         return encoder_cells
 
     def get_trainable_parameters(self):

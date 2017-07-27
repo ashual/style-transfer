@@ -1,17 +1,15 @@
 load_model: True
-limit_sentences:
-min_word_occurrences: 2
-number_of_epochs: 100
-batch_size: 10
+limit_sentences: 5
+min_word_occurrences: 0
+number_of_epochs: 50
+batch_size: 5
 translation_hidden_size: 1000
 train_embeddings: True
 word_embedding_size: 50
 encoder_hidden_states: [1000, 500]
 decoder_hidden_states: [1000]
-discriminator_hidden_states: [10, 10]
 learn_rate: 0.001
-sentence_length: 5
+sentence_length: 3
 debug: False
 dropout: 0.1
-discriminator_dropout: 0
-bidirectional: False
+bidirectional_encoder: True
