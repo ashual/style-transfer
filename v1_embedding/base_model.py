@@ -23,7 +23,7 @@ class BaseModel:
 
     @staticmethod
     def create_summaries(v):
-        return [tf.summary.scalar(v.name +'_mean', tf.reduce_mean(v)),
+        return [tf.summary.scalar(v.name + '_mean', tf.reduce_mean(v)),
                 tf.summary.scalar(v.name + '_l2_norm', tf.norm(v)),
                 tf.summary.scalar(v.name + '_max_norm', tf.reduce_max(tf.abs(v))),
                 tf.summary.histogram(v.name, v)]
@@ -31,17 +31,5 @@ class BaseModel:
     def get_trainable_parameters_summaries(self):
         res = []
         for v in self.get_trainable_parameters():
-            res += BaseModel. create_summaries(v)
+            res += BaseModel.create_summaries(v)
         return res
-
-    def save_model(self, sess, name, only_values = False):
-        saver = tf.train.Saver()
-        # saver.save(sess, name, None, not only_values)
-        saver.save(sess, name)
-
-    def load_model(self, sess, name = 'latest'):
-        loader = tf.train.import_meta_graph(name)
-        if name=='latest':
-            loader.restore(sess, tf.train.latest_checkpoint('./'))
-        else:
-            loader.restore(sess, './' + name)
