@@ -1,5 +1,6 @@
 import yaml
 import tensorflow as tf
+import time
 from datasets.batch_iterator import BatchIterator
 from datasets.yelp_helpers import YelpSentences
 from v1_embedding.base_model import BaseModel
@@ -12,8 +13,8 @@ from v1_embedding.model_trainer_base import ModelTrainerBase
 
 
 class ModelTrainerValidation(ModelTrainerBase):
-    def __init__(self, config_file):
-        ModelTrainerBase.__init__(self, config_file=config_file)
+    def __init__(self, config_file, operational_config):
+        ModelTrainerBase.__init__(self, config_file=config_file, operational_config_file=operational_config)
 
         self.best_validation_acc = None
 
@@ -106,20 +107,22 @@ class ModelTrainerValidation(ModelTrainerBase):
             self.source_batch: batch,
             self.target_batch: batch,
             self.dropout_placeholder: self.config['dropout'],
-            self.encoder.should_print: self.config['debug'],
-            self.decoder.should_print: self.config['debug'],
-            self.loss_handler.should_print: self.config['debug']
+            self.encoder.should_print: self.operational_config['debug'],
+            self.decoder.should_print: self.operational_config['debug'],
+            self.loss_handler.should_print: self.operational_config['debug']
         }
         train_summaries = None
         execution_list = [self.train_step, self.loss, self.outputs, self.accuracy, self.train_summaries]
 
-
         # print results
         if batch_index % 100 == 0:
+            start_time = time.time()
             _, loss_output, decoded_output, batch_acc, train_summaries = sess.run(execution_list, feed_dict)
+            total_time = time.time() - start_time
             self.print_side_by_side(batch, decoded_output)
-            print('epoch-index: {} batch-index: {} acc: {} loss: {}'.format(epoch_num, batch_index, batch_acc,
-                                                                            loss_output))
+            print('epoch-index: {} batch-index: {} acc: {} loss: {} runtime: {}'.format(epoch_num, batch_index,
+                                                                                        batch_acc, loss_output,
+                                                                                        total_time))
             print()
         else:
             # will not run summaries
@@ -133,9 +136,9 @@ class ModelTrainerValidation(ModelTrainerBase):
             self.source_batch: validation_batch,
             self.target_batch: validation_batch,
             self.dropout_placeholder: 0.0,
-            self.encoder.should_print: self.config['debug'],
-            self.decoder.should_print: self.config['debug'],
-            self.loss_handler.should_print: self.config['debug']
+            self.encoder.should_print: self.operational_config['debug'],
+            self.decoder.should_print: self.operational_config['debug'],
+            self.loss_handler.should_print: self.operational_config['debug']
         }
         validation_acc, validation_summaries = sess.run([self.accuracy, self.validation_summaries], feed_dict)
         if validation_acc > self.best_validation_acc:
@@ -168,5 +171,7 @@ class ModelTrainerValidation(ModelTrainerBase):
 if __name__ == "__main__":
     with open("config/validation_word_index.yml", 'r') as ymlfile:
         config = yaml.load(ymlfile)
+    with open("config/operational.yml", 'r') as ymlfile:
+        operational_config = yaml.load(ymlfile)
 
-    ModelTrainerValidation(config).do_train_loop()
+    ModelTrainerValidation(config, operational_config).do_train_loop()

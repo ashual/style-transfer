@@ -4,8 +4,9 @@ from v1_embedding.saver_wrapper import SaverWrapper
 
 
 class ModelTrainerBase:
-    def __init__(self, config_file):
+    def __init__(self, config_file, operational_config_file):
         self.config = config_file
+        self.operational_config = operational_config_file
 
         self.work_dir = os.path.join(os.getcwd(), 'models', self.get_trainer_name())
         self.embedding_dir = os.path.join(self.work_dir, 'embedding')
@@ -21,13 +22,14 @@ class ModelTrainerBase:
 
     def do_train_loop(self):
         self.saver_wrapper = SaverWrapper(self.work_dir, self.get_trainer_name())
-        session_config = tf.ConfigProto(log_device_placement=True, allow_soft_placement=True)
+        session_config = tf.ConfigProto(log_device_placement=self.operational_config['print_device'],
+                                        allow_soft_placement=True)
         with tf.Session(config=session_config) as sess:
             summary_writer_train = tf.summary.FileWriter(os.path.join(self.summaries_dir, 'train'), sess.graph)
             summary_writer_validation = tf.summary.FileWriter(os.path.join(self.summaries_dir, 'validation'))
 
             sess.run(tf.global_variables_initializer())
-            if self.config['load_model']:
+            if self.operational_config['load_model']:
                 self.saver_wrapper.load_model(sess)
 
             self.do_before_train_loop(sess)
