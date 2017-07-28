@@ -4,7 +4,7 @@ import os
 
 class SaverWrapper:
     def __init__(self, saver_dir, model_name):
-        self.saver_dir = os.path.join(saver_dir, model_name)
+        self.saver_dir = saver_dir
         self.saver_path = os.path.join(self.saver_dir, model_name)
         self.saver = tf.train.Saver()
         if not os.path.exists(self.saver_dir):

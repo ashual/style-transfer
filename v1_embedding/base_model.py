@@ -31,7 +31,7 @@ class BaseModel:
     def get_trainable_parameters_summaries(self):
         res = []
         for v in self.get_trainable_parameters():
-            res += BaseModel.create_summaries(v)
+            res += BaseModel. create_summaries(v)
         return res
 
     def save_model(self, sess, name, only_values = False):
