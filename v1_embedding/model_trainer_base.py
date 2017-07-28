@@ -24,6 +24,8 @@ class ModelTrainerBase:
         self.saver_wrapper = SaverWrapper(self.work_dir, self.get_trainer_name())
         session_config = tf.ConfigProto(log_device_placement=self.operational_config['print_device'],
                                         allow_soft_placement=True)
+        if self.operational_config['run_optimizer']:
+            session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
         with tf.Session(config=session_config) as sess:
             summary_writer_train = tf.summary.FileWriter(os.path.join(self.summaries_dir, 'train'), sess.graph)
             summary_writer_validation = tf.summary.FileWriter(os.path.join(self.summaries_dir, 'validation'))
