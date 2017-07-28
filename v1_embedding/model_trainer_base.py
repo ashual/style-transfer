@@ -21,8 +21,8 @@ class ModelTrainerBase:
 
     def do_train_loop(self):
         self.saver_wrapper = SaverWrapper(self.work_dir, self.get_trainer_name())
-
-        with tf.Session() as sess:
+        session_config = tf.ConfigProto(log_device_placement=True, allow_soft_placement=True)
+        with tf.Session(config=session_config) as sess:
             summary_writer_train = tf.summary.FileWriter(os.path.join(self.summaries_dir, 'train'), sess.graph)
             summary_writer_validation = tf.summary.FileWriter(os.path.join(self.summaries_dir, 'validation'))
 

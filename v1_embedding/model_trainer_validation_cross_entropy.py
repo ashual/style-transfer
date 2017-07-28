@@ -54,8 +54,8 @@ class ModelTrainerValidation(ModelTrainerBase):
         # cross entropy loss
         self.loss = self.loss_handler.get_sentence_reconstruction_loss(self.source_batch, logits)
         # training
-        optimizer = tf.train.AdamOptimizer(self.config['learn_rate'])
-        grads_and_vars = optimizer.compute_gradients(self.loss)
+        optimizer = tf.train.GradientDescentOptimizer(self.config['learn_rate'])
+        grads_and_vars = optimizer.compute_gradients(self.loss, colocate_gradients_with_ops=True)
         self.train_step = optimizer.apply_gradients(grads_and_vars)
         # maximal word for each step
         self.outputs = self.embedding_translator.translate_logits_to_words(logits)
