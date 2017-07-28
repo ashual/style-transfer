@@ -110,15 +110,21 @@ class ModelTrainerValidation(ModelTrainerBase):
             self.decoder.should_print: self.config['debug'],
             self.loss_handler.should_print: self.config['debug']
         }
-        _, loss_output, decoded_output, batch_acc, train_summaries = sess.run([self.train_step, self.loss, self.outputs,
-                                                                               self.accuracy, self.train_summaries],
-                                                                              feed_dict)
+        train_summaries = None
+        execution_list = [self.train_step, self.loss, self.outputs, self.accuracy, self.train_summaries]
+
+
         # print results
         if batch_index % 100 == 0:
+            _, loss_output, decoded_output, batch_acc, train_summaries = sess.run(execution_list, feed_dict)
             self.print_side_by_side(batch, decoded_output)
             print('epoch-index: {} batch-index: {} acc: {} loss: {}'.format(epoch_num, batch_index, batch_acc,
                                                                             loss_output))
             print()
+        else:
+            # will not run summaries
+            _, loss_output, decoded_output, batch_acc = sess.run(execution_list[:-1], feed_dict)
+
         return train_summaries
 
     def do_validation_batch(self, sess, global_step, epoch_num, batch_index, validation_batch,

@@ -38,7 +38,8 @@ class ModelTrainerBase:
 
                 for batch_index, batch in enumerate(self.batch_iterator):
                     train_summaries = self.do_train_batch(sess, global_step, epoch_num, batch_index, batch)
-                    summary_writer_train.add_summary(train_summaries, global_step=global_step)
+                    if train_summaries is not None:
+                        summary_writer_train.add_summary(train_summaries, global_step=global_step)
                     if batch_index % 100 == 0:
                         for validation_batch in self.batch_iterator_validation:
                             validation_summaries = self.do_validation_batch(sess, global_step, epoch_num, batch_index,

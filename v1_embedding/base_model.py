@@ -6,11 +6,13 @@ class BaseModel:
         self.should_print = tf.placeholder_with_default(False, shape=())
 
     def print_tensor_with_shape(self, tensor, name):
-        return tf.cond(self.should_print,
-                       lambda: tf.Print(
-                           tf.Print(tensor, [tensor], message=name + ":"),
-                           [tf.shape(tensor)], message=name + " shape:"),
-                       lambda: tf.identity(tensor))
+        return tensor
+        # Print is CPU based, removing it for now
+        # return tf.cond(self.should_print,
+        #                lambda: tf.Print(
+        #                    tf.Print(tensor, [tensor], message=name + ":"),
+        #                    [tf.shape(tensor)], message=name + " shape:"),
+        #                lambda: tf.identity(tensor))
 
     @staticmethod
     def create_input_parameters(input_size, output_size):
