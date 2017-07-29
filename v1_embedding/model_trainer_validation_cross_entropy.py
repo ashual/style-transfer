@@ -13,8 +13,8 @@ from v1_embedding.model_trainer_base import ModelTrainerBase
 
 
 class ModelTrainerValidation(ModelTrainerBase):
-    def __init__(self, config_file, operational_config):
-        ModelTrainerBase.__init__(self, config_file=config_file, operational_config_file=operational_config)
+    def __init__(self, config_file, operational_config_file):
+        ModelTrainerBase.__init__(self, config_file=config_file, operational_config_file=operational_config_file)
 
         self.best_validation_acc = None
 
@@ -31,7 +31,7 @@ class ModelTrainerValidation(ModelTrainerBase):
                                      dataset_cache_dir=self.dataset_cache_dir)
         self.embedding_handler = WordIndexingEmbeddingHandler(
             self.embedding_dir,
-            self.dataset,
+            [self.dataset],
             self.config['word_embedding_size'],
             self.config['min_word_occurrences']
         )

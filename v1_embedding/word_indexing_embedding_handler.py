@@ -5,10 +5,10 @@ from nltk import word_tokenize
 
 
 class WordIndexingEmbeddingHandler(EmbeddingHandler):
-    def __init__(self, save_dir, dataset, embedding_size, n=1, truncate_by_cutoff=True):
+    def __init__(self, save_dir, datasets, embedding_size, n=1, truncate_by_cutoff=True):
         EmbeddingHandler.__init__(self, save_dir)
         if not self.initialized_from_cache:
-            vocab = self.build_dataset(WordIndexingEmbeddingHandler.read_data(dataset), n, truncate_by_cutoff)
+            vocab = self.build_dataset(WordIndexingEmbeddingHandler.read_data(datasets), n, truncate_by_cutoff)
             # init mappings
             self.vocabulary_to_internals(vocab)
             # init embeddings
@@ -17,10 +17,11 @@ class WordIndexingEmbeddingHandler(EmbeddingHandler):
             print('used word indexing for embedding')
 
     @staticmethod
-    def read_data(dataset):
+    def read_data(datasets):
         data = []
-        for sentence in dataset.get_content():
-            data.extend(word_tokenize(sentence))
+        for dataset in datasets:
+            for sentence in dataset.get_content():
+                data.extend(word_tokenize(sentence))
         return data
 
     def build_dataset(self, words, n, truncate_by_cutoff):
