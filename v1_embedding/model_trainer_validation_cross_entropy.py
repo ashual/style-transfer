@@ -85,9 +85,6 @@ class ModelTrainerValidation(ModelTrainerBase):
                                                  gradient_global_norm])
         self.validation_summaries = tf.summary.merge([accuracy_summary, weight_summaries])
 
-    def get_trainer_name(self):
-        return 'validation_cross_entropy'
-
     def print_side_by_side(self, original, reconstructed):
         translated_original = self.embedding_handler.get_index_to_word(original)
         translated_reconstructed = self.embedding_handler.get_index_to_word(reconstructed)

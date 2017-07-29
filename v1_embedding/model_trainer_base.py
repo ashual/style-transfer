@@ -19,7 +19,7 @@ class ModelTrainerBase:
         self.saver_wrapper = None
 
     def get_trainer_name(self):
-        return ''
+        return self.__class__.__name__
 
     def do_train_loop(self):
         self.saver_wrapper = SaverWrapper(self.work_dir, self.get_trainer_name())
