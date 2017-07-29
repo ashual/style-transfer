@@ -3,12 +3,11 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingEncoder(BaseModel):
-    def __init__(self, hidden_states, dropout_placeholder, bidirectional):
-        BaseModel.__init__(self)
+    def __init__(self, hidden_states, dropout_placeholder, bidirectional, name=None):
+        BaseModel.__init__(self, name)
         self.bidirectional = bidirectional
         # encoder - model
-        with tf.variable_scope('encoder', initializer=tf.random_uniform_initializer(-0.008, 0.008)):
-
+        with tf.variable_scope('{}/cells'.format(self.name)):
             if bidirectional:
                 self.multilayer_encoder_fw = tf.contrib.rnn.MultiRNNCell(self.generate_cells(hidden_states,
                                                                                              dropout_placeholder))
@@ -26,28 +25,29 @@ class EmbeddingEncoder(BaseModel):
             encoder_cells.append(cell)
         return encoder_cells
 
-    def get_trainable_parameters(self):
-        return [v for v in tf.trainable_variables() if v.name.startswith('encoder_run')]
-
     def encode_inputs_to_vector(self, inputs, domain_identifier):
-        with tf.variable_scope('encoder_preprocessing'):
-            # the input sequence s.t (batch, time, embedding)
-            inputs = self.print_tensor_with_shape(inputs, "inputs")
+        # if domain identifier is None the encoder has no information about the source domain
+        if domain_identifier is None:
+            encoder_inputs = inputs
+        else:
+            with tf.variable_scope('{}/preprocessing'.format(self.name)):
+                # the input sequence s.t (batch, time, embedding)
+                inputs = self.print_tensor_with_shape(inputs, "inputs")
 
-            # important sizes
-            batch_size = tf.shape(inputs)[0]
-            sentence_length = tf.shape(inputs)[1]
+                # important sizes
+                batch_size = tf.shape(inputs)[0]
+                sentence_length = tf.shape(inputs)[1]
 
-            # create the input: (batch, time, embedding; domain)
-            domain_identifier = self.print_tensor_with_shape(domain_identifier, "domain_identifier")
-            domain_identifier_tiled = tf.tile(
-                tf.expand_dims(tf.expand_dims(tf.expand_dims(domain_identifier, 0), 0), 0),
-                [batch_size, sentence_length, 1]
-            )
-            encoder_inputs = tf.concat((inputs, domain_identifier_tiled), axis=2)
+                # create the input: (batch, time, embedding; domain)
+                domain_identifier = self.print_tensor_with_shape(domain_identifier, "domain_identifier")
+                domain_identifier_tiled = tf.tile(
+                    tf.expand_dims(tf.expand_dims(tf.expand_dims(domain_identifier, 0), 0), 0),
+                    [batch_size, sentence_length, 1]
+                )
+                encoder_inputs = tf.concat((inputs, domain_identifier_tiled), axis=2)
 
         # run the encoder
-        with tf.variable_scope('encoder_run'):
+        with tf.variable_scope('{}/run'.format(self.name)):
             # define the initial state as empty and run model
             if self.bidirectional:
                 initial_state_bw = self.multilayer_encoder_bw.zero_state(batch_size, tf.float32)

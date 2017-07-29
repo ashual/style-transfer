@@ -2,8 +2,13 @@ import tensorflow as tf
 
 
 class BaseModel:
-    def __init__(self):
+    def __init__(self, name=None):
         self.should_print = tf.placeholder_with_default(False, shape=())
+        self.name = self.__class__.__name__
+        if name is not None:
+            self.name += '_{}'.format(name)
+        self.trainable_parameters = None
+        print('{} created'.format(self.name))
 
     def print_tensor_with_shape(self, tensor, name):
         return tensor
@@ -21,7 +26,9 @@ class BaseModel:
         return w, b
 
     def get_trainable_parameters(self):
-        pass
+        if self.trainable_parameters is None:
+            self.trainable_parameters = [v for v in tf.trainable_variables() if v.name.startswith(self.name)]
+        return self.trainable_parameters
 
     @staticmethod
     def create_summaries(v):

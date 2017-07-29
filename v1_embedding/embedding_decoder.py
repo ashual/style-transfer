@@ -3,12 +3,11 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingDecoder(BaseModel):
-    def __init__(self, embedding_size, hidden_states, embedding_translator, dropout_placeholder):
-        BaseModel.__init__(self)
+    def __init__(self, embedding_size, hidden_states, embedding_translator, dropout_placeholder, name=None):
+        BaseModel.__init__(self, name)
         self.embedding_translator = embedding_translator
-
         # decoder - model
-        with tf.variable_scope('decoder', initializer=tf.random_uniform_initializer(-0.008, 0.008)):
+        with tf.variable_scope('{}/cells'.format(self.name)):
             decoder_cells = []
             for hidden_size in hidden_states:
                 cell = tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True)
@@ -19,15 +18,12 @@ class EmbeddingDecoder(BaseModel):
             decoder_cells.append(cell)
             self.multilayer_decoder = tf.contrib.rnn.MultiRNNCell(decoder_cells)
 
-    def get_trainable_parameters(self):
-        return [v for v in tf.trainable_variables() if v.name.startswith('decoder_run')]
-
     def get_zero_state(self, batch_size):
-        with tf.variable_scope('decoder_get_zero_state'):
+        with tf.variable_scope('{}/get_zero_state'.format(self.name)):
             return self.multilayer_decoder.zero_state(batch_size, tf.float32)
 
     def decode_vector_to_sequence(self, encoded_vector, initial_decoder_state, inputs, domain_identifier):
-        with tf.variable_scope('decoder_preprocessing'):
+        with tf.variable_scope('{}/preprocessing'.format(self.name)):
             # encoded vector (batch, context)
             encoded_vector = self.print_tensor_with_shape(encoded_vector, "encoded_vector")
             # the input sequence s.t (batch, time, embedding)
@@ -51,7 +47,7 @@ class EmbeddingDecoder(BaseModel):
             decoder_inputs = tf.concat((decoder_inputs, domain_identifier_tiled), axis=2)
             decoder_inputs = self.print_tensor_with_shape(decoder_inputs, "decoder_inputs")
 
-        with tf.variable_scope('decoder_run'):
+        with tf.variable_scope('{}/run'.format(self.name)):
             decoded_vector, decoder_last_state = tf.nn.dynamic_rnn(self.multilayer_decoder, decoder_inputs,
                                                                    initial_state=initial_decoder_state,
                                                                    time_major=False)
