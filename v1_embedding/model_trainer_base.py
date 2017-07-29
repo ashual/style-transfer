@@ -9,6 +9,7 @@ class ModelTrainerBase:
         self.operational_config = operational_config_file
 
         self.work_dir = os.path.join(os.getcwd(), 'models', self.get_trainer_name())
+        self.dataset_cache_dir = os.path.join(self.work_dir, 'dataset_cache')
         self.embedding_dir = os.path.join(self.work_dir, 'embedding')
         self.summaries_dir = os.path.join(self.work_dir, 'tensorboard')
 

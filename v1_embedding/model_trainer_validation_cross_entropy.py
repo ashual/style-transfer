@@ -27,7 +27,8 @@ class ModelTrainerValidation(ModelTrainerBase):
         self.source_identifier = tf.ones(shape=())
         self.target_identifier = -1 * tf.ones(shape=())
 
-        self.dataset = YelpSentences(positive=False, limit_sentences=self.config['limit_sentences'])
+        self.dataset = YelpSentences(positive=False, limit_sentences=self.config['limit_sentences'],
+                                     dataset_cache_dir=self.dataset_cache_dir)
         self.embedding_handler = WordIndexingEmbeddingHandler(
             self.embedding_dir,
             self.dataset,
@@ -159,9 +160,9 @@ class ModelTrainerValidation(ModelTrainerBase):
                 self.source_batch: validation_batch,
                 self.target_batch: validation_batch,
                 self.dropout_placeholder: 0.0,
-                self.encoder.should_print: self.config['debug'],
-                self.decoder.should_print: self.config['debug'],
-                self.loss_handler.should_print: self.config['debug']
+                self.encoder.should_print: self.operational_config['debug'],
+                self.decoder.should_print: self.operational_config['debug'],
+                self.loss_handler.should_print: self.operational_config['debug']
             }
             validation_acc = sess.run(self.accuracy, feed_dict)
             print('tested validation accuracy: {}'.format(validation_acc))

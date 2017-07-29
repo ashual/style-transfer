@@ -1,13 +1,32 @@
 from nltk import word_tokenize
+import os
 
 
 class Dataset:
-    def __init__(self, limit_sentences=None):
+    def __init__(self, limit_sentences=None, dataset_cache_dir=None):
         self.content = None
         self.limit_sentences = limit_sentences
+        self.dataset_cache_dir = dataset_cache_dir
+        self.dataset_cache_file = None if dataset_cache_dir is None else os.path.join(dataset_cache_dir, 'dataset.txt')
+        if dataset_cache_dir is not None and not os.path.exists(dataset_cache_dir):
+            os.makedirs(dataset_cache_dir)
 
     def get_content(self):
-        return self.content if self.limit_sentences is None else self.content[:self.limit_sentences]
+        if self.content is None:
+            if self.dataset_cache_file is not None and os.path.exists(self.dataset_cache_file):
+                with open(self.dataset_cache_file) as f:
+                    self.content = f.readlines()
+            else:
+                self.content = self.get_content_actual()
+                if self.limit_sentences is not None:
+                    self.content = self.content[:self.limit_sentences]
+                if self.dataset_cache_file is not None:
+                    with open(self.dataset_cache_file, 'w') as f:
+                        f.writelines("%s\n" % l for l in self.content)
+        return self.content
+
+    def get_content_actual(self):
+        pass
 
     def get_word_dictionary(self):
         content = self.get_content()
