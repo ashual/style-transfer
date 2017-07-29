@@ -84,6 +84,8 @@ class ModelTrainerValidation(ModelTrainerBase):
         self.train_summaries = tf.summary.merge([loss_summary, accuracy_summary, weight_summaries, gradient_summaries,
                                                  gradient_global_norm])
         self.validation_summaries = tf.summary.merge([accuracy_summary, weight_summaries])
+        self.best_lost = float('inf')
+        self.loss_output = float('inf')
 
     def print_side_by_side(self, original, reconstructed):
         translated_original = self.embedding_handler.get_index_to_word(original)
@@ -139,8 +141,12 @@ class ModelTrainerValidation(ModelTrainerBase):
             self.decoder.should_print: self.operational_config['debug'],
             self.loss_handler.should_print: self.operational_config['debug']
         }
-        validation_acc, validation_summaries, best_validation_acc = sess.run([self.accuracy, self.validation_summaries,
-                                                                              self.best_validation_acc], feed_dict)
+        self.loss_output, validation_acc, validation_summaries, best_validation_acc = sess.run(
+            [self.loss,
+             self.accuracy,
+             self.validation_summaries,
+             self.best_validation_acc],
+            feed_dict)
         if validation_acc > best_validation_acc:
             print('saving model, former best accuracy {} current best accuracy {}'.
                   format(best_validation_acc, validation_acc))
@@ -168,6 +174,25 @@ class ModelTrainerValidation(ModelTrainerBase):
             print('tested validation accuracy: {}'.format(validation_acc))
             print()
             break
+
+    def do_before_epoch(self, sess):
+        if self.batch_iterator.sentence_len >= self.config['sentence_max_length']:
+            pass
+        if self.loss_output > 5.0:
+            self.best_lost = min(self.best_lost, self.loss_output)
+        # The loss is ok, but keep decreasing
+        elif 5.0 >= self.loss_output > 3.0 and self.loss_output < self.best_lost:
+            self.best_lost = min(self.best_lost, self.loss_output)
+        else:
+            num_of_words = self.batch_iterator.sentence_len + 1
+            print('Moving from {} to {} words'.format(num_of_words - 1, num_of_words))
+            self.batch_iterator.sentence_len = num_of_words
+            self.batch_iterator_validation.sentence_len = num_of_words
+            self.best_lost = float('inf')
+
+    def do_after_epoch(self, sess):
+        pass
+
 
 if __name__ == "__main__":
     with open("config/validation_word_index.yml", 'r') as ymlfile:

@@ -40,7 +40,7 @@ class ModelTrainerBase:
             global_step = 0
             for epoch_num in range(self.config['number_of_epochs']):
                 print('epoch {} of {}'.format(epoch_num+1, self.config['number_of_epochs']))
-
+                self.do_before_epoch(sess)
                 for batch_index, batch in enumerate(self.batch_iterator):
                     train_summaries = self.do_train_batch(sess, global_step, epoch_num, batch_index, batch)
                     if train_summaries is not None:
@@ -52,6 +52,7 @@ class ModelTrainerBase:
                             summary_writer_validation.add_summary(validation_summaries, global_step=global_step)
                             break
                     global_step += 1
+                self.do_after_epoch(sess)
             self.do_after_train_loop(sess)
 
     def do_before_train_loop(self, sess):
@@ -64,4 +65,10 @@ class ModelTrainerBase:
         pass
 
     def do_after_train_loop(self, sess):
+        pass
+
+    def do_before_epoch(self, sess):
+        pass
+
+    def do_after_epoch(self, sess):
         pass
