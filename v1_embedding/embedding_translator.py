@@ -53,8 +53,3 @@ class EmbeddingTranslator(BaseModel):
     def get_special_word(self, word_index):
         with tf.variable_scope('{}/get_special_word'.format(self.name)):
             return tf.one_hot(word_index, self.embedding_handler.get_vocabulary_length())
-
-    def is_special_word(self, word_index, logits_vector):
-        with tf.variable_scope('{}/is_special_word'.format(self.name)):
-            word_argmax = self.translate_logits_to_words(logits_vector)
-            return tf.equal(word_argmax, word_index)
