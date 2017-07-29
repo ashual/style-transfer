@@ -16,7 +16,7 @@ class ModelTrainerValidation(ModelTrainerBase):
     def __init__(self, config_file, operational_config_file):
         ModelTrainerBase.__init__(self, config_file=config_file, operational_config_file=operational_config_file)
 
-        self.best_validation_acc = None
+        self.best_validation_acc = tf.Variable(-1.0, trainable=False)
 
         self.dropout_placeholder = tf.placeholder(tf.float32, shape=())
         # placeholder for source sentences (batch, time)=> index of word
@@ -98,7 +98,8 @@ class ModelTrainerValidation(ModelTrainerBase):
             print(translated_reconstructed[i])
 
     def do_before_train_loop(self, sess):
-        self.best_validation_acc = -1.0
+        best_validation_acc = sess.run(self.best_validation_acc)
+        print('starting validation accuracy: {}'.format(best_validation_acc))
         sess.run(self.embedding_translator.assign_embedding(), {
             self.embedding_translator.embedding_placeholder: self.embedding_handler.embedding_np
         })
@@ -141,18 +142,20 @@ class ModelTrainerValidation(ModelTrainerBase):
             self.decoder.should_print: self.operational_config['debug'],
             self.loss_handler.should_print: self.operational_config['debug']
         }
-        validation_acc, validation_summaries = sess.run([self.accuracy, self.validation_summaries], feed_dict)
-        if validation_acc > self.best_validation_acc:
+        validation_acc, validation_summaries, best_validation_acc = sess.run([self.accuracy, self.validation_summaries,
+                                                                              self.best_validation_acc], feed_dict)
+        if validation_acc > best_validation_acc:
             print('saving model, former best accuracy {} current best accuracy {}'.
-                  format(self.best_validation_acc, validation_acc))
+                  format(best_validation_acc, validation_acc))
             print()
             if self.saver_wrapper.save_model(sess):
-                self.best_validation_acc = validation_acc
+                sess.run([tf.assign(self.best_validation_acc, validation_acc)])
 
         return validation_summaries
 
     def do_after_train_loop(self, sess):
-        print('best validation accuracy: {}'.format(self.best_validation_acc))
+        best_validation_acc = sess.run(self.best_validation_acc)
+        print('best validation accuracy: {}'.format(best_validation_acc))
         # make sure the model is correct:
         self.saver_wrapper.load_model(sess)
         for validation_batch in self.batch_iterator_validation:
