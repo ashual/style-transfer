@@ -8,7 +8,6 @@ from v1_embedding.embedding_translator import EmbeddingTranslator
 from v1_embedding.word_indexing_embedding_handler import WordIndexingEmbeddingHandler
 from v1_embedding.embedding_encoder import EmbeddingEncoder
 from v1_embedding.embedding_decoder import EmbeddingDecoder
-from v1_embedding.loss_handler import LossHandler
 from v1_embedding.model_trainer_base import ModelTrainerBase
 
 
@@ -42,7 +41,6 @@ class ModelTrainerValidation(ModelTrainerBase):
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(),
                                         self.config['decoder_hidden_states'],
                                         self.embedding_translator, self.dropout_placeholder)
-        self.loss_handler = LossHandler()
 
         # "One Hot Vector" -> Embedded Vector (w2v)
         embeddings = self.embedding_translator.embed_inputs(self.source_batch)
@@ -54,7 +52,7 @@ class ModelTrainerValidation(ModelTrainerBase):
         # decoded -> logits
         logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(decoded)
         # cross entropy loss
-        self.loss = self.loss_handler.get_sentence_reconstruction_loss(self.source_batch, logits)
+        self.loss = tf.reduce_mean(tf.squared_difference(tf.one_hot(self.source_batch, tf.shape(logits)[-1]), logits))
         # training
         optimizer = tf.train.GradientDescentOptimizer(self.config['learn_rate'])
         grads_and_vars = optimizer.compute_gradients(self.loss, colocate_gradients_with_ops=True)
@@ -110,7 +108,6 @@ class ModelTrainerValidation(ModelTrainerBase):
             self.dropout_placeholder: self.config['dropout'],
             self.encoder.should_print: self.operational_config['debug'],
             self.decoder.should_print: self.operational_config['debug'],
-            self.loss_handler.should_print: self.operational_config['debug']
         }
         train_summaries = None
         execution_list = [self.train_step, self.loss, self.outputs, self.accuracy, self.train_summaries]
@@ -139,7 +136,6 @@ class ModelTrainerValidation(ModelTrainerBase):
             self.dropout_placeholder: 0.0,
             self.encoder.should_print: self.operational_config['debug'],
             self.decoder.should_print: self.operational_config['debug'],
-            self.loss_handler.should_print: self.operational_config['debug']
         }
         self.loss_output, validation_acc, validation_summaries, best_validation_acc = sess.run(
             [self.loss,
@@ -168,7 +164,6 @@ class ModelTrainerValidation(ModelTrainerBase):
                 self.dropout_placeholder: 0.0,
                 self.encoder.should_print: self.operational_config['debug'],
                 self.decoder.should_print: self.operational_config['debug'],
-                self.loss_handler.should_print: self.operational_config['debug']
             }
             validation_acc = sess.run(self.accuracy, feed_dict)
             print('tested validation accuracy: {}'.format(validation_acc))
