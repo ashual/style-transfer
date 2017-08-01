@@ -26,17 +26,17 @@ class EmbeddingEncoder(BaseModel):
         return encoder_cells
 
     def encode_inputs_to_vector(self, inputs, domain_identifier):
-        # if domain identifier is None the encoder has no information about the source domain
-        if domain_identifier is None:
-            encoder_inputs = inputs
-        else:
-            with tf.variable_scope('{}/preprocessing'.format(self.name)):
+        with tf.variable_scope('{}/preprocessing'.format(self.name)):
+            # important sizes
+            batch_size = tf.shape(inputs)[0]
+            sentence_length = tf.shape(inputs)[1]
+
+            # if domain identifier is None the encoder has no information about the source domain
+            if domain_identifier is None:
+                encoder_inputs = inputs
+            else:
                 # the input sequence s.t (batch, time, embedding)
                 inputs = self.print_tensor_with_shape(inputs, "inputs")
-
-                # important sizes
-                batch_size = tf.shape(inputs)[0]
-                sentence_length = tf.shape(inputs)[1]
 
                 # create the input: (batch, time, embedding; domain)
                 domain_identifier = self.print_tensor_with_shape(domain_identifier, "domain_identifier")
