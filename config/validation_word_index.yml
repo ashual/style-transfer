@@ -1,16 +1,25 @@
-limit_sentences: 300000
-min_word_occurrences: 2
-number_of_epochs: 500
-batch_size: 10
-translation_hidden_size: 1000
-train_embeddings: True
-word_embedding_size: 50
-encoder_hidden_states: [1500, 1000, 500]
-decoder_hidden_states: [1000, 1500]
-learn_rate: 0.0035
-dropout: 0.1
-bidirectional_encoder: False
-curriculum_training: True
-# If curriculum_training=True, sentence_length is the initial length
-sentence_length: 3
-sentence_max_length: 15
+model:
+  number_of_epochs: 500
+  batch_size: 10
+  translation_hidden_size: 1000
+  encoder_hidden_states: [1500, 1000, 500]
+  decoder_hidden_states: [1000, 1500]
+  learn_rate: 0.0035
+  dropout: 0.1
+  bidirectional_encoder: False
+  curriculum_training: True
+
+embedding:
+  min_word_occurrences: 2
+  word_size: 50
+  should_train: True
+
+loss:
+  upper_range: 5.0
+  lower_range: 3.0
+
+sentence:
+  #limit: 300000
+  limit: 3
+  min_length: 3
+  max_length: 15

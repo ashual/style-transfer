@@ -26,20 +26,22 @@ class ModelTrainerValidation(ModelTrainerBase):
         self.source_identifier = tf.ones(shape=())
         self.target_identifier = -1 * tf.ones(shape=())
 
-        self.dataset = YelpSentences(positive=False, limit_sentences=self.config['limit_sentences'],
+        self.dataset = YelpSentences(positive=False, limit_sentences=self.config['sentence']['limit'],
                                      dataset_cache_dir=self.dataset_cache_dir)
         self.embedding_handler = WordIndexingEmbeddingHandler(
             self.embedding_dir,
             [self.dataset],
-            self.config['word_embedding_size'],
-            self.config['min_word_occurrences']
+            self.config['embedding']['word_size'],
+            self.config['embedding']['min_word_occurrences']
         )
-        self.embedding_translator = EmbeddingTranslator(self.embedding_handler, self.config['translation_hidden_size'],
-                                                        self.config['train_embeddings'])
-        self.encoder = EmbeddingEncoder(self.config['encoder_hidden_states'], self.dropout_placeholder,
-                                        self.config['bidirectional_encoder'])
+        self.embedding_translator = EmbeddingTranslator(self.embedding_handler,
+                                                        self.config['model']['translation_hidden_size'],
+                                                        self.config['embedding']['should_train'])
+        self.encoder = EmbeddingEncoder(self.config['model']['encoder_hidden_states'],
+                                        self.dropout_placeholder,
+                                        self.config['model']['bidirectional_encoder'])
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(),
-                                        self.config['decoder_hidden_states'],
+                                        self.config['model']['decoder_hidden_states'],
                                         self.embedding_translator, self.dropout_placeholder)
 
         # "One Hot Vector" -> Embedded Vector (w2v)
@@ -55,13 +57,15 @@ class ModelTrainerValidation(ModelTrainerBase):
         self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
             labels=tf.one_hot(self.source_batch, tf.shape(logits)[-1]), logits=logits))
         # training
-        optimizer = tf.train.GradientDescentOptimizer(self.config['learn_rate'])
+        optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
         grads_and_vars = optimizer.compute_gradients(self.loss, colocate_gradients_with_ops=True)
         self.train_step = optimizer.apply_gradients(grads_and_vars)
         # maximal word for each step
         self.outputs = self.embedding_translator.translate_logits_to_words(logits)
         # accuracy
         self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.source_batch, self.outputs), tf.float32))
+        self.best_loss = float('inf')
+        self.loss_output = float('inf')
         # summaries
         loss_summary = tf.summary.scalar('loss', self.loss)
         accuracy_summary = tf.summary.scalar('accuracy', self.accuracy)
@@ -71,20 +75,20 @@ class ModelTrainerValidation(ModelTrainerBase):
         gradient_summaries = tf.summary.merge([item for sublist in
                                                [BaseModel.create_summaries(g) for g, v in grads_and_vars]
                                                for item in sublist])
-        gradient_global_norm = tf.summary.scalar('gradient_global_norm', tf.global_norm([g for g,v in grads_and_vars]))
+        gradient_global_norm = tf.summary.scalar('gradient_global_norm', tf.global_norm([g for g, v in grads_and_vars]))
         # needed by ModelTrainerBase
         self.batch_iterator = BatchIterator(self.dataset, self.embedding_handler,
-                                            sentence_len=self.config['sentence_length'],
-                                            batch_size=self.config['batch_size'])
+                                            sentence_len=self.config['sentence']['min_length'],
+                                            batch_size=self.config['model']['batch_size'])
 
-        self.batch_iterator_validation = BatchIterator(self.dataset, self.embedding_handler,
-                                                       sentence_len=self.config['sentence_length'], batch_size=1000)
+        self.batch_iterator_validation = BatchIterator(self.dataset,
+                                                       self.embedding_handler,
+                                                       sentence_len=self.config['sentence']['min_length'],
+                                                       batch_size=1000)
 
         self.train_summaries = tf.summary.merge([loss_summary, accuracy_summary, weight_summaries, gradient_summaries,
                                                  gradient_global_norm])
-        self.validation_summaries = tf.summary.merge([accuracy_summary, weight_summaries])
-        self.best_lost = float('inf')
-        self.loss_output = float('inf')
+        self.validation_summaries = tf.summary.merge([accuracy_summary, weight_summaries, loss_summary])
 
     def print_side_by_side(self, original, reconstructed):
         translated_original = self.embedding_handler.get_index_to_word(original)
@@ -106,7 +110,7 @@ class ModelTrainerValidation(ModelTrainerBase):
         feed_dict = {
             self.source_batch: batch,
             self.target_batch: batch,
-            self.dropout_placeholder: self.config['dropout'],
+            self.dropout_placeholder: self.config['model']['dropout'],
             self.encoder.should_print: self.operational_config['debug'],
             self.decoder.should_print: self.operational_config['debug'],
         }
@@ -129,8 +133,7 @@ class ModelTrainerValidation(ModelTrainerBase):
 
         return train_summaries
 
-    def do_validation_batch(self, sess, global_step, epoch_num, batch_index, validation_batch,
-                            ):
+    def do_validation_batch(self, sess, global_step, epoch_num, batch_index, validation_batch):
         feed_dict = {
             self.source_batch: validation_batch,
             self.target_batch: validation_batch,
@@ -172,19 +175,34 @@ class ModelTrainerValidation(ModelTrainerBase):
             break
 
     def do_before_epoch(self, sess):
-        if self.batch_iterator.sentence_len >= self.config['sentence_max_length']:
-            pass
-        if self.loss_output > 5.0:
-            self.best_lost = min(self.best_lost, self.loss_output)
+        enlarge = False
+        message = ''
+        if self.batch_iterator.sentence_len >= self.config['sentence']['max_length']:
+            return
         # The loss is ok, but keep decreasing
-        elif 5.0 >= self.loss_output > 3.0 and self.loss_output < self.best_lost:
-            self.best_lost = min(self.best_lost, self.loss_output)
-        else:
+        if config['loss']['upper_range'] >= self.loss_output > config['loss']['lower_range'] and \
+                        self.loss_output >= self.best_loss:
+            enlarge = True
+            message = "loss is in range {}>={}>{} and doesn't decrease - best:{}, current: {}".format(
+                config['loss']['upper_range'],
+                self.loss_output,
+                config['loss']['lower_range'],
+                self.best_loss,
+                self.loss_output
+            )
+        elif config['loss']['lower_range'] >= self.loss_output:
+            enlarge = True
+            message = "loss ({}) is smaller than lower_range: {}".format(self.loss_output,
+                                                                         config['loss']['lower_range'])
+
+        if enlarge:
             num_of_words = self.batch_iterator.sentence_len + 1
-            print('Moving from {} to {} words'.format(num_of_words - 1, num_of_words))
+            print('Moving from {} to {} words because {}'.format(num_of_words - 1, num_of_words, message))
             self.batch_iterator.sentence_len = num_of_words
             self.batch_iterator_validation.sentence_len = num_of_words
-            self.best_lost = float('inf')
+            self.best_loss = float('inf')
+        else:
+            self.best_loss = min(self.best_loss, self.loss_output)
 
     def do_after_epoch(self, sess):
         pass

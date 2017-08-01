@@ -26,11 +26,10 @@ class SaverWrapper:
             try:
                 # save model
                 self.saver.save(sess, self.saver_path)
-                print('Model saved')
-                print()
+                print('Model saved\n')
                 return True
             except:
                 pass
-        print('Failed to save model')
+        print('Failed to save model\n')
         print()
         return False

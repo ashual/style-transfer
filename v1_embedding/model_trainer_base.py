@@ -38,8 +38,8 @@ class ModelTrainerBase:
             self.do_before_train_loop(sess)
 
             global_step = 0
-            for epoch_num in range(self.config['number_of_epochs']):
-                print('epoch {} of {}'.format(epoch_num+1, self.config['number_of_epochs']))
+            for epoch_num in range(self.config['model']['number_of_epochs']):
+                print('epoch {} of {}'.format(epoch_num+1, self.config['model']['number_of_epochs']))
                 self.do_before_epoch(sess)
                 for batch_index, batch in enumerate(self.batch_iterator):
                     train_summaries = self.do_train_batch(sess, global_step, epoch_num, batch_index, batch)

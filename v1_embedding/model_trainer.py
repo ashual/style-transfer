@@ -21,7 +21,7 @@ class ModelTrainer(BaseModel):
                  semantic_distance_loss_coefficient=0, anti_discriminator_loss_coefficient=0, ):
         BaseModel.__init__(self)
         self.config = config
-        translation_hidden_size = config['translation_hidden_size']
+        translation_hidden_size = config['model']['translation_hidden_size']
 
         self.vocabulary_handler = vocabulary_handler
 
@@ -43,13 +43,13 @@ class ModelTrainer(BaseModel):
         self.embedding_translator = EmbeddingTranslator(vocabulary_handler.embedding_size,
                                                         vocabulary_handler.vocabulary_size,
                                                         translation_hidden_size,
-                                                        config['train_embeddings'],
+                                                        config['embedding']['should_train'],
                                                         vocabulary_handler.start_token_index,
                                                         vocabulary_handler.end_token_index,
                                                         vocabulary_handler.unknown_token_index,
                                                         vocabulary_handler.pad_token_index,
                                                         self.source_batch)
-        self.encoder = EmbeddingEncoder(config['encoder_hidden_states'], translation_hidden_size)
+        self.encoder = EmbeddingEncoder(config['model']['encoder_hidden_states'], translation_hidden_size)
         self.decoder = EmbeddingDecoder(vocabulary_handler.embedding_size, config['decoder_hidden_states'],
                                         self.embedding_translator)
         self.discriminator = EmbeddingDiscriminator(config['discriminator_hidden_states'], translation_hidden_size)
