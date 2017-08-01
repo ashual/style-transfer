@@ -42,10 +42,7 @@ class EmbeddingDecoder(BaseModel):
             decoder_inputs = tf.expand_dims(encoded_vector, 1)
             decoder_inputs = tf.tile(decoder_inputs, [1, sentence_length, 1])
             decoder_inputs = tf.concat((inputs, decoder_inputs), axis=2)
-            domain_identifier_tiled = tf.tile(
-                tf.expand_dims(tf.expand_dims(tf.expand_dims(domain_identifier, 0), 0), 0),
-                [batch_size, sentence_length, 1]
-            )
+            domain_identifier_tiled = domain_identifier * tf.ones([batch_size, sentence_length, 1])
             decoder_inputs = tf.concat((decoder_inputs, domain_identifier_tiled), axis=2)
             decoder_inputs = self.print_tensor_with_shape(decoder_inputs, "decoder_inputs")
 
