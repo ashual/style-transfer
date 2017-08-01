@@ -6,7 +6,7 @@ class BaseModel:
         self.should_print = tf.placeholder_with_default(False, shape=())
         self.name = self.__class__.__name__
         if name is not None:
-            self.name += '_{}'.format(name)
+            self.name = '{}_{}'.format(name, self.name)
         self.trainable_parameters = None
         print('{} created'.format(self.name))
 
