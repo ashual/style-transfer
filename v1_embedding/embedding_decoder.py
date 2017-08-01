@@ -17,6 +17,8 @@ class EmbeddingDecoder(BaseModel):
             cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout_placeholder)
             decoder_cells.append(cell)
             self.multilayer_decoder = tf.contrib.rnn.MultiRNNCell(decoder_cells)
+            # contains the signal for the decoder to start
+            self.starting_input = tf.zeros((1, 1, embedding_size))
 
     def get_zero_state(self, batch_size):
         with tf.variable_scope('{}/get_zero_state'.format(self.name)):
@@ -58,29 +60,39 @@ class EmbeddingDecoder(BaseModel):
 
     def do_teacher_forcing(self, encoded_vector, inputs, domain_identifier):
         with tf.variable_scope('{}/teacher_forcing'.format(self.name)):
-            zero_state = self.get_zero_state(tf.shape(inputs)[0])
-            result = self.decode_vector_to_sequence(encoded_vector, zero_state, inputs, domain_identifier)[0]
-            result = tf.concat((inputs[:, 0:1, :], result), axis=1)
-            return result
+            batch_size = tf.shape(inputs)[0]
+            zero_state = self.get_zero_state(batch_size)
+            starting_inputs = tf.tile(self.starting_input, (batch_size, 1, 1))
+            decoder_inputs = tf.concat((starting_inputs, inputs), axis=1)
+            return self.decode_vector_to_sequence(encoded_vector, zero_state, decoder_inputs, domain_identifier)[0]
 
     def do_iterative_decoding(self, encoded_vector, domain_identifier, iterations_limit=-1):
-        # get special words indices: start and end of sentence
+        # get end of sentence index
         embedding_handler = self.embedding_translator.embedding_handler
-        start_index = embedding_handler.word_to_index[embedding_handler.start_of_sentence_token]
         end_index = embedding_handler.word_to_index[embedding_handler.end_of_sentence_token]
 
-        # functions used by the while loop below
+        # functions used by the while loop below.
+        # common variables:
+        # iteration: counter of the number of iterations
+        # input_logits: logits (over the vocabulary) of the last outputted word
+        # state: the sate to start the decoding from
+        # inputs_from_start: all the inputs (as embedding vectors) so far
         def _while_cond(iteration, input_logits, state, inputs_from_start):
             if iterations_limit == -1:
+                # make sure we are not in the first iteration:
+                first_step = tf.equal(iteration, 0)
                 # single sentence running until end of sentence encountered (used for test time)
                 translated_index = self.embedding_translator.translate_logits_to_words(input_logits)[0][0]
-                return tf.not_equal(translated_index, end_index)
+                is_end_token = tf.not_equal(translated_index, end_index)
+                # if first step - run loop. otherwise run if not end token
+                return tf.cond(first_step, lambda: True, is_end_token)
             # not a single sentence, stopping when sentence length reached (used for professor forcing)
             return tf.less(iteration, iterations_limit)
 
         def _while_body(iteration, input_logits, state, inputs_from_start):
             iteration += 1
-            decoded_vector, decoder_last_state = self.decode_vector_to_sequence(encoded_vector, state, input_logits,
+            last_input = inputs_from_start[:, -1, :]
+            decoded_vector, decoder_last_state = self.decode_vector_to_sequence(encoded_vector, state, last_input,
                                                                                 domain_identifier)
             inputs_from_start = tf.concat((inputs_from_start, decoded_vector), axis=1)
             # translate to logits
@@ -91,11 +103,10 @@ class EmbeddingDecoder(BaseModel):
             batch_size = tf.shape(encoded_vector)[0]
             current_state = self.get_zero_state(batch_size)
             # get the start token and it's embedding
-            current_logits = self.embedding_translator.get_special_word(start_index)
-            all_inputs = self.embedding_translator.embed_inputs(current_logits)
+            current_logits = tf.zeros((1, 1, embedding_handler.get_vocabulary_length()))
             # tile both to be batch X sentence len
-            current_logits = tf.tile(tf.expand_dims(tf.expand_dims(current_logits, 0), 0), [batch_size, 1, 1])
-            all_inputs = tf.tile(tf.expand_dims(tf.expand_dims(all_inputs, 0), 0), [batch_size, 1, 1])
+            current_logits = tf.tile(current_logits, [batch_size, 1, 1])
+            all_inputs = tf.tile(self.starting_input, [batch_size, 1, 1])
             # desired shape for all inputs
             all_inputs_shape = all_inputs.get_shape().as_list()
             all_inputs_shape[1] = tf.Dimension(None)

@@ -52,7 +52,8 @@ class ModelTrainerValidation(ModelTrainerBase):
         # decoded -> logits
         logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(decoded)
         # cross entropy loss
-        self.loss = tf.reduce_mean(tf.squared_difference(tf.one_hot(self.source_batch, tf.shape(logits)[-1]), logits))
+        self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
+            labels=tf.one_hot(self.source_batch, tf.shape(logits)[-1]), logits=logits))
         # training
         optimizer = tf.train.GradientDescentOptimizer(self.config['learn_rate'])
         grads_and_vars = optimizer.compute_gradients(self.loss, colocate_gradients_with_ops=True)

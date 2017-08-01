@@ -26,7 +26,7 @@ class WordIndexingEmbeddingHandler(EmbeddingHandler):
 
     def build_dataset(self, words, n, truncate_by_cutoff):
         """Process raw inputs into a dataset."""
-        vocab = [self.start_of_sentence_token, self.end_of_sentence_token, self.unknown_token, self.pad_token]
+        vocab = [self.end_of_sentence_token, self.unknown_token, self.pad_token]
         if truncate_by_cutoff:
             vocab += [w for w, c in collections.Counter(words).most_common() if c >= n]
         else:

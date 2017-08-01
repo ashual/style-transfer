@@ -2,6 +2,7 @@ import os
 import pickle
 import numpy as np
 
+
 class EmbeddingHandler:
     def __init__(self, save_directory):
         self.start_of_sentence_token = 'START'

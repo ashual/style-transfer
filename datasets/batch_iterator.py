@@ -29,12 +29,11 @@ class BatchIterator:
 
     def normalized_sentence(self, sentence):
         # get the words in lower case + start and end tokens
-        sentence_arr = [self.embedding_handler.start_of_sentence_token] + \
-                       [x.lower() for x in word_tokenize(sentence)] + \
-                       [self.embedding_handler.end_of_sentence_token]
+        sentence_arr = [x.lower() for x in word_tokenize(sentence)]
+        sentence_arr.append(self.embedding_handler.end_of_sentence_token)
         # cut to the allowed size
-        sentence_arr = sentence_arr[:self.sentence_len+1]
+        sentence_arr = sentence_arr[:self.sentence_len]
         # add padding if needed
-        sentence_arr += [self.embedding_handler.pad_token] * (self.sentence_len + 1 - len(sentence_arr))
+        sentence_arr += [self.embedding_handler.pad_token] * (self.sentence_len - len(sentence_arr))
         # return as indices sentence
         return self.embedding_handler.get_word_to_index([sentence_arr])[0]

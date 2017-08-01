@@ -5,7 +5,7 @@ from os.path import join
 
 
 class GloveEmbeddingHandler(EmbeddingHandler):
-    def __init__(self, save_dir, pretrained_glove_file=None, force_vocab=False, dataset=None):
+    def __init__(self, save_dir, pretrained_glove_file=None, dataset=None):
         EmbeddingHandler.__init__(self, save_dir)
         if not self.initialized_from_cache:
             if pretrained_glove_file is None:
@@ -44,8 +44,6 @@ class GloveEmbeddingHandler(EmbeddingHandler):
 
         vocab, embd = load_glove(self.pretrained_glove_file, word_dict)
         embedding = np.asarray(embd, dtype=np.float32)
-        if self.start_of_sentence_token not in vocab:
-            vocab, embedding = set_new_token(self.start_of_sentence_token, vocab, embedding)
         if self.end_of_sentence_token not in vocab:
             vocab, embedding = set_new_token(self.end_of_sentence_token, vocab, embedding)
         if self.unknown_token not in vocab:
