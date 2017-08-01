@@ -1,45 +1,21 @@
 import tensorflow as tf
 from v1_embedding.base_model import BaseModel
-from tensorflow.contrib.rnn import BasicLSTMCell, MultiRNNCell
+from v1_embedding.embedding_encoder import EmbeddingEncoder
 
 
 class EmbeddingDiscriminator(BaseModel):
-    def __init__(self, hidden_states, embedding_translator, discriminator_droupout):
-        BaseModel.__init__(self)
-        self.embedding_translator = embedding_translator
+    def __init__(self, hidden_states, translation_hidden_size, dropout_placeholder, bidirectional, name=None):
+        BaseModel.__init__(self, name)
+        self.encoder = EmbeddingEncoder(hidden_states, dropout_placeholder, bidirectional, name=self.name)
+        # discriminator - model
+        with tf.variable_scope('{}/parameters'.format(self.name)):
+            self.w1, self.b1 = BaseModel.create_input_parameters(hidden_states[-1], translation_hidden_size)
+            self.w2, self.b2 = BaseModel.create_input_parameters(translation_hidden_size, 1)
 
-        # decoder - model
-        with tf.variable_scope('discriminator_model') as vs:
-            discriminator_cells = []
-            for hidden_size in hidden_states:
-                cell = BasicLSTMCell(hidden_size, state_is_tuple=True)
-                cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - discriminator_droupout)
-                discriminator_cells.append(cell)
-            cell = BasicLSTMCell(2, state_is_tuple=True)
-            cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - discriminator_droupout)
-            discriminator_cells.append(cell)
-            self.multilayer_discriminator = MultiRNNCell(discriminator_cells)
-
-            # Retrieve just the LSTM variables.
-            self.model_variables = [v for v in tf.all_variables() if v.name.startswith(vs.name)]
-
-    def decode_vector_to_sequence(self, inputs):
-        with tf.variable_scope('discriminator_preprocessing'):
-            # the input sequence s.t (batch, time, embedding)
-            inputs = self.print_tensor_with_shape(inputs, 'inputs')
-
-            # important sizes
-            batch_size = tf.shape(inputs)[0]
-
-        # run the discriminator
-        with tf.variable_scope('discriminator_run'):
-            # define the initial state as empty
-            initial_state = self.multilayer_discriminator.zero_state(batch_size, tf.float32)
-            # run the model
-            rnn_outputs, _ = tf.nn.dynamic_rnn(self.multilayer_discriminator, inputs,
-                                               initial_state=initial_state,
-                                               time_major=False)
-            return self.print_tensor_with_shape(rnn_outputs[:, -1, :], 'discriminator_results')
-
-    def get_trainable_parameters(self):
-        return self.model_variables
+    def predict(self, inputs):
+        with tf.variable_scope('{}/run'.format(self.name)):
+            rnn_res = self.encoder.encode_inputs_to_vector(inputs, None)
+            rnn_res = self.print_tensor_with_shape(rnn_res, "rnn_res")
+            hidden = tf.nn.relu(tf.matmul(rnn_res, self.w1) + self.b1)
+            prediction = tf.nn.relu(tf.matmul(hidden, self.w2) + self.b2)
+            return self.print_tensor_with_shape(prediction, "prediction")

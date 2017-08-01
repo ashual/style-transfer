@@ -1,0 +1,15 @@
+limit_sentences: 5
+min_word_occurrences: 0
+number_of_epochs: 50
+batch_size: 5
+translation_hidden_size: 1000
+train_embeddings: True
+word_embedding_size: 50
+encoder_hidden_states: [1000, 500]
+decoder_hidden_states: [1000]
+learn_rate: 0.0035
+sentence_length: 5
+dropout: 0.1
+discriminator_dropout: 0.1
+bidirectional_encoder: True
+bidirectional_discriminator: True
