@@ -5,10 +5,10 @@ import numpy as np
 
 class EmbeddingHandler:
     def __init__(self, save_directory):
-        self.start_of_sentence_token = 'START'
+        self.pad_token = 'PAD'
+
         self.end_of_sentence_token = 'END'
         self.unknown_token = 'UNK'
-        self.pad_token = 'PAD'
 
         self.word_to_index = None
         self.index_to_word = None
@@ -66,7 +66,7 @@ class EmbeddingHandler:
         ]
 
     def get_index_to_word(self, sentences_with_indices):
-        return [[self.index_to_word[i] for i in s] for s in sentences_with_indices]
+        return [[self.index_to_word[i] for i in s if i < self.get_vocabulary_length()] for s in sentences_with_indices]
 
     def get_vocabulary(self):
         return list(self.word_to_index.keys())

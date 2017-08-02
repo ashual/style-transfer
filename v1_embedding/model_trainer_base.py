@@ -61,7 +61,7 @@ class ModelTrainerBase:
     def do_train_batch(self, sess, global_step, epoch_num, batch_index, batch):
         pass
 
-    def do_validation_batch(self, sess, global_step, epoch_num, batch_index, validation_batch):
+    def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch):
         pass
 
     def do_after_train_loop(self, sess):

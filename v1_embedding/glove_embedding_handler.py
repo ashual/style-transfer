@@ -48,7 +48,5 @@ class GloveEmbeddingHandler(EmbeddingHandler):
             vocab, embedding = set_new_token(self.end_of_sentence_token, vocab, embedding)
         if self.unknown_token not in vocab:
             vocab, embedding = set_new_token(self.unknown_token, vocab, embedding)
-        if self.pad_token not in vocab:
-            vocab, embedding = set_new_token(self.pad_token, vocab, embedding)
         return vocab, embedding
 

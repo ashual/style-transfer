@@ -1,6 +1,8 @@
 from nltk import word_tokenize
 from random import shuffle
 
+from datasets.batch import Batch
+
 
 class BatchIterator:
     def __init__(self, dataset, embedding_handler, sentence_len, batch_size):
@@ -17,23 +19,35 @@ class BatchIterator:
         return self
 
     def __next__(self):
-        sentences = []
+        res = Batch()
         for sentence in self.text_iterator:
-            if len(sentences) >= self.batch_size:
+            if res.get_len() >= self.batch_size:
                 break
             else:
-                sentences.append(self.normalized_sentence(sentence))
-        if len(sentences) == 0:
+                left_sentence, left_mask, right_sentence, right_mask = self.normalized_sentence(sentence)
+                res.add(left_sentence, left_mask, right_sentence, right_mask)
+        if res.get_len() == 0:
             raise StopIteration
-        return sentences
+        return res
 
     def normalized_sentence(self, sentence):
-        # get the words in lower case + start and end tokens
+        # get the words in lower case + and end tokens
         sentence_arr = [x.lower() for x in word_tokenize(sentence)]
         sentence_arr.append(self.embedding_handler.end_of_sentence_token)
         # cut to the allowed size
         sentence_arr = sentence_arr[:self.sentence_len]
+        sentence_arr = self.embedding_handler.get_word_to_index([sentence_arr])[0]
+        padding_arr = [1] * len(sentence_arr)
         # add padding if needed
-        sentence_arr += [self.embedding_handler.pad_token] * (self.sentence_len - len(sentence_arr))
+        padding_length = (self.sentence_len - len(sentence_arr))
+        # the padding index would be like extending the voabulary by one, in the embedding matrix of the embedding
+        # translator we add a constatnt 0 row for this index
+        pad_index = self.embedding_handler.get_vocabulary_length()
+        # left
+        left_sentence_arr = [pad_index] * padding_length + sentence_arr
+        left_padding_arr = [0] * padding_length + padding_arr
+        # right
+        right_sentence_arr = sentence_arr + [pad_index] * padding_length
+        right_padding_arr = padding_arr + [0] * padding_length
         # return as indices sentence
-        return self.embedding_handler.get_word_to_index([sentence_arr])[0]
+        return left_sentence_arr, left_padding_arr, right_sentence_arr, right_padding_arr
