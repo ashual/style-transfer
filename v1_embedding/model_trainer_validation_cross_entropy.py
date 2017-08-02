@@ -147,11 +147,13 @@ class ModelTrainerValidation(ModelTrainerBase):
              self.validation_summaries,
              self.best_validation_acc],
             feed_dict)
+        print('validation: loss - {}, accuracy - {} (best - {})'.format(
+            self.loss_output, validation_acc, best_validation_acc)
+        )
         if validation_acc > best_validation_acc:
-            print('saving model, former best accuracy {} current best accuracy {}'.
+            print('saving model, former best accuracy {} current best accuracy {}\n'.
                   format(best_validation_acc, validation_acc))
-            print()
-            if self.saver_wrapper.save_model(sess):
+            if self.saver_wrapper.save_model(sess, global_step=global_step):
                 sess.run([tf.assign(self.best_validation_acc, validation_acc)])
 
         return validation_summaries
@@ -177,7 +179,8 @@ class ModelTrainerValidation(ModelTrainerBase):
     def do_before_epoch(self, sess):
         enlarge = False
         message = ''
-        if self.batch_iterator.sentence_len >= self.config['sentence']['max_length']:
+        if not self.config['model']['curriculum_training'] or\
+                        self.batch_iterator.sentence_len >= self.config['sentence']['max_length']:
             return
         # The loss is ok, but keep decreasing
         if config['loss']['upper_range'] >= self.loss_output > config['loss']['lower_range'] and \
