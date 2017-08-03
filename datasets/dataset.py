@@ -1,5 +1,6 @@
 from nltk import word_tokenize
 import os
+from random import shuffle
 
 
 class Dataset:
@@ -21,6 +22,7 @@ class Dataset:
                     self.content = f.readlines()
             else:
                 self.content = self.get_content_actual()
+                shuffle(self.content)
                 if self.limit_sentences is not None:
                     self.content = self.content[:self.limit_sentences]
                 if self.dataset_cache_file is not None:

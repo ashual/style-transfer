@@ -1,6 +1,4 @@
 import json
-from random import shuffle
-
 from datasets.dataset import Dataset
 
 
@@ -18,5 +16,4 @@ class YelpSentences(Dataset):
             with open('datasets/yelp/negative_reviews.json') as yelp:
                 content = yelp.readlines()
         content = [json.loads(s)['text'].lower() for s in content]
-        shuffle(content)
         return content
