@@ -13,12 +13,17 @@ class ModelTrainer(ModelTrainerBase):
     def __init__(self, config_file, operational_config_file):
         ModelTrainerBase.__init__(self, config_file=config_file, operational_config_file=operational_config_file)
 
+        # placeholders for dropouts
         self.dropout_placeholder = tf.placeholder(tf.float32, shape=())
         self.discriminator_dropout_placeholder = tf.placeholder(tf.float32, shape=())
-        # placeholder for source sentences (batch, time)=> index of word
-        self.source_batch = tf.placeholder(tf.int64, shape=(None, None))
-        # placeholder for source sentences (batch, time)=> index of word
-        self.target_batch = tf.placeholder(tf.int64, shape=(None, None))
+        # placeholder for source sentences (batch, time)=> index of word s.t the padding is on the left
+        self.left_padded_source_batch = tf.placeholder(tf.int64, shape=(None, None))
+        # placeholder for source sentences (batch, time)=> index of word s.t the padding is on the right
+        self.right_padded_source_batch = tf.placeholder(tf.int64, shape=(None, None))
+        # placeholder for target sentences (batch, time)=> index of word s.t the padding is on the left
+        self.left_padded_target_batch = tf.placeholder(tf.int64, shape=(None, None))
+        # placeholder for target sentences (batch, time)=> index of word s.t the padding is on the right
+        self.right_padded_target_batch = tf.placeholder(tf.int64, shape=(None, None))
 
         self.source_identifier = tf.ones(shape=())
         self.target_identifier = -1 * tf.ones(shape=())
@@ -46,6 +51,44 @@ class ModelTrainer(ModelTrainerBase):
                                                     self.discriminator_dropout_placeholder,
                                                     self.config['model']['bidirectional_discriminator'])
         self.loss_handler = LossHandler()
+
+        # losses:
+        self.target_adversarial_loss = self.get_discriminator_loss(self.left_padded_source_batch,
+                                                                   self.left_padded_target_batch,
+                                                                   self.right_padded_target_batch,
+                                                                   self.target_identifier)
+        self.source_adversarial_loss = self.get_discriminator_loss(self.left_padded_target_batch,
+                                                                   self.left_padded_source_batch,
+                                                                   self.right_padded_source_batch,
+                                                                   self.source_identifier)
+
+        self.target_generator_loss = self.get_generator_loss(self.left_padded_source_batch,
+                                                             self.right_padded_source_batch,
+                                                             self.left_padded_target_batch,
+                                                             self.right_padded_target_batch,
+                                                             self.target_identifier)
+        self.source_generator_loss = self.get_generator_loss(self.left_padded_target_batch,
+                                                             self.right_padded_target_batch,
+                                                             self.left_padded_source_batch,
+                                                             self.right_padded_source_batch,
+                                                             self.source_identifier)
+        # train steps
+        discriminator_optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
+        discriminator_var_list = self.discriminator.get_trainable_parameters()
+        discriminator_grads_and_vars = discriminator_optimizer.compute_gradients(
+            self.source_adversarial_loss + self.target_adversarial_loss,
+            colocate_gradients_with_ops=True, var_list=discriminator_var_list
+        )
+        self.discriminator_train_step = discriminator_optimizer.apply_gradients(discriminator_grads_and_vars)
+
+        generator_optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
+        generator_var_list = self.encoder.get_trainable_parameters() + self.decoder.get_trainable_parameters() + \
+                             self.embedding_translator.get_trainable_parameters()
+        generator_grads_and_vars = generator_optimizer.compute_gradients(
+            self.target_generator_loss + self.source_generator_loss,
+            colocate_gradients_with_ops=True, var_list=generator_var_list
+        )
+        self.generator_train_step = generator_optimizer.apply_gradients(generator_grads_and_vars)
 
     @staticmethod
     def _get_discriminator_index(identifier):
@@ -86,27 +129,8 @@ class ModelTrainer(ModelTrainerBase):
         return self._get_discriminator_loss_from_encoded(encoded_source, encoded_target, right_padded_target_embedding,
                                              target_identifier, sentence_length)
 
-
-        # target_embbeding = self.embedding_translator.embed_inputs(target_batch)
-        # discriminator_prediction_on_target = self.discriminator.predict(target_embbeding)
-        # target_loss = self.loss_handler.get_discriminator_loss(discriminator_prediction_on_target, True)[0]
-        #
-        # source_embedding = self.embedding_translator.embed_inputs(source_batch)
-        # encoded_source = self.encoder.encode_inputs_to_vector(source_embedding, self.source_identifier)
-        # sentence_length = tf.shape(target_batch)[1]
-        # decoded_fake_target = self.decoder.do_iterative_decoding(encoded_source, self.target_identifier,
-        #                                                          iterations_limit=sentence_length)
-        # discriminator_prediction_on_fake = self.discriminator.predict(decoded_fake_target)
-        # fake_loss = self.loss_handler.get_discriminator_loss(discriminator_prediction_on_fake, False)[0]
-        #
-        # total_loss = target_loss + fake_loss
-        # var_list = self.discriminator.get_trainable_parameters()
-        # train_step = tf.train.AdamOptimizer(learning_rate=self.config.learning_rate).minimize(total_loss,
-        #                                                                                       var_list=var_list)
-        # return train_step, total_loss
-
     def get_generator_loss(self, left_padded_source_batch, right_padded_source_batch, left_padded_target_batch,
-                           right_padded_target_batch, target_identifier, target_descriminator):
+                           right_padded_target_batch, target_identifier):
         source_identifier = -1*target_identifier
         sentence_length = tf.shape(left_padded_source_batch)[1]
 
@@ -145,16 +169,3 @@ class ModelTrainer(ModelTrainerBase):
         return self.config['reconstruction_coefficient'] * reconstruction_loss \
                + self.config['semantic_distance_coefficient'] * semantic_distance_loss \
                + anti_d_loss
-        # teacher_forced_target = self.decoder.do_teacher_forcing(encoded_target, target_embbeding[:, :-1, :],
-        #                                                         target_identifier)
-        #
-        #
-        #
-        # var_list = self.encoder.get_trainable_parameters() + self.decoder.get_trainable_parameters() + \
-        #            self.embedding_translator.get_trainable_parameters()
-        # train_step = tf.train.AdamOptimizer(learning_rate=self.config.learning_rate).minimize(total_loss,
-        #                                                                                       var_list=var_list)
-        # for v in tf.trainable_variables():
-        #     print(v.name)
-        # return train_step, total_loss
-
