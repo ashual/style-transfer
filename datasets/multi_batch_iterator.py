@@ -1,6 +1,4 @@
-from nltk import word_tokenize
 from random import shuffle
-
 from datasets.basic_dataset import BasicDataset
 from datasets.batch_iterator import BatchIterator
 
@@ -16,6 +14,7 @@ class MultiBatchIterator:
 
     def get_iterator(self, dataset):
         content = dataset.get_content()
+        # since we want the data in each epoch to be different we shuffle beforehand
         shuffle(content)
         # take a random prefix which is the size of the smallest dataset
         content = content[:self.min_content_length]
@@ -29,5 +28,7 @@ class MultiBatchIterator:
 
     def __next__(self):
         next_batches = [b.__next__() for b in self.batch_iterators]
-        if len(next_batches[0].get_)
-        return
+        # since all the datasets have matching number of sentences, all will reach the end of the batch at the same time
+        if len(next_batches[0].get_len()) == 0:
+            raise StopIteration
+        return next_batches
