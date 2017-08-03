@@ -16,6 +16,7 @@ class EmbeddingTranslator(BaseModel):
             # embedding
             self.w = tf.Variable(tf.random_normal(shape=embedding_shape),
                                  trainable=train_embeddings, name="word_vectors")
+            self.extended_w = tf.concat((self.w, tf.zeros((1, embedding_shape[1]))), axis=0)
 
             # weights to translate embedding to vocabulary
             self.w1, self.b1 = BaseModel.create_input_parameters(embedding_shape[1], translation_hidden_size)
@@ -30,7 +31,7 @@ class EmbeddingTranslator(BaseModel):
         with tf.variable_scope('{}/words_to_embeddings'.format(self.name)):
             inputs = self.print_tensor_with_shape(inputs, "inputs")
             # to get vocabulary indices to embeddings
-            embedded_inputs = tf.nn.embedding_lookup(self.w, inputs)
+            embedded_inputs = tf.nn.embedding_lookup(self.extended_w, inputs)
             return self.print_tensor_with_shape(embedded_inputs, "embedded_inputs")
 
     def translate_embedding_to_vocabulary_logits(self, inputs):
