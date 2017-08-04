@@ -13,3 +13,14 @@ class Batch:
 
     def get_len(self):
         return len(self.left_padded_sentences)
+
+    def get_removable_pads(self):
+        removeable_pads = [len([p for p in sentence_pads if p == 0]) for sentence_pads in self.left_padded_masks]
+        return min(removeable_pads)
+
+    def clip_redundant_padding(self, pads_to_remove):
+        if pads_to_remove > 0:
+            self.left_padded_sentences = [s[pads_to_remove:] for s in self.left_padded_sentences]
+            self.left_padded_masks = [s[pads_to_remove:] for s in self.left_padded_masks]
+            self.right_padded_sentences = [s[:len(s)-pads_to_remove] for s in self.right_padded_sentences]
+            self.right_padded_masks = [s[:len(s)-pads_to_remove] for s in self.right_padded_masks]

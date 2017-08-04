@@ -5,12 +5,13 @@ from datasets.batch import Batch
 
 
 class BatchIterator:
-    def __init__(self, dataset, embedding_handler, sentence_len, batch_size):
+    def __init__(self, dataset, embedding_handler, sentence_len, batch_size, clip_redundant_padding=True):
         self.dataset = dataset
         self.embedding_handler = embedding_handler
         self.sentence_len = sentence_len
         self.batch_size = batch_size
         self.text_iterator = None
+        self.clip_redundant_padding = clip_redundant_padding
 
     def __iter__(self):
         content = self.dataset.get_content()
@@ -28,6 +29,8 @@ class BatchIterator:
                 res.add(left_sentence, left_mask, right_sentence, right_mask)
         if res.get_len() == 0:
             raise StopIteration
+        if self.clip_redundant_padding:
+            res.clip_redundant_padding(res.get_removable_pads())
         return res
 
     def normalized_sentence(self, sentence):
