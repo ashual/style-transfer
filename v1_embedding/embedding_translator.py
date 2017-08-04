@@ -3,7 +3,7 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingTranslator(BaseModel):
-    def __init__(self, embedding_handler, translation_hidden_size, train_embeddings, name=None):
+    def __init__(self, embedding_handler, translation_hidden_size, train_embeddings, dropout_placeholder, name=None):
         BaseModel.__init__(self, name)
         self.embedding_handler = embedding_handler
 
@@ -11,6 +11,8 @@ class EmbeddingTranslator(BaseModel):
         # placeholder to initiate the embedding weights
         embedding_shape = [embedding_handler.get_vocabulary_length(), embedding_handler.get_embedding_size()]
         self.embedding_placeholder = tf.placeholder(tf.float32, shape=embedding_shape)
+        # placeholder for the dropout
+        self.dropout_placeholder = dropout_placeholder
 
         with tf.variable_scope('{}/parameters'.format(self.name)):
             # embedding
@@ -42,7 +44,8 @@ class EmbeddingTranslator(BaseModel):
             embedded_inputs_flattened = tf.reshape(inputs, (batch_size * sentence_length, -1))
 
             hidden = tf.nn.relu(tf.matmul(embedded_inputs_flattened, self.w1) + self.b1)
-            vocabulary_logits_flattened = tf.nn.relu(tf.matmul(hidden, self.w2) + self.b2)
+            hidden_with_dropout = tf.nn.dropout(hidden, self.dropout_placeholder)
+            vocabulary_logits_flattened = tf.nn.relu(tf.matmul(hidden_with_dropout, self.w2) + self.b2)
             vocabulary_logits = tf.reshape(vocabulary_logits_flattened, (batch_size, sentence_length, -1))
             return self.print_tensor_with_shape(vocabulary_logits, "vocabulary_logits")
 

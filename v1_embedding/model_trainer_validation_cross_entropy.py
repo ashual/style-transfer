@@ -37,7 +37,8 @@ class ModelTrainerValidation(ModelTrainerBase):
         )
         self.embedding_translator = EmbeddingTranslator(self.embedding_handler,
                                                         self.config['model']['translation_hidden_size'],
-                                                        self.config['embedding']['should_train'])
+                                                        self.config['embedding']['should_train'],
+                                                        self.dropout_placeholder)
         self.encoder = EmbeddingEncoder(self.config['model']['encoder_hidden_states'],
                                         self.dropout_placeholder,
                                         self.config['model']['bidirectional_encoder'])
