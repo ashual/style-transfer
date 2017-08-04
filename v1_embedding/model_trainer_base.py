@@ -13,10 +13,11 @@ class ModelTrainerBase:
         self.embedding_dir = os.path.join(self.work_dir, 'embedding')
         self.summaries_dir = os.path.join(self.work_dir, 'tensorboard')
 
+        self.saver_wrapper = None
+
+        # implementations should start the iterators
         self.batch_iterator = None
         self.batch_iterator_validation = None
-
-        self.saver_wrapper = None
 
     def get_trainer_name(self):
         return self.__class__.__name__
