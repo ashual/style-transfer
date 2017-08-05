@@ -1,6 +1,5 @@
 import tensorflow as tf
 import time
-
 from datasets.multi_batch_iterator import MultiBatchIterator
 from datasets.yelp_helpers import YelpSentences
 from v1_embedding.embedding_translator import EmbeddingTranslator
@@ -12,6 +11,11 @@ from v1_embedding.model_trainer_base import ModelTrainerBase
 from v1_embedding.word_indexing_embedding_handler import WordIndexingEmbeddingHandler
 
 
+# this model tries to transfer from one domain to another.
+# 1. the encoder doesn't know the domain it is working on
+# 2. traget are encoded and decoded (to target) then cross entropy loss is applied between the origin and the result
+# 3. source is encoded decoded to traget and encoded again, then L2 loss is applied between the context vectors.
+# 4. an adversarial component is trained to distinguish true target from transferred targets using professor forcing
 class ModelTrainer(ModelTrainerBase):
     def __init__(self, config_file, operational_config_file):
         ModelTrainerBase.__init__(self, config_file=config_file, operational_config_file=operational_config_file)
@@ -27,9 +31,6 @@ class ModelTrainer(ModelTrainerBase):
         self.left_padded_target_batch = tf.placeholder(tf.int64, shape=(None, None))
         # placeholder for target sentences (batch, time)=> index of word s.t the padding is on the right
         self.right_padded_target_batch = tf.placeholder(tf.int64, shape=(None, None))
-
-        self.source_identifier = tf.ones(shape=())
-        self.target_identifier = -1 * tf.ones(shape=())
 
         self.dataset_neg = YelpSentences(positive=False, limit_sentences=self.config['sentence']['limit'],
                                          dataset_cache_dir=self.dataset_cache_dir, dataset_name='neg')
@@ -57,27 +58,15 @@ class ModelTrainer(ModelTrainerBase):
         self.loss_handler = LossHandler()
 
         # losses:
-        target_adversarial_loss = self.get_discriminator_loss(self.left_padded_source_batch,
-                                                              self.left_padded_target_batch,
-                                                              self.right_padded_target_batch,
-                                                              self.target_identifier)
-        source_adversarial_loss = self.get_discriminator_loss(self.left_padded_target_batch,
-                                                              self.left_padded_source_batch,
-                                                              self.right_padded_source_batch,
-                                                              self.source_identifier)
-        self.adversarial_loss = target_adversarial_loss + source_adversarial_loss
+        self.adversarial_loss = self.get_discriminator_loss(self.left_padded_source_batch,
+                                                            self.left_padded_target_batch,
+                                                            self.right_padded_target_batch
+                                                            )
 
-        target_generator_loss = self.get_generator_loss(self.left_padded_source_batch,
-                                                        self.right_padded_source_batch,
-                                                        self.left_padded_target_batch,
-                                                        self.right_padded_target_batch,
-                                                             self.target_identifier)
-        source_generator_loss = self.get_generator_loss(self.left_padded_target_batch,
-                                                        self.right_padded_target_batch,
-                                                        self.left_padded_source_batch,
-                                                        self.right_padded_source_batch,
-                                                        self.source_identifier)
-        self.generator_loss = target_generator_loss + source_generator_loss
+        self.generator_loss = self.get_generator_loss(self.left_padded_source_batch,
+                                                      self.left_padded_target_batch,
+                                                      self.right_padded_target_batch
+                                                      )
 
         # train steps
         discriminator_optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
@@ -110,81 +99,63 @@ class ModelTrainer(ModelTrainerBase):
         self.best_loss = float('inf')
         self.generator_mode = True
 
-    @staticmethod
-    def _get_discriminator_index(identifier):
-        # if identifier is 1 index is 0, if identifier is -1 index is 1
-        return 0.5 * (1 - identifier)
+    def _get_discriminator_loss_from_encoded(self, encoded_source, teacher_forced_target):
+        sentence_length = tf.shape(teacher_forced_target)[1]
 
-    def _get_discriminator_loss_from_encoded(self, encoded_source, encoded_target, right_padded_target_embbeding,
-                                             target_identifier, sentence_length):
-        descriminator_index = self._get_discriminator_index(target_identifier)
         # calculate the teacher forced loss
-        teacher_forced_target = self.decoder.do_teacher_forcing(encoded_target,
-                                                                right_padded_target_embbeding[:, :-1, :],
-                                                                target_identifier)
         discriminator_prediction_target = self.discriminator.predict(teacher_forced_target)
-        loss_true = -tf.reduce_mean(
-            tf.log(discriminator_prediction_target[:, descriminator_index])
-        )
+        loss_true = -tf.reduce_mean(tf.log(discriminator_prediction_target))
+
         # calculate the source-encoded-as-target loss
-        fake_targets = self.decoder.do_iterative_decoding(encoded_source, target_identifier, sentence_length)
+        fake_targets = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None,
+                                                          iterations_limit=sentence_length)
         discriminator_prediction_fake_target = self.discriminator.predict(fake_targets)
-        loss_fake = -tf.reduce_mean(
-            tf.log(1.0 - discriminator_prediction_fake_target[:, descriminator_index])
-        )
+        loss_fake = -tf.reduce_mean(tf.log(1.0 - discriminator_prediction_fake_target))
         return loss_true + loss_fake
 
-    def get_discriminator_loss(self, left_padded_source_batch, left_padded_target_batch, right_padded_target_batch,
-                               target_identifier):
-        sentence_length = tf.shape(left_padded_source_batch)[1]
-
+    def get_discriminator_loss(self, left_padded_source_batch, left_padded_target_batch, right_padded_target_batch):
         source_embedding = self.embedding_translator.embed_inputs(left_padded_source_batch)
-        encoded_source = self.encoder.encode_inputs_to_vector(source_embedding, -1*target_identifier)
+        encoded_source = self.encoder.encode_inputs_to_vector(source_embedding, domain_identifier=None)
 
         left_padded_target_embedding = self.embedding_translator.embed_inputs(left_padded_target_batch)
-        encoded_target = self.encoder.encode_inputs_to_vector(left_padded_target_embedding, target_identifier)
+        encoded_target = self.encoder.encode_inputs_to_vector(left_padded_target_embedding, domain_identifier=None)
 
         right_padded_target_embedding = self.embedding_translator.embed_inputs(right_padded_target_batch)
+        teacher_forced_target = self.decoder.do_teacher_forcing(encoded_target,
+                                                                right_padded_target_embedding[:, :-1, :],
+                                                                domain_identifier=None)
 
-        return self._get_discriminator_loss_from_encoded(encoded_source, encoded_target, right_padded_target_embedding,
-                                             target_identifier, sentence_length)
+        return self._get_discriminator_loss_from_encoded(encoded_source, teacher_forced_target)
 
-    def get_generator_loss(self, left_padded_source_batch, right_padded_source_batch, left_padded_target_batch,
-                           right_padded_target_batch, target_identifier):
-        source_identifier = -1*target_identifier
-        sentence_length = tf.shape(left_padded_source_batch)[1]
-
+    def get_generator_loss(self, left_padded_source_batch, left_padded_target_batch, right_padded_target_batch):
         left_padded_source_embedding = self.embedding_translator.embed_inputs(left_padded_source_batch)
-        encoded_source = self.encoder.encode_inputs_to_vector(left_padded_source_embedding, source_identifier)
+        encoded_source = self.encoder.encode_inputs_to_vector(left_padded_source_embedding, domain_identifier=None)
 
         left_padded_target_embedding = self.embedding_translator.embed_inputs(left_padded_target_batch)
-        encoded_target = self.encoder.encode_inputs_to_vector(left_padded_target_embedding, target_identifier)
+        encoded_target = self.encoder.encode_inputs_to_vector(left_padded_target_embedding, domain_identifier=None)
 
         # reconstruction loss
-        right_padded_source_embedding = self.embedding_translator.embed_inputs(right_padded_source_batch)
-        source_decoded_to_source = self.decoder.do_teacher_forcing(encoded_source,
-                                                                   right_padded_source_embedding[:, :-1, :],
-                                                                   source_identifier)
-        reconstructed_source_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(
-            source_decoded_to_source)
-        reconstruction_loss = self.loss_handler.get_sentence_reconstruction_loss(right_padded_source_batch,
-                                                                                 reconstructed_source_logits)
+        right_padded_target_embedding = self.embedding_translator.embed_inputs(right_padded_target_batch)
+        teacher_forced_target = self.decoder.do_teacher_forcing(encoded_target,
+                                                                right_padded_target_embedding[:, :-1, :],
+                                                                domain_identifier=None)
+        reconstructed_taret_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(
+            teacher_forced_target)
+        reconstruction_loss = self.loss_handler.get_sentence_reconstruction_loss(right_padded_target_batch,
+                                                                                 reconstructed_taret_logits)
 
         # semantic vector distance
         encoded_unstacked = tf.unstack(encoded_source)
         processed_encoded = []
         for e in encoded_unstacked:
-            d = self.decoder.do_iterative_decoding(e, target_identifier, iterations_limit=-1)
-            e_target = self.encoder.encode_inputs_to_vector(d, target_identifier)
+            d = self.decoder.do_iterative_decoding(e, domain_identifier=None, iterations_limit=-1)
+            e_target = self.encoder.encode_inputs_to_vector(d, domain_identifier=None)
             processed_encoded.append(e_target)
         encoded_again = tf.concat(processed_encoded, axis=0)
         semantic_distance_loss = self.loss_handler.get_context_vector_distance_loss(encoded_source, encoded_again)
 
         # professor forcing loss source
-        right_padded_target_embedding = self.embedding_translator.embed_inputs(right_padded_target_batch)
-        anti_d_loss = -self._get_discriminator_loss_from_encoded(encoded_source, encoded_target,
-                                                                 right_padded_target_embedding, target_identifier,
-                                                                 sentence_length)
+        anti_d_loss = -self._get_discriminator_loss_from_encoded(encoded_source, teacher_forced_target)
 
         return self.config['reconstruction_coefficient'] * reconstruction_loss \
                + self.config['semantic_distance_coefficient'] * semantic_distance_loss \
