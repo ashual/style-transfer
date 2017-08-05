@@ -58,21 +58,23 @@ class ModelTrainer(ModelTrainerBase):
         self.loss_handler = LossHandler()
 
         # losses:
-        self.adversarial_loss = self.get_discriminator_loss(self.left_padded_source_batch,
-                                                            self.left_padded_target_batch,
-                                                            self.right_padded_target_batch
-                                                            )
+        self.discriminator_loss, self.discriminator_accuracy_for_discriminator = self.get_discriminator_loss(
+            self.left_padded_source_batch,
+            self.left_padded_target_batch,
+            self.right_padded_target_batch
+        )
 
-        self.generator_loss = self.get_generator_loss(self.left_padded_source_batch,
-                                                      self.left_padded_target_batch,
-                                                      self.right_padded_target_batch
-                                                      )
+        self.generator_loss, self.discriminator_accuracy_for_generator = self.get_generator_loss(
+            self.left_padded_source_batch,
+            self.left_padded_target_batch,
+            self.right_padded_target_batch
+        )
 
         # train steps
         discriminator_optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
         discriminator_var_list = self.discriminator.get_trainable_parameters()
         discriminator_grads_and_vars = discriminator_optimizer.compute_gradients(
-            self.adversarial_loss,
+            self.discriminator_loss,
             colocate_gradients_with_ops=True, var_list=discriminator_var_list
         )
         self.discriminator_train_step = discriminator_optimizer.apply_gradients(discriminator_grads_and_vars)
@@ -96,22 +98,28 @@ class ModelTrainer(ModelTrainerBase):
                                                             self.config['sentence']['min_length'],
                                                             1000)
         # train loop parameters:
-        self.best_loss = float('inf')
-        self.generator_mode = True
+        self.running_acc = None
+        self.train_generator = None
 
     def _get_discriminator_loss_from_encoded(self, encoded_source, teacher_forced_target):
         sentence_length = tf.shape(teacher_forced_target)[1]
 
         # calculate the teacher forced loss
         discriminator_prediction_target = self.discriminator.predict(teacher_forced_target)
+        accuracy_true = tf.reduce_mean(tf.cast(tf.greater_equal(discriminator_prediction_target, 0.5), tf.float32))
         loss_true = -tf.reduce_mean(tf.log(discriminator_prediction_target))
 
         # calculate the source-encoded-as-target loss
         fake_targets = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None,
                                                           iterations_limit=sentence_length)
         discriminator_prediction_fake_target = self.discriminator.predict(fake_targets)
+        accuracy_fake = tf.reduce_mean(tf.cast(tf.less(discriminator_prediction_fake_target, 0.5), tf.float32))
         loss_fake = -tf.reduce_mean(tf.log(1.0 - discriminator_prediction_fake_target))
-        return loss_true + loss_fake
+        # total loss is the sum of losses
+        total_loss = loss_true + loss_fake
+        # total accuracy is the avg of accuracies
+        total_accuracy = 0.5 * (accuracy_true + accuracy_fake)
+        return total_loss, total_accuracy
 
     def get_discriminator_loss(self, left_padded_source_batch, left_padded_target_batch, right_padded_target_batch):
         source_embedding = self.embedding_translator.embed_inputs(left_padded_source_batch)
@@ -155,48 +163,73 @@ class ModelTrainer(ModelTrainerBase):
         semantic_distance_loss = self.loss_handler.get_context_vector_distance_loss(encoded_source, encoded_again)
 
         # professor forcing loss source
-        anti_d_loss = -self._get_discriminator_loss_from_encoded(encoded_source, teacher_forced_target)
+        discriminator_loss, discriminator_accuracy = self._get_discriminator_loss_from_encoded(encoded_source,
+                                                                                               teacher_forced_target)
 
-        return self.config['reconstruction_coefficient'] * reconstruction_loss \
-               + self.config['semantic_distance_coefficient'] * semantic_distance_loss \
-               + anti_d_loss
+        total_loss = self.config['reconstruction_coefficient'] * reconstruction_loss \
+                     + self.config['semantic_distance_coefficient'] * semantic_distance_loss \
+                     - discriminator_loss
+        return total_loss, discriminator_accuracy
+
+    def before_train_generator(self):
+        self.train_generator = True
+        self.running_acc = 1.0
+
+    def before_train_discriminator(self):
+        self.train_generator = False
+        self.running_acc = 0.0
 
     def do_before_train_loop(self, sess):
         sess.run(self.embedding_translator.assign_embedding(), {
             self.embedding_translator.embedding_placeholder: self.embedding_handler.embedding_np
         })
+        self.before_train_discriminator()
+
+    def do_generator_train(self, sess, global_step, epoch_num, batch_index, feed_dictionary):
+        # TODO: outputs to measure progress, summaries
+        execution_list = [self.generator_loss, self.discriminator_accuracy_for_generator]
+        loss, acc = sess.run(execution_list, feed_dictionary)
+        if acc < self.running_acc:
+            # the generator is still improving
+            self.running_acc = 0.95*self.running_acc + 0.05*acc
+            sess.run(self.generator_train_step, feed_dictionary)
+        else:
+            # the generator is no longer improving, will train discriminator next
+            self.before_train_discriminator()
+            self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dictionary)
+
+    def do_discriminator_train(self, sess, global_step, epoch_num, batch_index, feed_dictionary):
+        # TODO: outputs to measure progress, summaries
+        execution_list = [self.discriminator_loss, self.discriminator_accuracy_for_discriminator]
+        loss, acc = sess.run(execution_list, feed_dictionary)
+        if acc > self.running_acc:
+            # the discriminator is still improving
+            self.running_acc = 0.95*self.running_acc + 0.05*acc
+            sess.run(self.discriminator_train_step, feed_dictionary)
+        else:
+            # the discriminator is no longer improving, will train generator next
+            self.before_train_generator()
+            self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dictionary)
 
     def do_train_batch(self, sess, global_step, epoch_num, batch_index, batch):
-        if self.generator_mode:
-            feed_dict = {
-                self.left_padded_source_batch: batch[0].left_padded_sentences,
-                self.left_padded_target_batch: batch[1].left_padded_sentences,
-                self.right_padded_source_batch: batch[0].right_padded_sentences,
-                self.right_padded_target_batch: batch[1].right_padded_sentences,
-                self.dropout_placeholder: self.config['model']['dropout'],
-                self.discriminator_dropout_placeholder: self.config['model']['discriminator_dropout'],
-                self.encoder.should_print: self.operational_config['debug'],
-                self.decoder.should_print: self.operational_config['debug'],
-            }
-            # TODO: outputs to measure progress, summaries
-            execution_list = [self.generator_train_step, self.generator_loss]
-            # print results
-            if batch_index % 100 == 0:
-                # start_time = time.time()
-                # _, generator_loss = sess.run(execution_list, feed_dict)
-                # total_time = time.time() - start_time
-                # self.print_side_by_side(batch.right_padded_sentences, decoded_output, batch.right_padded_masks)
-                # print('epoch-index: {} batch-index: {} acc: {} loss: {} runtime: {}'.format(epoch_num, batch_index,
-                #                                                                             batch_acc, loss_output,
-                #                                                                             total_time))
-                print()
-            else:
-                # will not run summaries
-                _, loss_output, decoded_output, batch_acc = sess.run(execution_list[:-1], feed_dict)
-            # TODO: train source->target and target->source
+        feed_dict = {
+            self.left_padded_source_batch: batch[0].left_padded_sentences,
+            self.left_padded_target_batch: batch[1].left_padded_sentences,
+            self.right_padded_source_batch: batch[0].right_padded_sentences,
+            self.right_padded_target_batch: batch[1].right_padded_sentences,
+            self.dropout_placeholder: self.config['model']['dropout'],
+            self.discriminator_dropout_placeholder: self.config['model']['discriminator_dropout'],
+            self.encoder.should_print: self.operational_config['debug'],
+            self.decoder.should_print: self.operational_config['debug'],
+            self.discriminator.should_print: self.operational_config['debug'],
+            self.embedding_translator.should_print: self.operational_config['debug'],
+        }
+        if self.train_generator:
+            # should train the generator
+            return self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dict)
         else:
             # should train discriminator
-            print()
+            return self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dict)
 
     def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch):
         pass
