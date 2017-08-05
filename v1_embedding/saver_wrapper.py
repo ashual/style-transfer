@@ -9,7 +9,7 @@ class SaverWrapper:
         self.saver_dir = os.path.join(saver_dir, 'saver')
         now = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H_%M_%S')
         self.saver_path = os.path.join(self.saver_dir, now)
-        self.saver = tf.train.Saver(max_to_keep=100, save_relative_paths=self.saver_dir)
+        self.saver = tf.train.Saver(max_to_keep=3, save_relative_paths=self.saver_dir)
         if not os.path.exists(self.saver_dir):
             os.makedirs(self.saver_dir)
         print('models will be saved to: {}\n'.format(self.saver_dir))
