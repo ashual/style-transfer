@@ -74,9 +74,10 @@ class EmbeddingDecoder(BaseModel):
         # common variables:
         # iteration: counter of the number of iterations
         # input_logits: logits (over the vocabulary) of the last outputted word
-        # state: the sate to start the decoding from
+        # state_packed: the state to start the decoding from (packed)
+        # state_sizes: used with the below method to extract the state from state_packed
         # inputs_from_start: all the inputs (as embedding vectors) so far
-        def _while_cond(iteration, input_logits, state, inputs_from_start):
+        def _while_cond(iteration, input_logits, state_packed, state_sizes, inputs_from_start):
             if iterations_limit == -1:
                 # make sure we are not in the first iteration:
                 first_step = tf.equal(iteration, 0)
@@ -90,19 +91,38 @@ class EmbeddingDecoder(BaseModel):
             # not a single sentence, stopping when sentence length reached (used for professor forcing)
             return tf.less(iteration, tf.minimum(iterations_limit, self.maximal_decoding))
 
-        def _while_body(iteration, input_logits, state, inputs_from_start):
+        def _while_body(iteration, input_logits, state_packed, state_sizes, inputs_from_start):
             iteration += 1
             last_input = inputs_from_start[:, -1, :]
+            state = _unpack_state(state_packed, state_sizes)
             decoded_vector, decoder_last_state = self.decode_vector_to_sequence(encoded_vector, state, last_input,
                                                                                 domain_identifier)
             inputs_from_start = tf.concat((inputs_from_start, decoded_vector), axis=1)
             # translate to logits
             input_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(decoded_vector)
-            return [iteration_counter, input_logits, decoder_last_state, inputs_from_start]
+            return [iteration_counter, input_logits, decoder_last_state, state_sizes, inputs_from_start]
+
+        def _get_state_sizes(state):
+            return tf.stack([tf.stack(s).get_shape()[-1] for s in state])
+
+        def _pack_state(state):
+            return tf.concat(state, axis=-1)
+
+        def _unpack_state(state, sizes):
+            offset = 0
+            state_unstacked = tf.unstack(state, axis=-1)
+            res = []
+            for s in tf.unstack(sizes):
+                res.append(tf.stack(state_unstacked[offset:s+offset], axis=-1))
+                offset += s
+            return res
 
         with tf.variable_scope('{}/iterative_decoding'.format(self.name)):
             batch_size = tf.shape(encoded_vector)[0]
+            # gets the initial state, and then decodes it to a single tensor to be used by the while loop
             current_state = self.get_zero_state(batch_size)
+            state_sizes = _get_state_sizes(current_state)
+            current_state_packed = _pack_state(current_state)
             # get the start token and it's embedding
             current_logits = tf.zeros((1, 1, embedding_handler.get_vocabulary_length()))
             # tile both to be batch X sentence len
@@ -120,12 +140,13 @@ class EmbeddingDecoder(BaseModel):
                 # while body
                 _while_body,
                 # loop variables:
-                [iteration_counter, current_logits, current_state, all_inputs],
+                [iteration_counter, current_logits, current_state_packed, state_sizes, all_inputs],
                 # shape invariants
                 shape_invariants=[
                     iteration_counter.get_shape(),
                     current_logits.get_shape(),
-                    current_state.get_shape(),
+                    state_sizes.get_shape(),
+                    current_state_packed.get_shape(),
                     all_inputs_shape_invariant
                 ],
                 parallel_iterations=1,

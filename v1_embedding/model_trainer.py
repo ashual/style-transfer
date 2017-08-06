@@ -46,7 +46,8 @@ class ModelTrainer(ModelTrainerBase):
         )
         self.embedding_translator = EmbeddingTranslator(self.embedding_handler,
                                                         self.config['model']['translation_hidden_size'],
-                                                        self.config['embedding']['should_train'])
+                                                        self.config['embedding']['should_train'],
+                                                        self.dropout_placeholder)
         self.encoder = EmbeddingEncoder(self.config['model']['encoder_hidden_states'], self.dropout_placeholder,
                                         self.config['model']['bidirectional_encoder'])
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(),
@@ -58,7 +59,7 @@ class ModelTrainer(ModelTrainerBase):
                                                     self.config['model']['discriminator_dense_hidden_size'],
                                                     self.discriminator_dropout_placeholder,
                                                     self.config['model']['bidirectional_discriminator'])
-        self.loss_handler = LossHandler()
+        self.loss_handler = LossHandler(self.embedding_handler.get_vocabulary_length())
 
         # losses:
         self.discriminator_loss, self.discriminator_accuracy_for_discriminator = self.get_discriminator_loss(
