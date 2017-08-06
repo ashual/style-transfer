@@ -44,7 +44,9 @@ class ModelTrainerValidation(ModelTrainerBase):
                                         self.config['model']['bidirectional_encoder'])
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(),
                                         self.config['model']['decoder_hidden_states'],
-                                        self.embedding_translator, self.dropout_placeholder)
+                                        self.embedding_translator,
+                                        self.dropout_placeholder,
+                                        self.config['sentence']['max_length'])
 
         self.loss_handler = LossHandler(self.embedding_handler.get_vocabulary_length())
 

@@ -3,9 +3,11 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingDecoder(BaseModel):
-    def __init__(self, embedding_size, hidden_states, embedding_translator, dropout_placeholder, name=None):
+    def __init__(self, embedding_size, hidden_states, embedding_translator, dropout_placeholder, maximal_decoding,
+                 name=None):
         BaseModel.__init__(self, name)
         self.embedding_translator = embedding_translator
+        self.maximal_decoding = maximal_decoding
         # decoder - model
         with tf.variable_scope('{}/cells'.format(self.name)):
             decoder_cells = []
@@ -78,13 +80,15 @@ class EmbeddingDecoder(BaseModel):
             if iterations_limit == -1:
                 # make sure we are not in the first iteration:
                 first_step = tf.equal(iteration, 0)
+                # or that we are not over the global limit:
+                over_limit = tf.equal(iteration, self.maximal_decoding)
                 # single sentence running until end of sentence encountered (used for test time)
                 translated_index = self.embedding_translator.translate_logits_to_words(input_logits)[0][0]
-                is_end_token = tf.not_equal(translated_index, end_index)
-                # if first step - run loop. otherwise run if not end token
-                return tf.cond(first_step, lambda: True, is_end_token)
+                not_end_token = tf.not_equal(translated_index, end_index)
+                # if over the limit - stop. otherwise: if first step - run loop. otherwise: run if not end token
+                return tf.cond(over_limit, lambda: False, tf.cond(first_step, lambda: True, not_end_token))
             # not a single sentence, stopping when sentence length reached (used for professor forcing)
-            return tf.less(iteration, iterations_limit)
+            return tf.less(iteration, tf.minimum(iterations_limit, self.maximal_decoding))
 
         def _while_body(iteration, input_logits, state, inputs_from_start):
             iteration += 1

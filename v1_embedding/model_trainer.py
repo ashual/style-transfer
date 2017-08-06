@@ -1,5 +1,6 @@
 import tensorflow as tf
 import time
+import yaml
 from datasets.multi_batch_iterator import MultiBatchIterator
 from datasets.yelp_helpers import YelpSentences
 from v1_embedding.embedding_translator import EmbeddingTranslator
@@ -50,7 +51,9 @@ class ModelTrainer(ModelTrainerBase):
                                         self.config['model']['bidirectional_encoder'])
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(),
                                         self.config['model']['decoder_hidden_states'],
-                                        self.embedding_translator, self.dropout_placeholder)
+                                        self.embedding_translator,
+                                        self.dropout_placeholder,
+                                        self.config['sentence']['max_length'])
         self.discriminator = EmbeddingDiscriminator(self.config['model']['discriminator_hidden_states'],
                                                     self.config['model']['discriminator_dense_hidden_size'],
                                                     self.discriminator_dropout_placeholder,
@@ -242,3 +245,11 @@ class ModelTrainer(ModelTrainerBase):
 
     def do_after_epoch(self, sess):
         pass
+
+if __name__ == "__main__":
+    with open("config/gan.yml", 'r') as ymlfile:
+        config = yaml.load(ymlfile)
+    with open("config/operational.yml", 'r') as ymlfile:
+        operational_config = yaml.load(ymlfile)
+
+    ModelTrainer(config, operational_config).do_train_loop()
