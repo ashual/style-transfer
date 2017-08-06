@@ -106,7 +106,7 @@ def train():
 
         config = tf.ConfigProto(log_device_placement=FLAGS.log_device_placement)
         jit_level = 0
-        jit_level = tf.OptimizerOptions.ON_1
+        # jit_level = tf.OptimizerOptions.ON_1
         config.graph_options.optimizer_options.global_jit_level = jit_level
         with tf.train.MonitoredTrainingSession(
                 checkpoint_dir=FLAGS.train_dir,
