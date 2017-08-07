@@ -22,6 +22,21 @@ class ModelTrainerBase:
     def get_trainer_name(self):
         return self.__class__.__name__
 
+    def print_side_by_side(self, batch1, batch2, message1, message2, embedding_handler):
+        translated_batch1 = embedding_handler.get_index_to_word(batch1)
+        translated_batch2 = embedding_handler.get_index_to_word(batch2)
+        for i in range(len(translated_batch1)):
+            print(message1)
+            print(translated_batch1[i])
+            print(message2)
+            print(translated_batch2[i])
+
+    @staticmethod
+    def remove_by_mask(sentences, mask):
+        return [[
+            word for word_index, word in enumerate(sentence) if mask[sentence_index][word_index]
+        ] for sentence_index, sentence in enumerate(sentences)]
+
     def do_train_loop(self):
         self.saver_wrapper = SaverWrapper(self.work_dir, self.get_trainer_name())
         session_config = tf.ConfigProto(log_device_placement=self.operational_config['print_device'],

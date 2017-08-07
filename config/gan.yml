@@ -5,7 +5,7 @@ model:
   translation_hidden_size: 1000
   encoder_hidden_states: [1500, 1000, 500]
   decoder_hidden_states: [1000, 1500]
-  discriminator_hidden_states: [1500, 1000, 500]
+  discriminator_hidden_states: [750]
   discriminator_dense_hidden_size: 1000
   learn_rate: 0.0035
   dropout: 0.1
@@ -13,6 +13,8 @@ model:
   bidirectional_encoder: False
   bidirectional_discriminator: False
   curriculum_training: True
+  reconstruction_coefficient: 1.0
+  semantic_distance_coefficient: 1.0
 
 embedding:
 #  min_word_occurrences: 2
@@ -26,6 +28,6 @@ loss:
 
 sentence:
 #  limit: 300000
-  limit: 3
+  limit: 15
   min_length: 3
   max_length: 15

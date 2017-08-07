@@ -52,7 +52,6 @@ class ModelTrainer(ModelTrainerBase):
                                         self.config['model']['bidirectional_encoder'])
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(),
                                         self.config['model']['decoder_hidden_states'],
-                                        self.embedding_translator,
                                         self.dropout_placeholder,
                                         self.config['sentence']['max_length'])
         self.discriminator = EmbeddingDiscriminator(self.config['model']['discriminator_hidden_states'],
@@ -92,15 +91,19 @@ class ModelTrainer(ModelTrainerBase):
         )
         self.generator_train_step = generator_optimizer.apply_gradients(generator_grads_and_vars)
 
+        left_padded_source_embedding = self.embedding_translator.embed_inputs(self.left_padded_source_batch)
+        encoded_source = self.encoder.encode_inputs_to_vector(left_padded_source_embedding, domain_identifier=None)
+        self.transfer = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
+
         # iterators
         self.batch_iterator = MultiBatchIterator(datasets, self.embedding_handler,
                                                  self.config['sentence']['min_length'],
                                                  self.config['model']['batch_size'])
 
         # iterators
-        self.validation_batch_iterator = MultiBatchIterator(datasets, self.embedding_handler,
+        self.batch_iterator_validation = MultiBatchIterator(datasets, self.embedding_handler,
                                                             self.config['sentence']['min_length'],
-                                                            1000)
+                                                            2)
         # train loop parameters:
         self.running_acc = None
         self.train_generator = None
@@ -114,9 +117,8 @@ class ModelTrainer(ModelTrainerBase):
         loss_true = -tf.reduce_mean(tf.log(discriminator_prediction_target))
 
         # calculate the source-encoded-as-target loss
-        fake_targets = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None,
-                                                          iterations_limit=sentence_length)
-        discriminator_prediction_fake_target = self.discriminator.predict(fake_targets)
+        fake_targets = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
+        discriminator_prediction_fake_target = self.discriminator.predict(fake_targets[:, :sentence_length, :])
         accuracy_fake = tf.reduce_mean(tf.cast(tf.less(discriminator_prediction_fake_target, 0.5), tf.float32))
         loss_fake = -tf.reduce_mean(tf.log(1.0 - discriminator_prediction_fake_target))
         # total loss is the sum of losses
@@ -146,7 +148,7 @@ class ModelTrainer(ModelTrainerBase):
         left_padded_target_embedding = self.embedding_translator.embed_inputs(left_padded_target_batch)
         encoded_target = self.encoder.encode_inputs_to_vector(left_padded_target_embedding, domain_identifier=None)
 
-        # reconstruction loss
+        # reconstruction loss - recover target
         right_padded_target_embedding = self.embedding_translator.embed_inputs(right_padded_target_batch)
         teacher_forced_target = self.decoder.do_teacher_forcing(encoded_target,
                                                                 right_padded_target_embedding[:, :-1, :],
@@ -157,23 +159,24 @@ class ModelTrainer(ModelTrainerBase):
                                                                                  reconstructed_taret_logits)
 
         # semantic vector distance
-        encoded_unstacked = tf.unstack(encoded_source)
-        processed_encoded = []
-        for e in encoded_unstacked:
-            d = self.decoder.do_iterative_decoding(e, domain_identifier=None, iterations_limit=-1)
-            e_target = self.encoder.encode_inputs_to_vector(d, domain_identifier=None)
-            processed_encoded.append(e_target)
-        encoded_again = tf.concat(processed_encoded, axis=0)
+        source_decoded_as_tareget = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
+        encoded_again = self.encoder.encode_inputs_to_vector(source_decoded_as_tareget, domain_identifier=None)
         semantic_distance_loss = self.loss_handler.get_context_vector_distance_loss(encoded_source, encoded_again)
 
         # professor forcing loss source
         discriminator_loss, discriminator_accuracy = self._get_discriminator_loss_from_encoded(encoded_source,
                                                                                                teacher_forced_target)
 
-        total_loss = self.config['reconstruction_coefficient'] * reconstruction_loss \
-                     + self.config['semantic_distance_coefficient'] * semantic_distance_loss \
+        total_loss = self.config['model']['reconstruction_coefficient'] * reconstruction_loss \
+                     + self.config['model']['semantic_distance_coefficient'] * semantic_distance_loss \
                      - discriminator_loss
         return total_loss, discriminator_accuracy
+
+    def transfer(self, left_padded_source_batch):
+        left_padded_source_embedding = self.embedding_translator.embed_inputs(left_padded_source_batch)
+        encoded_source = self.encoder.encode_inputs_to_vector(left_padded_source_embedding, domain_identifier=None)
+        source_decoded_as_tareget = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
+        return source_decoded_as_tareget
 
     def before_train_generator(self):
         self.train_generator = True
@@ -236,7 +239,28 @@ class ModelTrainer(ModelTrainerBase):
             return self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dict)
 
     def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch):
-        pass
+        feed_dict = {
+            self.left_padded_source_batch: batch[0].left_padded_sentences,
+            self.dropout_placeholder: 0.0,
+            self.encoder.should_print: self.operational_config['debug'],
+            self.decoder.should_print: self.operational_config['debug'],
+            self.embedding_translator.should_print: self.operational_config['debug'],
+        }
+        transfered_result = sess.run(self.transfer, feed_dict)
+        end_of_sentence_index = self.embedding_handler.end_of_sentence_token
+        # only take the prefix before EOS:
+        for i in range(transfered_result):
+            if end_of_sentence_index in transfered_result[i]:
+                sentence_length = transfered_result[i].index(end_of_sentence_index) + 1
+                transfered_result[i] = transfered_result[i][:sentence_length]
+        # print the transfer
+        self.print_side_by_side(
+            self.remove_by_mask(batch[0].right_padded_sentences, batch[0].right_padded_masks),
+            transfered_result,
+            'original: ',
+            'reconstructed: ',
+            self.embedding_handler
+        )
 
     def do_after_train_loop(self, sess):
         pass

@@ -44,7 +44,6 @@ class ModelTrainerValidation(ModelTrainerBase):
                                         self.config['model']['bidirectional_encoder'])
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(),
                                         self.config['model']['decoder_hidden_states'],
-                                        self.embedding_translator,
                                         self.dropout_placeholder,
                                         self.config['sentence']['max_length'])
 
@@ -95,22 +94,6 @@ class ModelTrainerValidation(ModelTrainerBase):
                                                  gradient_global_norm])
         self.validation_summaries = tf.summary.merge([accuracy_summary, weight_summaries, loss_summary])
 
-    @staticmethod
-    def remove_by_mask(sentences, mask):
-        return [[
-            word for word_index, word in enumerate(sentence) if mask[sentence_index][word_index]
-        ] for sentence_index, sentence in enumerate(sentences)]
-
-    def print_side_by_side(self, original, reconstructed, padding_mask):
-        translated_original = self.embedding_handler.get_index_to_word(self.remove_by_mask(original, padding_mask))
-        translated_reconstructed = self.embedding_handler.get_index_to_word(self.remove_by_mask(reconstructed,
-                                                                                                padding_mask))
-        for i in range(len(translated_original)):
-            print('original:')
-            print(translated_original[i])
-            print('reconstructed:')
-            print(translated_reconstructed[i])
-
     def do_before_train_loop(self, sess):
         best_validation_acc = sess.run(self.best_validation_acc)
         print('starting validation accuracy: {}'.format(best_validation_acc))
@@ -134,7 +117,13 @@ class ModelTrainerValidation(ModelTrainerBase):
             start_time = time.time()
             _, loss_output, decoded_output, batch_acc, train_summaries = sess.run(execution_list, feed_dict)
             total_time = time.time() - start_time
-            self.print_side_by_side(batch.right_padded_sentences, decoded_output, batch.right_padded_masks)
+            self.print_side_by_side(
+                self.remove_by_mask(batch.right_padded_sentences, batch.right_padded_masks),
+                self.remove_by_mask(decoded_output, batch.right_padded_masks),
+                'original: ',
+                'reconstructed: ',
+                self.embedding_handler
+            )
             print('epoch-index: {} batch-index: {} acc: {} loss: {} runtime: {}'.format(epoch_num, batch_index,
                                                                                         batch_acc, loss_output,
                                                                                         total_time))

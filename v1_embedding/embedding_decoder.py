@@ -3,10 +3,9 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingDecoder(BaseModel):
-    def __init__(self, embedding_size, hidden_states, embedding_translator, dropout_placeholder, maximal_decoding,
+    def __init__(self, embedding_size, hidden_states, dropout_placeholder, maximal_decoding,
                  name=None):
         BaseModel.__init__(self, name)
-        self.embedding_translator = embedding_translator
         self.maximal_decoding = maximal_decoding
         # decoder - model
         with tf.variable_scope('{}/cells'.format(self.name)):
@@ -65,91 +64,16 @@ class EmbeddingDecoder(BaseModel):
             decoder_inputs = tf.concat((starting_inputs, inputs), axis=1)
             return self.decode_vector_to_sequence(encoded_vector, zero_state, decoder_inputs, domain_identifier)[0]
 
-    def do_iterative_decoding(self, encoded_vector, domain_identifier=None, iterations_limit=-1):
-        # get end of sentence index
-        embedding_handler = self.embedding_translator.embedding_handler
-        end_index = embedding_handler.word_to_index[embedding_handler.end_of_sentence_token]
-
-        # functions used by the while loop below.
-        # common variables:
-        # iteration: counter of the number of iterations
-        # input_logits: logits (over the vocabulary) of the last outputted word
-        # state_packed: the state to start the decoding from (packed)
-        # state_sizes: used with the below method to extract the state from state_packed
-        # inputs_from_start: all the inputs (as embedding vectors) so far
-        def _while_cond(iteration, input_logits, state_packed, state_sizes, inputs_from_start):
-            if iterations_limit == -1:
-                # make sure we are not in the first iteration:
-                first_step = tf.equal(iteration, 0)
-                # or that we are not over the global limit:
-                over_limit = tf.equal(iteration, self.maximal_decoding)
-                # single sentence running until end of sentence encountered (used for test time)
-                translated_index = self.embedding_translator.translate_logits_to_words(input_logits)[0][0]
-                not_end_token = tf.not_equal(translated_index, end_index)
-                # if over the limit - stop. otherwise: if first step - run loop. otherwise: run if not end token
-                return tf.cond(over_limit, lambda: False, tf.cond(first_step, lambda: True, not_end_token))
-            # not a single sentence, stopping when sentence length reached (used for professor forcing)
-            return tf.less(iteration, tf.minimum(iterations_limit, self.maximal_decoding))
-
-        def _while_body(iteration, input_logits, state_packed, state_sizes, inputs_from_start):
-            iteration += 1
-            last_input = inputs_from_start[:, -1, :]
-            state = _unpack_state(state_packed, state_sizes)
-            decoded_vector, decoder_last_state = self.decode_vector_to_sequence(encoded_vector, state, last_input,
-                                                                                domain_identifier)
-            inputs_from_start = tf.concat((inputs_from_start, decoded_vector), axis=1)
-            # translate to logits
-            input_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(decoded_vector)
-            return [iteration_counter, input_logits, decoder_last_state, state_sizes, inputs_from_start]
-
-        def _get_state_sizes(state):
-            return tf.stack([tf.stack(s).get_shape()[-1] for s in state])
-
-        def _pack_state(state):
-            return tf.concat(state, axis=-1)
-
-        def _unpack_state(state, sizes):
-            offset = 0
-            state_unstacked = tf.unstack(state, axis=-1)
-            res = []
-            for s in tf.unstack(sizes):
-                res.append(tf.stack(state_unstacked[offset:s+offset], axis=-1))
-                offset += s
-            return res
-
+    def do_iterative_decoding(self, encoded_vector, domain_identifier=None):
         with tf.variable_scope('{}/iterative_decoding'.format(self.name)):
             batch_size = tf.shape(encoded_vector)[0]
             # gets the initial state, and then decodes it to a single tensor to be used by the while loop
             current_state = self.get_zero_state(batch_size)
-            state_sizes = _get_state_sizes(current_state)
-            current_state_packed = _pack_state(current_state)
-            # get the start token and it's embedding
-            current_logits = tf.zeros((1, 1, embedding_handler.get_vocabulary_length()))
-            # tile both to be batch X sentence len
-            current_logits = tf.tile(current_logits, [batch_size, 1, 1])
-            all_inputs = tf.tile(self.starting_input, [batch_size, 1, 1])
-            # desired shape for all inputs
-            all_inputs_shape = all_inputs.get_shape().as_list()
-            all_inputs_shape[1] = tf.Dimension(None)
-            all_inputs_shape_invariant = tf.TensorShape(all_inputs_shape)
-            # do the while loop
-            iteration_counter = tf.Variable(0, trainable=False)
-            _,_,_, all_inputs = tf.while_loop(
-                # while cond
-                _while_cond,
-                # while body
-                _while_body,
-                # loop variables:
-                [iteration_counter, current_logits, current_state_packed, state_sizes, all_inputs],
-                # shape invariants
-                shape_invariants=[
-                    iteration_counter.get_shape(),
-                    current_logits.get_shape(),
-                    state_sizes.get_shape(),
-                    current_state_packed.get_shape(),
-                    all_inputs_shape_invariant
-                ],
-                parallel_iterations=1,
-                back_prop=True
-            )
-            return all_inputs
+            current_input = tf.tile(self.starting_input, [batch_size, 1, 1])
+            decoded_res = []
+            for i in range(self.maximal_decoding):
+                decoded_vector, current_state = self.decode_vector_to_sequence(
+                    encoded_vector, current_state, current_input, domain_identifier
+                )
+                decoded_res.append(decoded_vector)
+            return tf.concat(decoded_res, axis=1)
