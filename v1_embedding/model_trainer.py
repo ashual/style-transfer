@@ -91,9 +91,13 @@ class ModelTrainer(ModelTrainerBase):
         )
         self.generator_train_step = generator_optimizer.apply_gradients(generator_grads_and_vars)
 
+        # do transfer
         left_padded_source_embedding = self.embedding_translator.embed_inputs(self.left_padded_source_batch)
         encoded_source = self.encoder.encode_inputs_to_vector(left_padded_source_embedding, domain_identifier=None)
-        self.transfer = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
+        transfered_embeddings = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
+        transfered_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(transfered_embeddings)
+        self.transfer = self.embedding_translator.translate_logits_to_words(transfered_logits)
+
 
         # iterators
         self.batch_iterator = MultiBatchIterator(datasets, self.embedding_handler,
@@ -172,12 +176,6 @@ class ModelTrainer(ModelTrainerBase):
                      - discriminator_loss
         return total_loss, discriminator_accuracy
 
-    def transfer(self, left_padded_source_batch):
-        left_padded_source_embedding = self.embedding_translator.embed_inputs(left_padded_source_batch)
-        encoded_source = self.encoder.encode_inputs_to_vector(left_padded_source_embedding, domain_identifier=None)
-        source_decoded_as_tareget = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
-        return source_decoded_as_tareget
-
     def before_train_generator(self):
         self.train_generator = True
         self.running_acc = 1.0
@@ -247,12 +245,9 @@ class ModelTrainer(ModelTrainerBase):
             self.embedding_translator.should_print: self.operational_config['debug'],
         }
         transfered_result = sess.run(self.transfer, feed_dict)
-        end_of_sentence_index = self.embedding_handler.end_of_sentence_token
+        end_of_sentence_index = self.embedding_handler.word_to_index[self.embedding_handler.end_of_sentence_token]
         # only take the prefix before EOS:
-        for i in range(transfered_result):
-            if end_of_sentence_index in transfered_result[i]:
-                sentence_length = transfered_result[i].index(end_of_sentence_index) + 1
-                transfered_result[i] = transfered_result[i][:sentence_length]
+        transfered_result = [s[:s.tolist().index(end_of_sentence_index) + 1] for s in transfered_result if end_of_sentence_index in s]
         # print the transfer
         self.print_side_by_side(
             self.remove_by_mask(batch[0].right_padded_sentences, batch[0].right_padded_masks),
