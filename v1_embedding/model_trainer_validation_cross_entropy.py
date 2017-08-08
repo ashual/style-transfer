@@ -69,9 +69,13 @@ class ModelTrainerValidation(ModelTrainerBase):
         self.accuracy = self.loss_handler.get_accuracy(self.right_padded_batch, self.outputs)
         self.best_loss = float('inf')
         self.loss_output = float('inf')
+        self.epoch = tf.Variable(0, trainable=False)
+        self.sentence_length = tf.Variable(self.config['sentence']['min_length'], trainable=False)
         # summaries
         loss_summary = tf.summary.scalar('loss', self.loss)
         accuracy_summary = tf.summary.scalar('accuracy', self.accuracy)
+        epoch = tf.summary.scalar('epoch', self.epoch)
+        sentence_length = tf.summary.scalar('sentence_length', self.sentence_length)
         weight_summaries = tf.summary.merge(self.embedding_translator.get_trainable_parameters_summaries() +
                                             self.encoder.get_trainable_parameters_summaries() +
                                             self.decoder.get_trainable_parameters_summaries())
@@ -90,8 +94,9 @@ class ModelTrainerValidation(ModelTrainerBase):
                                                        batch_size=1000)
 
         self.train_summaries = tf.summary.merge([loss_summary, accuracy_summary, weight_summaries, gradient_summaries,
-                                                 gradient_global_norm])
-        self.validation_summaries = tf.summary.merge([accuracy_summary, weight_summaries, loss_summary])
+                                                 gradient_global_norm, epoch, sentence_length])
+        self.validation_summaries = tf.summary.merge([accuracy_summary, weight_summaries, loss_summary, epoch,
+                                                      sentence_length])
 
     @staticmethod
     def remove_by_mask(sentences, mask):
@@ -117,6 +122,7 @@ class ModelTrainerValidation(ModelTrainerBase):
         })
 
     def do_train_batch(self, sess, global_step, epoch_num, batch_index, batch):
+        sess.run([tf.assign(self.epoch, epoch_num)])
         feed_dict = {
             self.left_padded_batch: batch.left_padded_sentences,
             self.right_padded_batch: batch.right_padded_sentences,
@@ -210,6 +216,7 @@ class ModelTrainerValidation(ModelTrainerBase):
 
         if enlarge:
             num_of_words = self.batch_iterator.sentence_len + 1
+            sess.run([tf.assign(self.sentence_length, num_of_words)])
             print('Moving from {} to {} words because {}'.format(num_of_words - 1, num_of_words, message))
             self.batch_iterator.sentence_len = num_of_words
             self.batch_iterator_validation.sentence_len = num_of_words
