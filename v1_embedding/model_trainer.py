@@ -98,7 +98,6 @@ class ModelTrainer(ModelTrainerBase):
         transfered_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(transfered_embeddings)
         self.transfer = self.embedding_translator.translate_logits_to_words(transfered_logits)
 
-
         # iterators
         self.batch_iterator = MultiBatchIterator(datasets, self.embedding_handler,
                                                  self.config['sentence']['min_length'],
@@ -109,6 +108,8 @@ class ModelTrainer(ModelTrainerBase):
                                                             self.config['sentence']['min_length'],
                                                             2)
         # train loop parameters:
+        self.history_weight = 0.95
+        self.epsilon = 0.001
         self.running_acc = None
         self.train_generator = None
 
@@ -182,7 +183,7 @@ class ModelTrainer(ModelTrainerBase):
 
     def before_train_discriminator(self):
         self.train_generator = False
-        self.running_acc = 0.0
+        self.running_acc = 0.5
 
     def do_before_train_loop(self, sess):
         sess.run(self.embedding_translator.assign_embedding(), {
@@ -190,28 +191,41 @@ class ModelTrainer(ModelTrainerBase):
         })
         self.before_train_discriminator()
 
+    def update_running_accuracy(self, new_accuracy_score):
+        return self.history_weight * self.running_acc + (1-self.history_weight) * new_accuracy_score
+
     def do_generator_train(self, sess, global_step, epoch_num, batch_index, feed_dictionary):
         # TODO: outputs to measure progress, summaries
+        print('started generator')
+        print('running acc: {}'.format(self.running_acc))
         execution_list = [self.generator_loss, self.discriminator_accuracy_for_generator]
         loss, acc = sess.run(execution_list, feed_dictionary)
-        if acc < self.running_acc:
+        print('acc: {}'.format(acc))
+        if self.running_acc >= acc and self.running_acc >= 0.5 + self.epsilon:
             # the generator is still improving
-            self.running_acc = 0.95*self.running_acc + 0.05*acc
+            self.running_acc = self.update_running_accuracy(acc)
+            print('new running acc: {}'.format(self.running_acc))
             sess.run(self.generator_train_step, feed_dictionary)
         else:
+            print('generator too good - training discriminator')
             # the generator is no longer improving, will train discriminator next
             self.before_train_discriminator()
             self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dictionary)
 
     def do_discriminator_train(self, sess, global_step, epoch_num, batch_index, feed_dictionary):
         # TODO: outputs to measure progress, summaries
+        print('started discriminator')
+        print('running acc: {}'.format(self.running_acc))
         execution_list = [self.discriminator_loss, self.discriminator_accuracy_for_discriminator]
         loss, acc = sess.run(execution_list, feed_dictionary)
-        if acc > self.running_acc:
+        print('acc: {}'.format(acc))
+        if self.running_acc <= acc and self.running_acc <= 1.0 - self.epsilon:
             # the discriminator is still improving
-            self.running_acc = 0.95*self.running_acc + 0.05*acc
+            self.running_acc = self.update_running_accuracy(acc)
+            print('new running acc: {}'.format(self.running_acc))
             sess.run(self.discriminator_train_step, feed_dictionary)
         else:
+            print('discriminator too good - training generator')
             # the discriminator is no longer improving, will train generator next
             self.before_train_generator()
             self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dictionary)
@@ -229,6 +243,7 @@ class ModelTrainer(ModelTrainerBase):
             self.discriminator.should_print: self.operational_config['debug'],
             self.embedding_translator.should_print: self.operational_config['debug'],
         }
+        print('batch len: {}'.format(batch[0].get_len()))
         if self.train_generator:
             # should train the generator
             return self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dict)
@@ -249,13 +264,14 @@ class ModelTrainer(ModelTrainerBase):
         # only take the prefix before EOS:
         transfered_result = [s[:s.tolist().index(end_of_sentence_index) + 1] for s in transfered_result if end_of_sentence_index in s]
         # print the transfer
-        self.print_side_by_side(
-            self.remove_by_mask(batch[0].right_padded_sentences, batch[0].right_padded_masks),
-            transfered_result,
-            'original: ',
-            'reconstructed: ',
-            self.embedding_handler
-        )
+        # self.print_side_by_side(
+        #     self.remove_by_mask(batch[0].right_padded_sentences, batch[0].right_padded_masks),
+        #     transfered_result,
+        #     'original: ',
+        #     'transferred: ',
+        #     self.embedding_handler
+        # )
+        # print the accuracy traces:
 
     def do_after_train_loop(self, sess):
         pass
