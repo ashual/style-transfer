@@ -52,7 +52,7 @@ class EmbeddingTranslator(BaseModel):
                 hidden_with_dropout = embedded_inputs_flattened
             else:
                 hidden = tf.nn.relu(tf.matmul(embedded_inputs_flattened, self.w1) + self.b1)
-                hidden_with_dropout = tf.nn.dropout(hidden, self.dropout_placeholder)
+                hidden_with_dropout = tf.nn.dropout(hidden, 1. - self.dropout_placeholder)
             vocabulary_logits_flattened = tf.nn.relu(tf.matmul(hidden_with_dropout, self.w2) + self.b2)
             vocabulary_logits = tf.reshape(vocabulary_logits_flattened, (batch_size, sentence_length, -1))
             return self.print_tensor_with_shape(vocabulary_logits, "vocabulary_logits")
