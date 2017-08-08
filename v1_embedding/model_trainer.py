@@ -21,6 +21,8 @@ class ModelTrainer(ModelTrainerBase):
     def __init__(self, config_file, operational_config_file):
         ModelTrainerBase.__init__(self, config_file=config_file, operational_config_file=operational_config_file)
 
+        self.epsilon = 0.001
+
         # placeholders for dropouts
         self.dropout_placeholder = tf.placeholder(tf.float32, shape=())
         self.discriminator_dropout_placeholder = tf.placeholder(tf.float32, shape=())
@@ -96,9 +98,7 @@ class ModelTrainer(ModelTrainerBase):
         self.generator_train_step = generator_optimizer.apply_gradients(generator_grads_and_vars)
 
         # do transfer
-        left_padded_source_embedding = self.embedding_translator.embed_inputs(self.left_padded_source_batch)
-        encoded_source = self.encoder.encode_inputs_to_vector(left_padded_source_embedding, domain_identifier=None)
-        transferred_embeddings = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
+        transferred_embeddings = self._transfer(self.left_padded_source_batch)
         transferred_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(transferred_embeddings)
         self.transfer = self.embedding_translator.translate_logits_to_words(transferred_logits)
 
@@ -115,55 +115,59 @@ class ModelTrainer(ModelTrainerBase):
                                                             2)
         # train loop parameters:
         self.history_weight = 0.95
-        self.epsilon = 0.001
         self.running_acc = None
         self.train_generator = None
 
-    def _get_discriminator_loss_from_encoded(self, encoded_source, teacher_forced_target):
-        sentence_length = tf.shape(teacher_forced_target)[1]
+    def _stable_log(self, input):
+        input = tf.maximum(input, self.epsilon)
+        input = tf.minimum(input, 1.0 - self.epsilon)
+        return tf.log(input)
 
-        # calculate the teacher forced loss
-        discriminator_prediction_target = self.discriminator.predict(teacher_forced_target)
-        accuracy_true = tf.reduce_mean(tf.cast(tf.greater_equal(discriminator_prediction_target, 0.5), tf.float32))
-        loss_true = -tf.reduce_mean(tf.log(discriminator_prediction_target))
+    def _encode(self, left_padded_input):
+        embedding = self.embedding_translator.embed_inputs(left_padded_input)
+        return self.encoder.encode_inputs_to_vector(embedding, domain_identifier=None)
 
-        # calculate the source-encoded-as-target loss
-        fake_targets = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
+    def _transfer(self, left_padded_source):
+        encoded_source = self._encode(left_padded_source)
+        return self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
+
+    def _teacher_force_target(self, left_padded_target_batch, right_padded_target_batch):
+        encoded_target = self._encode(left_padded_target_batch)
+        right_padded_target_embedding = self.embedding_translator.embed_inputs(right_padded_target_batch)
+        return self.decoder.do_teacher_forcing(encoded_target,
+                                               right_padded_target_embedding[:, :-1, :],
+                                               domain_identifier=None)
+
+    def _get_discriminator_loss_and_accuracy_for_source(self, left_padded_source_batch):
+        sentence_length = tf.shape(left_padded_source_batch)[1]
+        fake_targets = self._transfer(left_padded_source_batch)
         discriminator_prediction_fake_target = self.discriminator.predict(fake_targets[:, :sentence_length, :])
-        accuracy_fake = tf.reduce_mean(tf.cast(tf.less(discriminator_prediction_fake_target, 0.5), tf.float32))
-        loss_fake = -tf.reduce_mean(tf.log(1.0 - discriminator_prediction_fake_target))
-        # total loss is the sum of losses
-        total_loss = loss_true + loss_fake
-        # total accuracy is the avg of accuracies
-        total_accuracy = 0.5 * (accuracy_true + accuracy_fake)
-        return total_loss, total_accuracy
+        accuracy = tf.reduce_mean(tf.cast(tf.less(discriminator_prediction_fake_target, 0.5), tf.float32))
+        loss = -tf.reduce_mean(self._stable_log(1.0 - discriminator_prediction_fake_target))
+        return loss, accuracy
 
     def get_discriminator_loss(self, left_padded_source_batch, left_padded_target_batch, right_padded_target_batch):
-        source_embedding = self.embedding_translator.embed_inputs(left_padded_source_batch)
-        encoded_source = self.encoder.encode_inputs_to_vector(source_embedding, domain_identifier=None)
+        # calculate the source-encoded-as-target loss
+        loss_transferred, accuracy_transferred = self._get_discriminator_loss_and_accuracy_for_source(
+            left_padded_source_batch)
 
-        left_padded_target_embedding = self.embedding_translator.embed_inputs(left_padded_target_batch)
-        encoded_target = self.encoder.encode_inputs_to_vector(left_padded_target_embedding, domain_identifier=None)
+        # calculate the teacher forced loss
+        teacher_forced_target = self._teacher_force_target(left_padded_target_batch, right_padded_target_batch)
+        discriminator_prediction_target = self.discriminator.predict(teacher_forced_target)
+        accuracy_true = tf.reduce_mean(tf.cast(tf.greater_equal(discriminator_prediction_target, 0.5), tf.float32))
+        loss_true = -tf.reduce_mean(self._stable_log(discriminator_prediction_target))
 
-        right_padded_target_embedding = self.embedding_translator.embed_inputs(right_padded_target_batch)
-        teacher_forced_target = self.decoder.do_teacher_forcing(encoded_target,
-                                                                right_padded_target_embedding[:, :-1, :],
-                                                                domain_identifier=None)
-
-        return self._get_discriminator_loss_from_encoded(encoded_source, teacher_forced_target)
+        # total loss is the sum of losses
+        total_loss = loss_true + loss_transferred
+        # total accuracy is the avg of accuracies
+        total_accuracy = 0.5 * (accuracy_true + accuracy_transferred)
+        return total_loss, total_accuracy
 
     def get_generator_loss(self, left_padded_source_batch, left_padded_target_batch, right_padded_target_batch):
-        left_padded_source_embedding = self.embedding_translator.embed_inputs(left_padded_source_batch)
-        encoded_source = self.encoder.encode_inputs_to_vector(left_padded_source_embedding, domain_identifier=None)
-
-        left_padded_target_embedding = self.embedding_translator.embed_inputs(left_padded_target_batch)
-        encoded_target = self.encoder.encode_inputs_to_vector(left_padded_target_embedding, domain_identifier=None)
+        encoded_source = self._encode(left_padded_source_batch)
 
         # reconstruction loss - recover target
-        right_padded_target_embedding = self.embedding_translator.embed_inputs(right_padded_target_batch)
-        teacher_forced_target = self.decoder.do_teacher_forcing(encoded_target,
-                                                                right_padded_target_embedding[:, :-1, :],
-                                                                domain_identifier=None)
+        teacher_forced_target = self._teacher_force_target(left_padded_target_batch, right_padded_target_batch)
         reconstructed_target_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(
             teacher_forced_target)
         reconstruction_loss = self.loss_handler.get_sentence_reconstruction_loss(right_padded_target_batch,
@@ -175,8 +179,8 @@ class ModelTrainer(ModelTrainerBase):
         semantic_distance_loss = self.loss_handler.get_context_vector_distance_loss(encoded_source, encoded_again)
 
         # professor forcing loss source
-        discriminator_loss, discriminator_accuracy = self._get_discriminator_loss_from_encoded(encoded_source,
-                                                                                               teacher_forced_target)
+        discriminator_loss, discriminator_accuracy = self._get_discriminator_loss_and_accuracy_for_source(
+            left_padded_source_batch)
 
         total_loss = self.config['model']['reconstruction_coefficient'] * reconstruction_loss \
                      + self.config['model']['semantic_distance_coefficient'] * semantic_distance_loss \
@@ -191,12 +195,6 @@ class ModelTrainer(ModelTrainerBase):
         self.train_generator = False
         self.running_acc = 0.5
 
-    def do_before_train_loop(self, sess):
-        sess.run(self.embedding_translator.assign_embedding(), {
-            self.embedding_translator.embedding_placeholder: self.embedding_handler.embedding_np
-        })
-        self.before_train_discriminator()
-
     def update_running_accuracy(self, new_accuracy_score):
         return self.history_weight * self.running_acc + (1-self.history_weight) * new_accuracy_score
 
@@ -207,6 +205,7 @@ class ModelTrainer(ModelTrainerBase):
         execution_list = [self.generator_loss, self.discriminator_accuracy_for_generator]
         loss, acc = sess.run(execution_list, feed_dictionary)
         print('acc: {}'.format(acc))
+        print('loss: {}'.format(loss))
         if self.running_acc >= acc and self.running_acc >= 0.5 + self.epsilon:
             # the generator is still improving
             self.running_acc = self.update_running_accuracy(acc)
@@ -225,6 +224,7 @@ class ModelTrainer(ModelTrainerBase):
         execution_list = [self.discriminator_loss, self.discriminator_accuracy_for_discriminator]
         loss, acc = sess.run(execution_list, feed_dictionary)
         print('acc: {}'.format(acc))
+        print('loss: {}'.format(loss))
         if self.running_acc <= acc and self.running_acc <= 1.0 - self.epsilon:
             # the discriminator is still improving
             self.running_acc = self.update_running_accuracy(acc)
@@ -235,6 +235,12 @@ class ModelTrainer(ModelTrainerBase):
             # the discriminator is no longer improving, will train generator next
             self.before_train_generator()
             self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dictionary)
+
+    def do_before_train_loop(self, sess):
+        sess.run(self.embedding_translator.assign_embedding(), {
+            self.embedding_translator.embedding_placeholder: self.embedding_handler.embedding_np
+        })
+        self.before_train_discriminator()
 
     def do_train_batch(self, sess, global_step, epoch_num, batch_index, batch):
         feed_dict = {
