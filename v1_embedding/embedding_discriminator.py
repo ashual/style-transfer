@@ -4,8 +4,7 @@ from v1_embedding.embedding_encoder import EmbeddingEncoder
 
 
 class EmbeddingDiscriminator(BaseModel):
-    def __init__(self, hidden_states, dense_hidden_size, dropout_placeholder, bidirectional,
-                 name=None):
+    def __init__(self, hidden_states, dense_hidden_size, dropout_placeholder, bidirectional, name=None):
         BaseModel.__init__(self, name)
         self.encoder = EmbeddingEncoder(hidden_states, dropout_placeholder, bidirectional, name=self.name)
         # discriminator - model

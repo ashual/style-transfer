@@ -14,8 +14,8 @@ from v1_embedding.word_indexing_embedding_handler import WordIndexingEmbeddingHa
 
 # this model tries to transfer from one domain to another.
 # 1. the encoder doesn't know the domain it is working on
-# 2. traget are encoded and decoded (to target) then cross entropy loss is applied between the origin and the result
-# 3. source is encoded decoded to traget and encoded again, then L2 loss is applied between the context vectors.
+# 2. target are encoded and decoded (to target) then cross entropy loss is applied between the origin and the result
+# 3. source is encoded decoded to target and encoded again, then L2 loss is applied between the context vectors.
 # 4. an adversarial component is trained to distinguish true target from transferred targets using professor forcing
 class ModelTrainer(ModelTrainerBase):
     def __init__(self, config_file, operational_config_file):
@@ -48,7 +48,8 @@ class ModelTrainer(ModelTrainerBase):
                                                         self.config['model']['translation_hidden_size'],
                                                         self.config['embedding']['should_train'],
                                                         self.dropout_placeholder)
-        self.encoder = EmbeddingEncoder(self.config['model']['encoder_hidden_states'], self.dropout_placeholder,
+        self.encoder = EmbeddingEncoder(self.config['model']['encoder_hidden_states'],
+                                        self.dropout_placeholder,
                                         self.config['model']['bidirectional_encoder'])
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(),
                                         self.config['model']['decoder_hidden_states'],
@@ -78,34 +79,38 @@ class ModelTrainer(ModelTrainerBase):
         discriminator_var_list = self.discriminator.get_trainable_parameters()
         discriminator_grads_and_vars = discriminator_optimizer.compute_gradients(
             self.discriminator_loss,
-            colocate_gradients_with_ops=True, var_list=discriminator_var_list
+            colocate_gradients_with_ops=True,
+            var_list=discriminator_var_list
         )
         self.discriminator_train_step = discriminator_optimizer.apply_gradients(discriminator_grads_and_vars)
 
         generator_optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
-        generator_var_list = self.encoder.get_trainable_parameters() + self.decoder.get_trainable_parameters() + \
+        generator_var_list = self.encoder.get_trainable_parameters() + \
+                             self.decoder.get_trainable_parameters() + \
                              self.embedding_translator.get_trainable_parameters()
         generator_grads_and_vars = generator_optimizer.compute_gradients(
             self.generator_loss,
-            colocate_gradients_with_ops=True, var_list=generator_var_list
+            colocate_gradients_with_ops=True,
+            var_list=generator_var_list
         )
         self.generator_train_step = generator_optimizer.apply_gradients(generator_grads_and_vars)
 
         # do transfer
         left_padded_source_embedding = self.embedding_translator.embed_inputs(self.left_padded_source_batch)
         encoded_source = self.encoder.encode_inputs_to_vector(left_padded_source_embedding, domain_identifier=None)
-        transfered_embeddings = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
-        transfered_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(transfered_embeddings)
-        self.transfer = self.embedding_translator.translate_logits_to_words(transfered_logits)
-
+        transferred_embeddings = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
+        transferred_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(transferred_embeddings)
+        self.transfer = self.embedding_translator.translate_logits_to_words(transferred_logits)
 
         # iterators
-        self.batch_iterator = MultiBatchIterator(datasets, self.embedding_handler,
+        self.batch_iterator = MultiBatchIterator(datasets,
+                                                 self.embedding_handler,
                                                  self.config['sentence']['min_length'],
                                                  self.config['model']['batch_size'])
 
         # iterators
-        self.batch_iterator_validation = MultiBatchIterator(datasets, self.embedding_handler,
+        self.batch_iterator_validation = MultiBatchIterator(datasets,
+                                                            self.embedding_handler,
                                                             self.config['sentence']['min_length'],
                                                             2)
         # train loop parameters:
@@ -157,14 +162,14 @@ class ModelTrainer(ModelTrainerBase):
         teacher_forced_target = self.decoder.do_teacher_forcing(encoded_target,
                                                                 right_padded_target_embedding[:, :-1, :],
                                                                 domain_identifier=None)
-        reconstructed_taret_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(
+        reconstructed_target_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(
             teacher_forced_target)
         reconstruction_loss = self.loss_handler.get_sentence_reconstruction_loss(right_padded_target_batch,
-                                                                                 reconstructed_taret_logits)
+                                                                                 reconstructed_target_logits)
 
         # semantic vector distance
-        source_decoded_as_tareget = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
-        encoded_again = self.encoder.encode_inputs_to_vector(source_decoded_as_tareget, domain_identifier=None)
+        source_decoded_as_target = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
+        encoded_again = self.encoder.encode_inputs_to_vector(source_decoded_as_target, domain_identifier=None)
         semantic_distance_loss = self.loss_handler.get_context_vector_distance_loss(encoded_source, encoded_again)
 
         # professor forcing loss source
@@ -196,7 +201,7 @@ class ModelTrainer(ModelTrainerBase):
         loss, acc = sess.run(execution_list, feed_dictionary)
         if acc < self.running_acc:
             # the generator is still improving
-            self.running_acc = 0.95*self.running_acc + 0.05*acc
+            self.running_acc = 0.95 * self.running_acc + 0.05 * acc
             sess.run(self.generator_train_step, feed_dictionary)
         else:
             # the generator is no longer improving, will train discriminator next
@@ -209,7 +214,7 @@ class ModelTrainer(ModelTrainerBase):
         loss, acc = sess.run(execution_list, feed_dictionary)
         if acc > self.running_acc:
             # the discriminator is still improving
-            self.running_acc = 0.95*self.running_acc + 0.05*acc
+            self.running_acc = 0.95 * self.running_acc + 0.05 * acc
             sess.run(self.discriminator_train_step, feed_dictionary)
         else:
             # the discriminator is no longer improving, will train generator next
@@ -244,14 +249,15 @@ class ModelTrainer(ModelTrainerBase):
             self.decoder.should_print: self.operational_config['debug'],
             self.embedding_translator.should_print: self.operational_config['debug'],
         }
-        transfered_result = sess.run(self.transfer, feed_dict)
+        transferred_result = sess.run(self.transfer, feed_dict)
         end_of_sentence_index = self.embedding_handler.word_to_index[self.embedding_handler.end_of_sentence_token]
         # only take the prefix before EOS:
-        transfered_result = [s[:s.tolist().index(end_of_sentence_index) + 1] for s in transfered_result if end_of_sentence_index in s]
+        transferred_result = [s[:s.tolist().index(end_of_sentence_index) + 1] for s in transferred_result if
+                             end_of_sentence_index in s]
         # print the transfer
         self.print_side_by_side(
             self.remove_by_mask(batch[0].right_padded_sentences, batch[0].right_padded_masks),
-            transfered_result,
+            transferred_result,
             'original: ',
             'reconstructed: ',
             self.embedding_handler
@@ -265,6 +271,7 @@ class ModelTrainer(ModelTrainerBase):
 
     def do_after_epoch(self, sess):
         pass
+
 
 if __name__ == "__main__":
     with open("config/gan.yml", 'r') as ymlfile:
