@@ -42,3 +42,19 @@ class BaseModel:
         for v in self.get_trainable_parameters():
             res += BaseModel.create_summaries(v)
         return res
+
+    def concat_identifier(self, inputs, identifier):
+        if identifier is None:
+            identified_inputs = inputs
+        else:
+            batch_size = tf.shape(inputs)[0]
+            sentence_length = tf.shape(inputs)[1]
+
+            # the input sequence s.t (batch, time, embedding)
+            inputs = self.print_tensor_with_shape(inputs, "inputs")
+
+            # create the input: (batch, time, embedding; domain)
+            identifier = self.print_tensor_with_shape(identifier, "domain_identifier")
+            identifier_tiled = identifier * tf.ones([batch_size, sentence_length, 1])
+            identified_inputs = tf.concat((inputs, identifier_tiled), axis=2)
+        return identified_inputs
