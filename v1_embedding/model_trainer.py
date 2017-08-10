@@ -64,17 +64,19 @@ class ModelTrainer(ModelTrainerBase):
         self.loss_handler = LossHandler(self.embedding_handler.get_vocabulary_length())
 
         # losses:
-        self.discriminator_loss, self.discriminator_accuracy_for_discriminator = self.get_discriminator_loss(
-            self.left_padded_source_batch,
-            self.left_padded_target_batch,
-            self.right_padded_target_batch
-        )
+        self.discriminator_step_prediction, self.discriminator_loss, self.discriminator_accuracy_for_discriminator = \
+            self.get_discriminator_loss(
+                self.left_padded_source_batch,
+                self.left_padded_target_batch,
+                self.right_padded_target_batch
+            )
 
-        self.generator_loss, self.discriminator_accuracy_for_generator = self.get_generator_loss(
-            self.left_padded_source_batch,
-            self.left_padded_target_batch,
-            self.right_padded_target_batch
-        )
+        self.generator_step_prediction, self.generator_loss, self.discriminator_accuracy_for_generator = \
+            self.get_generator_loss(
+                self.left_padded_source_batch,
+                self.left_padded_target_batch,
+                self.right_padded_target_batch
+            )
 
         # train steps
         discriminator_optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
@@ -139,11 +141,16 @@ class ModelTrainer(ModelTrainerBase):
                                                domain_identifier=None)
 
     def _get_discriminator_prediction_loss_and_accuracy(self, transferred_source, teacher_forced_target):
-        discriminator_prediction_transferred = self.discriminator.predict(transferred_source)
+        sentence_length = tf.shape(teacher_forced_target)[1]
+        transferred_source_normalized = transferred_source[:, :sentence_length, :]
+        prediction = self.discriminator.predict(tf.concat((transferred_source_normalized, teacher_forced_target), axis=0))
+        transferred_batch_size = tf.shape(transferred_source)[0]
+
+        discriminator_prediction_transferred = prediction[:transferred_batch_size, :]
         transferred_accuracy = tf.reduce_mean(tf.cast(tf.less(discriminator_prediction_transferred, 0.5), tf.float32))
         transferred_loss = -tf.reduce_mean(self._stable_log(1.0 - discriminator_prediction_transferred))
 
-        discriminator_prediction_target = self.discriminator.predict(teacher_forced_target)
+        discriminator_prediction_target = prediction[transferred_batch_size:, :]
         target_accuracy = tf.reduce_mean(tf.cast(tf.greater_equal(discriminator_prediction_target, 0.5), tf.float32))
         target_loss = -tf.reduce_mean(self._stable_log(discriminator_prediction_target))
 
@@ -151,7 +158,7 @@ class ModelTrainer(ModelTrainerBase):
         total_loss = transferred_loss + target_loss
         # total accuracy is the avg of accuracies
         total_accuracy = 0.5 * (transferred_accuracy + target_accuracy)
-        return total_loss, total_accuracy
+        return prediction, total_loss, total_accuracy
 
     def get_discriminator_loss(self, left_padded_source_batch, left_padded_target_batch, right_padded_target_batch):
         # calculate the source-encoded-as-target loss
@@ -179,14 +186,15 @@ class ModelTrainer(ModelTrainerBase):
         semantic_distance_loss = self.loss_handler.get_context_vector_distance_loss(encoded_source, encoded_again)
 
         # professor forcing loss source
-        discriminator_loss, discriminator_accuracy = self._get_discriminator_prediction_loss_and_accuracy(
-            transferred_source, teacher_forced_target
-        )
+        discriminator_prediction, discriminator_loss, discriminator_accuracy = \
+            self._get_discriminator_prediction_loss_and_accuracy(
+                transferred_source, teacher_forced_target
+            )
 
         total_loss = self.config['model']['reconstruction_coefficient'] * reconstruction_loss \
                      + self.config['model']['semantic_distance_coefficient'] * semantic_distance_loss \
                      - discriminator_loss
-        return total_loss, discriminator_accuracy
+        return discriminator_prediction, total_loss, discriminator_accuracy
 
     def before_train_generator(self):
         self.train_generator = True
@@ -203,8 +211,13 @@ class ModelTrainer(ModelTrainerBase):
         # TODO: outputs to measure progress, summaries
         print('started generator')
         print('running acc: {}'.format(self.running_acc))
-        execution_list = [self.generator_loss, self.discriminator_accuracy_for_generator]
-        loss, acc = sess.run(execution_list, feed_dictionary)
+        execution_list = [
+            self.generator_step_prediction,
+            self.generator_loss,
+            self.discriminator_accuracy_for_generator
+        ]
+        pred, loss, acc = sess.run(execution_list, feed_dictionary)
+        print('pred: {}'.format(pred))
         print('acc: {}'.format(acc))
         print('loss: {}'.format(loss))
         if self.running_acc >= acc and self.running_acc >= 0.5 + self.epsilon:
@@ -224,8 +237,13 @@ class ModelTrainer(ModelTrainerBase):
         # TODO: outputs to measure progress, summaries
         print('started discriminator')
         print('running acc: {}'.format(self.running_acc))
-        execution_list = [self.discriminator_loss, self.discriminator_accuracy_for_discriminator]
-        loss, acc = sess.run(execution_list, feed_dictionary)
+        execution_list = [
+            self.discriminator_step_prediction,
+            self.discriminator_loss,
+            self.discriminator_accuracy_for_discriminator
+        ]
+        pred, loss, acc = sess.run(execution_list, feed_dictionary)
+        print('pred: {}'.format(pred))
         print('acc: {}'.format(acc))
         print('loss: {}'.format(loss))
         if self.running_acc <= acc and self.running_acc <= 1.0 - self.epsilon:
