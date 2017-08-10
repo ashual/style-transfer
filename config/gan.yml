@@ -28,6 +28,6 @@ loss:
 
 sentence:
 #  limit: 300000
-  limit: 15
+  limit: 150
   min_length: 3
   max_length: 15

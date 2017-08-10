@@ -139,9 +139,9 @@ class ModelTrainer(ModelTrainerBase):
                                                domain_identifier=None)
 
     def _get_discriminator_prediction_loss_and_accuracy(self, transferred_source, teacher_forced_target):
-        discriminator_prediction_fake_target = self.discriminator.predict(transferred_source)
-        transferred_accuracy = tf.reduce_mean(tf.cast(tf.less(discriminator_prediction_fake_target, 0.5), tf.float32))
-        transferred_loss = -tf.reduce_mean(self._stable_log(1.0 - discriminator_prediction_fake_target))
+        discriminator_prediction_transferred = self.discriminator.predict(transferred_source)
+        transferred_accuracy = tf.reduce_mean(tf.cast(tf.less(discriminator_prediction_transferred, 0.5), tf.float32))
+        transferred_loss = -tf.reduce_mean(self._stable_log(1.0 - discriminator_prediction_transferred))
 
         discriminator_prediction_target = self.discriminator.predict(teacher_forced_target)
         target_accuracy = tf.reduce_mean(tf.cast(tf.greater_equal(discriminator_prediction_target, 0.5), tf.float32))
@@ -211,9 +211,11 @@ class ModelTrainer(ModelTrainerBase):
             # the generator is still improving
             self.running_acc = self.update_running_accuracy(acc)
             print('new running acc: {}'.format(self.running_acc))
+            print()
             sess.run(self.generator_train_step, feed_dictionary)
         else:
             print('generator too good - training discriminator')
+            print()
             # the generator is no longer improving, will train discriminator next
             self.before_train_discriminator()
             self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dictionary)
@@ -230,9 +232,11 @@ class ModelTrainer(ModelTrainerBase):
             # the discriminator is still improving
             self.running_acc = self.update_running_accuracy(acc)
             print('new running acc: {}'.format(self.running_acc))
+            print()
             sess.run(self.discriminator_train_step, feed_dictionary)
         else:
             print('discriminator too good - training generator')
+            print()
             # the discriminator is no longer improving, will train generator next
             self.before_train_generator()
             self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dictionary)
