@@ -138,30 +138,30 @@ class ModelTrainer(ModelTrainerBase):
                                                right_padded_target_embedding[:, :-1, :],
                                                domain_identifier=None)
 
-    def _get_discriminator_loss_and_accuracy_for_source(self, left_padded_source_batch):
-        sentence_length = tf.shape(left_padded_source_batch)[1]
-        fake_targets = self._transfer(left_padded_source_batch)
-        discriminator_prediction_fake_target = self.discriminator.predict(fake_targets[:, :sentence_length, :])
-        accuracy = tf.reduce_mean(tf.cast(tf.less(discriminator_prediction_fake_target, 0.5), tf.float32))
-        loss = -tf.reduce_mean(self._stable_log(1.0 - discriminator_prediction_fake_target))
-        return loss, accuracy
+    def _get_discriminator_prediction_loss_and_accuracy(self, transferred_source, teacher_forced_target):
+        discriminator_prediction_fake_target = self.discriminator.predict(transferred_source)
+        transferred_accuracy = tf.reduce_mean(tf.cast(tf.less(discriminator_prediction_fake_target, 0.5), tf.float32))
+        transferred_loss = -tf.reduce_mean(self._stable_log(1.0 - discriminator_prediction_fake_target))
+
+        discriminator_prediction_target = self.discriminator.predict(teacher_forced_target)
+        target_accuracy = tf.reduce_mean(tf.cast(tf.greater_equal(discriminator_prediction_target, 0.5), tf.float32))
+        target_loss = -tf.reduce_mean(self._stable_log(discriminator_prediction_target))
+
+        # total loss is the sum of losses
+        total_loss = transferred_loss + target_loss
+        # total accuracy is the avg of accuracies
+        total_accuracy = 0.5 * (transferred_accuracy + target_accuracy)
+        return total_loss, total_accuracy
 
     def get_discriminator_loss(self, left_padded_source_batch, left_padded_target_batch, right_padded_target_batch):
         # calculate the source-encoded-as-target loss
-        loss_transferred, accuracy_transferred = self._get_discriminator_loss_and_accuracy_for_source(
-            left_padded_source_batch)
+        sentence_length = tf.shape(left_padded_source_batch)[1]
+        transferred_source = self._transfer(left_padded_source_batch)[:, :sentence_length, :]
 
         # calculate the teacher forced loss
         teacher_forced_target = self._teacher_force_target(left_padded_target_batch, right_padded_target_batch)
-        discriminator_prediction_target = self.discriminator.predict(teacher_forced_target)
-        accuracy_true = tf.reduce_mean(tf.cast(tf.greater_equal(discriminator_prediction_target, 0.5), tf.float32))
-        loss_true = -tf.reduce_mean(self._stable_log(discriminator_prediction_target))
 
-        # total loss is the sum of losses
-        total_loss = loss_true + loss_transferred
-        # total accuracy is the avg of accuracies
-        total_accuracy = 0.5 * (accuracy_true + accuracy_transferred)
-        return total_loss, total_accuracy
+        return self._get_discriminator_prediction_loss_and_accuracy(transferred_source, teacher_forced_target)
 
     def get_generator_loss(self, left_padded_source_batch, left_padded_target_batch, right_padded_target_batch):
         encoded_source = self._encode(left_padded_source_batch)
@@ -174,13 +174,14 @@ class ModelTrainer(ModelTrainerBase):
                                                                                  reconstructed_target_logits)
 
         # semantic vector distance
-        source_decoded_as_target = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
-        encoded_again = self.encoder.encode_inputs_to_vector(source_decoded_as_target, domain_identifier=None)
+        transferred_source = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
+        encoded_again = self.encoder.encode_inputs_to_vector(transferred_source, domain_identifier=None)
         semantic_distance_loss = self.loss_handler.get_context_vector_distance_loss(encoded_source, encoded_again)
 
         # professor forcing loss source
-        discriminator_loss, discriminator_accuracy = self._get_discriminator_loss_and_accuracy_for_source(
-            left_padded_source_batch)
+        discriminator_loss, discriminator_accuracy = self._get_discriminator_prediction_loss_and_accuracy(
+            transferred_source, teacher_forced_target
+        )
 
         total_loss = self.config['model']['reconstruction_coefficient'] * reconstruction_loss \
                      + self.config['model']['semantic_distance_coefficient'] * semantic_distance_loss \

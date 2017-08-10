@@ -27,7 +27,7 @@ class EmbeddingEncoder(BaseModel):
 
     def encode_inputs_to_vector(self, inputs, domain_identifier):
         with tf.variable_scope('{}/preprocessing'.format(self.name)):
-            encoder_inputs = self.concat_identifier(self, inputs, domain_identifier)
+            encoder_inputs = self.concat_identifier(inputs, domain_identifier)
 
         # run the encoder
         with tf.variable_scope('{}/run'.format(self.name)):
