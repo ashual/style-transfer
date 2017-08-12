@@ -22,19 +22,18 @@ class ModelTrainer(ModelTrainerBase):
     def __init__(self, config_file, operational_config_file):
         ModelTrainerBase.__init__(self, config_file=config_file, operational_config_file=operational_config_file)
 
-        self.epsilon = 0.001
-
         # placeholders for dropouts
-        self.dropout_placeholder = tf.placeholder(tf.float32, shape=())
-        self.discriminator_dropout_placeholder = tf.placeholder(tf.float32, shape=())
+        self.dropout_placeholder = tf.placeholder(tf.float32, shape=(), name='dropout_placeholder')
+        self.discriminator_dropout_placeholder = tf.placeholder(tf.float32, shape=(),
+                                                                name='discriminator_dropout_placeholder')
         # placeholder for source sentences (batch, time)=> index of word s.t the padding is on the left
-        self.left_padded_source_batch = tf.placeholder(tf.int64, shape=(None, None))
+        self.left_padded_source_batch = tf.placeholder(tf.int64, shape=(None, None), name='left_padded_source_batch')
         # placeholder for source sentences (batch, time)=> index of word s.t the padding is on the right
-        self.right_padded_source_batch = tf.placeholder(tf.int64, shape=(None, None))
+        self.right_padded_source_batch = tf.placeholder(tf.int64, shape=(None, None), name='right_padded_source_batch')
         # placeholder for target sentences (batch, time)=> index of word s.t the padding is on the left
-        self.left_padded_target_batch = tf.placeholder(tf.int64, shape=(None, None))
+        self.left_padded_target_batch = tf.placeholder(tf.int64, shape=(None, None), name='left_padded_target_batch')
         # placeholder for target sentences (batch, time)=> index of word s.t the padding is on the right
-        self.right_padded_target_batch = tf.placeholder(tf.int64, shape=(None, None))
+        self.right_padded_target_batch = tf.placeholder(tf.int64, shape=(None, None), name='right_padded_target_batch')
 
         self.dataset_neg = YelpSentences(positive=False, limit_sentences=self.config['sentence']['limit'],
                                          dataset_cache_dir=self.dataset_cache_dir, dataset_name='neg')
@@ -81,30 +80,36 @@ class ModelTrainer(ModelTrainerBase):
             )
 
         # train steps
-        discriminator_optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
-        discriminator_var_list = self.discriminator.get_trainable_parameters()
-        discriminator_grads_and_vars = discriminator_optimizer.compute_gradients(
-            self.discriminator_loss,
-            colocate_gradients_with_ops=True,
-            var_list=discriminator_var_list
-        )
-        self.discriminator_train_step = discriminator_optimizer.apply_gradients(discriminator_grads_and_vars)
-
-        generator_optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
-        generator_var_list = self.encoder.get_trainable_parameters() + \
-                             self.decoder.get_trainable_parameters() + \
-                             self.embedding_translator.get_trainable_parameters()
-        generator_grads_and_vars = generator_optimizer.compute_gradients(
-            self.generator_loss,
-            colocate_gradients_with_ops=True,
-            var_list=generator_var_list
-        )
-        self.generator_train_step = generator_optimizer.apply_gradients(generator_grads_and_vars)
+        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.variable_scope('TrainSteps'):
+            with tf.variable_scope('TrainDiscriminatorSteps'):
+                discriminator_optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
+                discriminator_var_list = self.discriminator.get_trainable_parameters()
+                discriminator_grads_and_vars = discriminator_optimizer.compute_gradients(
+                    self.discriminator_loss,
+                    colocate_gradients_with_ops=True,
+                    var_list=discriminator_var_list
+                )
+                with tf.control_dependencies(update_ops):
+                    self.discriminator_train_step = discriminator_optimizer.apply_gradients(discriminator_grads_and_vars)
+            with tf.variable_scope('TrainGeneratorSteps'):
+                generator_optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
+                generator_var_list = self.encoder.get_trainable_parameters() + \
+                                     self.decoder.get_trainable_parameters() + \
+                                     self.embedding_translator.get_trainable_parameters()
+                generator_grads_and_vars = generator_optimizer.compute_gradients(
+                    self.generator_loss,
+                    colocate_gradients_with_ops=True,
+                    var_list=generator_var_list
+                )
+                with tf.control_dependencies(update_ops):
+                    self.generator_train_step = generator_optimizer.apply_gradients(generator_grads_and_vars)
 
         # do transfer
-        transferred_embeddings = self._transfer(self.left_padded_source_batch)
-        transferred_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(transferred_embeddings)
-        self.transfer = self.embedding_translator.translate_logits_to_words(transferred_logits)
+        with tf.variable_scope('TransferSourceToTarget'):
+            transferred_embeddings = self._transfer(self.left_padded_source_batch)
+            transferred_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(transferred_embeddings)
+            self.transfer = self.embedding_translator.translate_logits_to_words(transferred_logits)
 
         # iterators
         self.batch_iterator = MultiBatchIterator(datasets,
@@ -119,11 +124,6 @@ class ModelTrainer(ModelTrainerBase):
                                                             2)
         # train loop parameters:
         self.policy = ConvergencePolicy()
-
-    def _stable_log(self, input):
-        input = tf.maximum(input, self.epsilon)
-        input = tf.minimum(input, 1.0 - self.epsilon)
-        return tf.log(input)
 
     def _encode(self, left_padded_input):
         embedding = self.embedding_translator.embed_inputs(left_padded_input)
@@ -143,21 +143,14 @@ class ModelTrainer(ModelTrainerBase):
     def _get_discriminator_prediction_loss_and_accuracy(self, transferred_source, teacher_forced_target):
         sentence_length = tf.shape(teacher_forced_target)[1]
         transferred_source_normalized = transferred_source[:, :sentence_length, :]
-        prediction = self.discriminator.predict(tf.concat((transferred_source_normalized, teacher_forced_target), axis=0))
+        prediction = self.discriminator.predict(tf.concat((transferred_source_normalized, teacher_forced_target),
+                                                          axis=0))
         transferred_batch_size = tf.shape(transferred_source)[0]
 
-        discriminator_prediction_transferred = prediction[:transferred_batch_size, :]
-        transferred_accuracy = tf.reduce_mean(tf.cast(tf.less(discriminator_prediction_transferred, 0.5), tf.float32))
-        transferred_loss = -tf.reduce_mean(self._stable_log(1.0 - discriminator_prediction_transferred))
+        prediction_transferred = prediction[:transferred_batch_size, :]
+        prediction_target = prediction[transferred_batch_size:, :]
+        total_loss, total_accuracy = self.loss_handler.get_discriminator_loss(prediction_transferred, prediction_target)
 
-        discriminator_prediction_target = prediction[transferred_batch_size:, :]
-        target_accuracy = tf.reduce_mean(tf.cast(tf.greater_equal(discriminator_prediction_target, 0.5), tf.float32))
-        target_loss = -tf.reduce_mean(self._stable_log(discriminator_prediction_target))
-
-        # total loss is the sum of losses
-        total_loss = transferred_loss + target_loss
-        # total accuracy is the avg of accuracies
-        total_accuracy = 0.5 * (transferred_accuracy + target_accuracy)
         return prediction, total_loss, total_accuracy
 
     def get_discriminator_loss(self, left_padded_source_batch, left_padded_target_batch, right_padded_target_batch):
@@ -273,20 +266,20 @@ class ModelTrainer(ModelTrainerBase):
             # should train discriminator
             return self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dict)
 
-    def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch):
-        feed_dict = {
-            self.left_padded_source_batch: batch[0].left_padded_sentences,
-            self.dropout_placeholder: 0.0,
-            self.encoder.should_print: self.operational_config['debug'],
-            self.decoder.should_print: self.operational_config['debug'],
-            self.embedding_translator.should_print: self.operational_config['debug'],
-        }
-        transferred_result = sess.run(self.transfer, feed_dict)
-        end_of_sentence_index = self.embedding_handler.word_to_index[self.embedding_handler.end_of_sentence_token]
-        # only take the prefix before EOS:
-        transferred_result = [s[:s.tolist().index(end_of_sentence_index) + 1] for s in transferred_result if
-                             end_of_sentence_index in s]
-        # print the transfer
+    # def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch):
+        # feed_dict = {
+        #     self.left_padded_source_batch: batch[0].left_padded_sentences,
+        #     self.dropout_placeholder: 0.0,
+        #     self.encoder.should_print: self.operational_config['debug'],
+        #     self.decoder.should_print: self.operational_config['debug'],
+        #     self.embedding_translator.should_print: self.operational_config['debug'],
+        # }
+        # transferred_result = sess.run(self.transfer, feed_dict)
+        # end_of_sentence_index = self.embedding_handler.word_to_index[self.embedding_handler.end_of_sentence_token]
+        # # only take the prefix before EOS:
+        # transferred_result = [s[:s.tolist().index(end_of_sentence_index) + 1] for s in transferred_result if
+        #                      end_of_sentence_index in s]
+        # # print the transfer
         # self.print_side_by_side(
         #     self.remove_by_mask(batch[0].right_padded_sentences, batch[0].right_padded_masks),
         #     transfered_result,

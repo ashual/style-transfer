@@ -16,6 +16,8 @@ class EmbeddingEncoder(BaseModel):
             else:
                 self.multilayer_encoder = tf.contrib.rnn.MultiRNNCell(self.generate_cells(hidden_states,
                                                                                           dropout_placeholder))
+        self.reuse_flag = False
+
     @staticmethod
     def generate_cells(hidden_states, dropout_placeholder):
         encoder_cells = []
@@ -30,7 +32,8 @@ class EmbeddingEncoder(BaseModel):
             encoder_inputs = self.concat_identifier(inputs, domain_identifier)
 
         # run the encoder
-        with tf.variable_scope('{}/run'.format(self.name)):
+        with tf.variable_scope('{}/run'.format(self.name), reuse=self.reuse_flag):
+            self.reuse_flag = True
             batch_size = tf.shape(inputs)[0]
             # define the initial state as empty and run model
             if self.bidirectional:

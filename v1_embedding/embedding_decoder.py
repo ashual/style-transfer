@@ -20,6 +20,7 @@ class EmbeddingDecoder(BaseModel):
             self.multilayer_decoder = tf.contrib.rnn.MultiRNNCell(decoder_cells)
             # contains the signal for the decoder to start
             self.starting_input = tf.zeros((1, 1, embedding_size))
+        self.reuse_flag = False
 
     def get_zero_state(self, batch_size):
         with tf.variable_scope('{}/get_zero_state'.format(self.name)):
@@ -42,7 +43,8 @@ class EmbeddingDecoder(BaseModel):
             decoder_inputs = self.concat_identifier(decoder_inputs, domain_identifier)
             decoder_inputs = self.print_tensor_with_shape(decoder_inputs, "decoder_inputs")
 
-        with tf.variable_scope('{}/run'.format(self.name)):
+        with tf.variable_scope('{}/run'.format(self.name), reuse=self.reuse_flag):
+            self.reuse_flag = True
             decoded_vector, decoder_last_state = tf.nn.dynamic_rnn(self.multilayer_decoder, decoder_inputs,
                                                                    initial_state=initial_decoder_state,
                                                                    time_major=False)
