@@ -3,6 +3,7 @@ import time
 import yaml
 from datasets.multi_batch_iterator import MultiBatchIterator
 from datasets.yelp_helpers import YelpSentences
+from v1_embedding.convergence_policy import ConvergencePolicy
 from v1_embedding.embedding_translator import EmbeddingTranslator
 from v1_embedding.embedding_encoder import EmbeddingEncoder
 from v1_embedding.embedding_decoder import EmbeddingDecoder
@@ -71,7 +72,8 @@ class ModelTrainer(ModelTrainerBase):
                 self.right_padded_target_batch
             )
 
-        self.generator_step_prediction, self.generator_loss, self.discriminator_accuracy_for_generator = \
+        self.generator_step_prediction, self.generator_loss, self.discriminator_accuracy_for_generator, \
+        self.dicriminator_loss_on_generator_step = \
             self.get_generator_loss(
                 self.left_padded_source_batch,
                 self.left_padded_target_batch,
@@ -116,9 +118,7 @@ class ModelTrainer(ModelTrainerBase):
                                                             self.config['sentence']['min_length'],
                                                             2)
         # train loop parameters:
-        self.history_weight = 0.95
-        self.running_acc = None
-        self.train_generator = None
+        self.policy = ConvergencePolicy()
 
     def _stable_log(self, input):
         input = tf.maximum(input, self.epsilon)
@@ -194,49 +194,37 @@ class ModelTrainer(ModelTrainerBase):
         total_loss = self.config['model']['reconstruction_coefficient'] * reconstruction_loss \
                      + self.config['model']['semantic_distance_coefficient'] * semantic_distance_loss \
                      - discriminator_loss
-        return discriminator_prediction, total_loss, discriminator_accuracy
-
-    def before_train_generator(self):
-        self.train_generator = True
-        self.running_acc = 1.0
-
-    def before_train_discriminator(self):
-        self.train_generator = False
-        self.running_acc = 0.5
-
-    def update_running_accuracy(self, new_accuracy_score):
-        return self.history_weight * self.running_acc + (1-self.history_weight) * new_accuracy_score
+        return discriminator_prediction, total_loss, discriminator_accuracy, discriminator_loss
 
     def do_generator_train(self, sess, global_step, epoch_num, batch_index, feed_dictionary):
         # TODO: outputs to measure progress, summaries
         print('started generator')
-        print('running acc: {}'.format(self.running_acc))
+        print('running loss: {}'.format(self.policy.running_loss))  # TODO: remove
         execution_list = [
             self.generator_step_prediction,
-            self.generator_loss,
+            self.dicriminator_loss_on_generator_step,
             self.discriminator_accuracy_for_generator
         ]
         pred, loss, acc = sess.run(execution_list, feed_dictionary)
         print('pred: {}'.format(pred))
         print('acc: {}'.format(acc))
         print('loss: {}'.format(loss))
-        if self.running_acc >= acc and self.running_acc >= 0.5 + self.epsilon:
+        if self.policy.should_train_generator(global_step, epoch_num, batch_index, pred, loss, acc):
             # the generator is still improving
-            self.running_acc = self.update_running_accuracy(acc)
-            print('new running acc: {}'.format(self.running_acc))
+            print('new running loss: {}'.format(self.policy.running_loss))  # TODO: remove
             print()
             sess.run(self.generator_train_step, feed_dictionary)
         else:
             print('generator too good - training discriminator')
             print()
             # the generator is no longer improving, will train discriminator next
-            self.before_train_discriminator()
+            self.policy.do_train_switch(start_training_generator=False)
             self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dictionary)
 
     def do_discriminator_train(self, sess, global_step, epoch_num, batch_index, feed_dictionary):
         # TODO: outputs to measure progress, summaries
         print('started discriminator')
-        print('running acc: {}'.format(self.running_acc))
+        print('running loss: {}'.format(self.policy.running_loss))  # TODO: remove
         execution_list = [
             self.discriminator_step_prediction,
             self.discriminator_loss,
@@ -246,24 +234,23 @@ class ModelTrainer(ModelTrainerBase):
         print('pred: {}'.format(pred))
         print('acc: {}'.format(acc))
         print('loss: {}'.format(loss))
-        if self.running_acc <= acc and self.running_acc <= 1.0 - self.epsilon:
+        if self.policy.should_train_discriminator(global_step, epoch_num, batch_index, pred, loss, acc):
             # the discriminator is still improving
-            self.running_acc = self.update_running_accuracy(acc)
-            print('new running acc: {}'.format(self.running_acc))
+            print('new running loss: {}'.format(self.policy.running_loss))  # TODO: remove
             print()
             sess.run(self.discriminator_train_step, feed_dictionary)
         else:
             print('discriminator too good - training generator')
             print()
             # the discriminator is no longer improving, will train generator next
-            self.before_train_generator()
+            self.policy.do_train_switch(start_training_generator=True)
             self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dictionary)
 
     def do_before_train_loop(self, sess):
         sess.run(self.embedding_translator.assign_embedding(), {
             self.embedding_translator.embedding_placeholder: self.embedding_handler.embedding_np
         })
-        self.before_train_discriminator()
+        self.policy.do_train_switch(start_training_generator=False)
 
     def do_train_batch(self, sess, global_step, epoch_num, batch_index, batch):
         feed_dict = {
@@ -279,7 +266,7 @@ class ModelTrainer(ModelTrainerBase):
             self.embedding_translator.should_print: self.operational_config['debug'],
         }
         print('batch len: {}'.format(batch[0].get_len()))
-        if self.train_generator:
+        if self.policy.train_generator:
             # should train the generator
             return self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dict)
         else:
