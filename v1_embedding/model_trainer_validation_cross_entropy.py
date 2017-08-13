@@ -28,9 +28,9 @@ class ModelTrainerValidation(ModelTrainerBase):
         self.target_identifier = -1 * tf.ones(shape=())
 
         self.dataset = YelpSentences(positive=False, limit_sentences=self.config['sentence']['limit'],
-                                     dataset_cache_dir=self.dataset_cache_dir)
+                                     dataset_cache_dir=self.get_dataset_cache_dir())
         self.embedding_handler = WordIndexingEmbeddingHandler(
-            self.embedding_dir,
+            self.get_embedding_dir(),
             [self.dataset],
             self.config['embedding']['word_size'],
             self.config['embedding']['min_word_occurrences']

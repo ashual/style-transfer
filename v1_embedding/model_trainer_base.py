@@ -8,16 +8,36 @@ class ModelTrainerBase:
         self.config = config_file
         self.operational_config = operational_config_file
 
-        self.work_dir = os.path.join(os.getcwd(), 'models', self.get_trainer_name())
-        self.dataset_cache_dir = os.path.join(self.work_dir, 'dataset_cache')
-        self.embedding_dir = os.path.join(self.work_dir, 'embedding')
-        self.summaries_dir = os.path.join(self.work_dir, 'tensorboard')
+        self.work_dir = None
+        self.dataset_cache_dir = None
+        self.embedding_dir = None
+        self.summaries_dir = None
 
         self.saver_wrapper = None
 
         # implementations should start the iterators
         self.batch_iterator = None
         self.batch_iterator_validation = None
+
+    def get_work_dir(self):
+        if self.work_dir is None:
+            self.work_dir = os.path.join(os.getcwd(), 'models', self.get_trainer_name())
+        return self.work_dir
+
+    def get_dataset_cache_dir(self):
+        if self.dataset_cache_dir is None:
+            self.dataset_cache_dir = os.path.join(self.get_work_dir(), 'dataset_cache')
+        return self.dataset_cache_dir
+
+    def get_embedding_dir(self):
+        if self.embedding_dir is None:
+            self.embedding_dir = os.path.join(self.get_work_dir(), 'embedding')
+        return self.embedding_dir
+
+    def get_summaries_dir(self):
+        if self.summaries_dir is None:
+            self.summaries_dir = os.path.join(self.get_work_dir(), 'tensorboard')
+        return self.summaries_dir
 
     def get_trainer_name(self):
         return self.__class__.__name__
@@ -38,15 +58,15 @@ class ModelTrainerBase:
         ] for sentence_index, sentence in enumerate(sentences)]
 
     def do_train_loop(self):
-        self.saver_wrapper = SaverWrapper(self.work_dir, self.get_trainer_name())
+        self.saver_wrapper = SaverWrapper(self.get_work_dir(), self.get_trainer_name())
         session_config = tf.ConfigProto(log_device_placement=self.operational_config['print_device'],
                                         allow_soft_placement=True)
         session_config.gpu_options.allow_growth = True
         if self.operational_config['run_optimizer']:
             session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
         with tf.Session(config=session_config) as sess:
-            summary_writer_train = tf.summary.FileWriter(os.path.join(self.summaries_dir, 'train'), sess.graph)
-            summary_writer_validation = tf.summary.FileWriter(os.path.join(self.summaries_dir, 'validation'))
+            summary_writer_train = tf.summary.FileWriter(os.path.join(self.get_summaries_dir(), 'train'), sess.graph)
+            summary_writer_validation = tf.summary.FileWriter(os.path.join(self.get_summaries_dir(), 'validation'))
 
             sess.run(tf.global_variables_initializer())
             if self.operational_config['load_model']:
