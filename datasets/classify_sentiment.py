@@ -78,10 +78,9 @@ def classify_sentence(sentence, cl):
 
 
 TRAIN_SIZE = 500000
-TEST_SIZE = 10000
+TEST_SIZE = 1000
 
-
-def train_and_test():
+def get_train_and_test_datasets():
     train = []
     test = []
     counter = 0
@@ -108,6 +107,10 @@ def train_and_test():
         else:
             break
         counter += 1
+    return train, test
+
+def train_and_test():
+    train, test = get_train_and_test_datasets()
     print('training')
     cl = NaiveBayesClassifier(train)
     print(cl.accuracy(test))
@@ -126,8 +129,17 @@ def format_json():
                 break
         json.dump(train, negative, indent=True)
 
+def test():
+    _, test = get_train_and_test_datasets()
+    with open('classifier.obj', 'rb') as handle:
+        cl = pickle.load(handle)
+    print('Computing accuracy')
+    acc = cl.accuract(test)
+    print('Accuracy: {}'.format(acc))
+
 #format_json()
 # with open('negative.json', 'r') as fp:
 #     cl = NaiveBayesClassifier(fp, format='json')
 
 #train_and_test()
+test()
