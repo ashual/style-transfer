@@ -15,6 +15,37 @@ class LossHandler(BaseModel):
             squared_difference = tf.squared_difference(encoded_source, encoded_dest)
             return tf.reduce_mean(squared_difference)
 
+    def get_distance_loss(self, source, target, mask):
+        sq_difference = tf.sqrt(tf.reduce_sum(tf.squared_difference(source, target), axis=-1))
+        sum = tf.reduce_sum(sq_difference * mask)
+        mask_sum = tf.reduce_sum(mask)
+        return sum / mask_sum
+
+    def mean_squared_error(self, source, target):
+        return tf.losses.mean_squared_error(source, target)
+
+    def get_margin_loss(self, target, mask, random_words, margin):
+        len_random_words = tf.shape(random_words)[2]
+        target_expand = tf.expand_dims(target, 2)
+        target_expand = tf.tile(target_expand, [1, 1, len_random_words, 1])
+
+        per_random_word_distance = tf.sqrt(tf.reduce_sum(tf.squared_difference(target_expand, random_words), axis=-1))
+        per_word_margin_loss = tf.maximum(0.0, margin-per_random_word_distance)
+        per_word_distance = tf.reduce_mean(per_word_margin_loss, axis=-1)
+
+        sum = tf.reduce_sum(per_word_distance * mask)
+        mask_sum = tf.reduce_sum(mask)
+        return sum / mask_sum
+
+    def cosine_distance(self, encoded_source, encoded_dest, batch_size, sentence_length, embedding_size):
+        print(encoded_source.shape)
+        print(encoded_dest.shape)
+        endoded_reshape = tf.reshape(encoded_source, (batch_size * (sentence_length - 1), embedding_size))
+        endoded_dest_reshape = tf.reshape(encoded_dest, (batch_size * (sentence_length - 1), embedding_size))
+        print(endoded_dest_reshape.shape)
+        print(endoded_reshape.shape)
+        return tf.losses.cosine_distance(endoded_reshape, endoded_dest_reshape, 1)
+
     def get_sentence_reconstruction_loss(self, labels, logits):
         with tf.variable_scope('SentenceReconstructionLoss'):
             # get the places without padding
