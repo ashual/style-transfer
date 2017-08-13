@@ -21,8 +21,14 @@ class EmbeddingTranslator(BaseModel):
             self.extended_w = tf.concat((self.w, tf.zeros((1, embedding_shape[1]))), axis=0)
 
             # weights to translate embedding to vocabulary
-            self.w1, self.b1 = BaseModel.create_input_parameters(embedding_shape[1], translation_hidden_size)
-            self.w2, self.b2 = BaseModel.create_input_parameters(translation_hidden_size, embedding_shape[0])
+            if translation_hidden_size == 0:
+                # just a linear projection
+                self.w1, self.b1 = None, None
+                self.w2, self.b2 = BaseModel.create_input_parameters(embedding_shape[1], embedding_shape[0])
+            else:
+                # use a hidden layer
+                self.w1, self.b1 = BaseModel.create_input_parameters(embedding_shape[1], translation_hidden_size)
+                self.w2, self.b2 = BaseModel.create_input_parameters(translation_hidden_size, embedding_shape[0])
 
     def assign_embedding(self):
         with tf.variable_scope('{}/assign_embeddings'.format(self.name)):
@@ -42,9 +48,11 @@ class EmbeddingTranslator(BaseModel):
             batch_size = tf.shape(inputs)[0]
             sentence_length = tf.shape(inputs)[1]
             embedded_inputs_flattened = tf.reshape(inputs, (batch_size * sentence_length, -1))
-
-            hidden = tf.nn.relu(tf.matmul(embedded_inputs_flattened, self.w1) + self.b1)
-            hidden_with_dropout = tf.nn.dropout(hidden, self.dropout_placeholder)
+            if self.w1 is None:
+                hidden_with_dropout = embedded_inputs_flattened
+            else:
+                hidden = tf.nn.relu(tf.matmul(embedded_inputs_flattened, self.w1) + self.b1)
+                hidden_with_dropout = tf.nn.dropout(hidden, self.dropout_placeholder)
             vocabulary_logits_flattened = tf.nn.relu(tf.matmul(hidden_with_dropout, self.w2) + self.b2)
             vocabulary_logits = tf.reshape(
                 vocabulary_logits_flattened,
