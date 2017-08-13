@@ -41,6 +41,7 @@ class ModelTrainerBase:
         self.saver_wrapper = SaverWrapper(self.work_dir, self.get_trainer_name())
         session_config = tf.ConfigProto(log_device_placement=self.operational_config['print_device'],
                                         allow_soft_placement=True)
+        session_config.gpu_options.allow_growth = True
         if self.operational_config['run_optimizer']:
             session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
         with tf.Session(config=session_config) as sess:
