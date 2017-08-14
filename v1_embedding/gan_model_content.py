@@ -1,25 +1,22 @@
 import tensorflow as tf
 
-from v1_embedding.embedding_discriminator import EmbeddingDiscriminator
+from v1_embedding.content_discriminator import ContentDiscriminator
 from v1_embedding.gan_model import GanModel
 
-# in this model the discriminator differentiates between the true target from transferred targets using professor
-# forcing on the decoded outputs of teh decoder
-class GanModelEmbedding(GanModel):
+# in this model the discriminator differentiates between encoded source and encoded targets
+class GanModelContent(GanModel):
     def __init__(self, config_file, operational_config_file, embedding_handler):
         GanModel.__init__(self, config_file, operational_config_file, embedding_handler)
 
-        self.discriminator = EmbeddingDiscriminator(self.config['discriminator_embedding']['hidden_states'],
-                                                    self.config['discriminator_embedding']['dense_hidden_size'],
-                                                    self.discriminator_dropout_placeholder,
-                                                    self.config['discriminator_embedding']['bidirectional'])
+        self.discriminator = ContentDiscriminator(self.config['model']['encoder_hidden_states'][-1],
+                                                  self.config['discriminator_content']['hidden_states'],
+                                                  self.discriminator_dropout_placeholder)
 
         # losses and accuracy:
         self.discriminator_step_prediction, self.discriminator_loss, self.discriminator_accuracy_for_discriminator = \
             self.get_discriminator_loss(
                 self.left_padded_source_batch,
-                self.left_padded_target_batch,
-                self.right_padded_target_batch
+                self.left_padded_target_batch
             )
 
         self.generator_step_prediction, self.generator_loss, self.discriminator_accuracy_for_generator, \
@@ -57,19 +54,10 @@ class GanModelEmbedding(GanModel):
                 with tf.control_dependencies(update_ops):
                     self.generator_train_step = generator_optimizer.apply_gradients(generator_grads_and_vars)
 
-    def _teacher_force_target(self, left_padded_target_batch, right_padded_target_batch):
-        encoded_target = self._encode(left_padded_target_batch)
-        right_padded_target_embedding = self.embedding_translator.embed_inputs(right_padded_target_batch)
-        return self.decoder.do_teacher_forcing(encoded_target,
-                                               right_padded_target_embedding[:, :-1, :],
-                                               domain_identifier=None)
-
-    def _get_discriminator_prediction_loss_and_accuracy(self, transferred_source, teacher_forced_target):
-        sentence_length = tf.shape(teacher_forced_target)[1]
-        transferred_source_normalized = transferred_source[:, :sentence_length, :]
-        prediction = self.discriminator.predict(tf.concat((transferred_source_normalized, teacher_forced_target),
+    def _get_discriminator_prediction_loss_and_accuracy(self, encoded_source, encoded_target):
+        prediction = self.discriminator.predict(tf.concat((encoded_source, encoded_target),
                                                           axis=0))
-        transferred_batch_size = tf.shape(transferred_source)[0]
+        transferred_batch_size = tf.shape(encoded_source)[0]
 
         prediction_transferred = prediction[:transferred_batch_size, :]
         prediction_target = prediction[transferred_batch_size:, :]
@@ -77,21 +65,20 @@ class GanModelEmbedding(GanModel):
 
         return prediction, total_loss, total_accuracy
 
-    def get_discriminator_loss(self, left_padded_source_batch, left_padded_target_batch, right_padded_target_batch):
-        # calculate the source-encoded-as-target loss
-        sentence_length = tf.shape(left_padded_source_batch)[1]
-        transferred_source = self._transfer(left_padded_source_batch)[:, :sentence_length, :]
-
-        # calculate the teacher forced loss
-        teacher_forced_target = self._teacher_force_target(left_padded_target_batch, right_padded_target_batch)
-
-        return self._get_discriminator_prediction_loss_and_accuracy(transferred_source, teacher_forced_target)
+    def get_discriminator_loss(self, left_padded_source_batch, left_padded_target_batch):
+        encoded_source = self._encode(left_padded_source_batch)
+        encoded_target = self._encode(left_padded_target_batch)
+        return self._get_discriminator_prediction_loss_and_accuracy(encoded_source, encoded_target)
 
     def get_generator_loss(self, left_padded_source_batch, left_padded_target_batch, right_padded_target_batch):
         encoded_source = self._encode(left_padded_source_batch)
 
         # reconstruction loss - recover target
-        teacher_forced_target = self._teacher_force_target(left_padded_target_batch, right_padded_target_batch)
+        encoded_target = self._encode(left_padded_target_batch)
+        right_padded_target_embedding = self.embedding_translator.embed_inputs(right_padded_target_batch)
+        teacher_forced_target = self.decoder.do_teacher_forcing(encoded_target,
+                                                                right_padded_target_embedding[:, :-1, :],
+                                                                domain_identifier=None)
         reconstructed_target_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(
             teacher_forced_target)
         reconstruction_loss = self.loss_handler.get_sentence_reconstruction_loss(right_padded_target_batch,
@@ -105,7 +92,7 @@ class GanModelEmbedding(GanModel):
         # professor forcing loss source
         discriminator_prediction, discriminator_loss, discriminator_accuracy = \
             self._get_discriminator_prediction_loss_and_accuracy(
-                transferred_source, teacher_forced_target
+                encoded_source, encoded_target
             )
 
         total_loss = self.config['model']['reconstruction_coefficient'] * reconstruction_loss \
