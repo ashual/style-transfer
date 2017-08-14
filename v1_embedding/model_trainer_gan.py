@@ -2,6 +2,7 @@ import yaml
 from datasets.multi_batch_iterator import MultiBatchIterator
 from datasets.yelp_helpers import YelpSentences
 from v1_embedding.convergence_policy import ConvergencePolicy
+from v1_embedding.gan_model_content import GanModelContent
 from v1_embedding.gan_model_embedding import GanModelEmbedding
 from v1_embedding.model_trainer_base import ModelTrainerBase
 from v1_embedding.word_indexing_embedding_handler import WordIndexingEmbeddingHandler
@@ -40,6 +41,8 @@ class ModelTrainerGan(ModelTrainerBase):
         # set the model
         if self.config['model']['discriminator_type'] == 'embedding':
             self.model = GanModelEmbedding(self.config, self.operational_config, self.embedding_handler)
+        elif self.config['model']['discriminator_type'] == 'content':
+            self.model = GanModelContent(self.config, self.operational_config, self.embedding_handler)
 
         self.discriminator_step_summaries, self.generator_step_summaries = self.model.create_summaries()
 

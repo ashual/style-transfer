@@ -8,9 +8,9 @@ from v1_embedding.loss_handler import LossHandler
 
 # this model tries to transfer from one domain to another.
 # 1. the encoder doesn't know the domain it is working on
-# 2. target are encoded and decoded (to target) then cross entropy loss is applied between the origin and the result
+# 2. target are encoded and decoded (to target) reconstruction is applied between the origin and the result
 # 3. source is encoded decoded to target and encoded again, then L2 loss is applied between the context vectors.
-# 4. an adversarial component is trained to distinguish true target from transferred targets using professor forcing
+# 4. an adversarial component is trained to distinguish between target inputs and source inputs
 class GanModel:
     def __init__(self, config_file, operational_config_file, embedding_handler):
         self.config = config_file
