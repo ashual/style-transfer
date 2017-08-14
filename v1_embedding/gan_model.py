@@ -46,13 +46,15 @@ class GanModel:
 
         # losses and accuracy:
         self.discriminator_step_prediction = None
-        self.discriminator_loss = None
+        self.discriminator_loss_on_discriminator_step = None
         self.discriminator_accuracy_for_discriminator = None
 
         self.generator_step_prediction = None
         self.generator_loss = None
         self.discriminator_accuracy_for_generator = None
         self.discriminator_loss_on_generator_step = None
+        self.reconstruction_loss_on_generator_step = None
+        self.content_vector_loss_on_generator_step = None
 
         # train steps
         self.discriminator_train_step = None
@@ -65,6 +67,35 @@ class GanModel:
                 transferred_embeddings)
             self.transfer = self.embedding_translator.translate_logits_to_words(transferred_logits)
 
+        # summaries
+        self.epoch, self.epoch_placeholder, self.assign_epoch = GanModel._create_assignable_scalar(
+            'epoch', tf.int32, init_value=0
+        )
+        self.train_generator, self.train_generator_placeholder, self.assign_train_generator = \
+            GanModel._create_assignable_scalar(
+                'train_generator', tf.int32, init_value=0
+        )
+
+    def create_summaries(self):
+        epoch_summary = tf.summary.scalar('epoch', self.epoch)
+        train_generator_summary = tf.summary.scalar('train_generator', self.train_generator)
+        discriminator_step_summaries = tf.summary.merge([
+            epoch_summary,
+            train_generator_summary,
+            tf.summary.scalar('discriminator_accuracy_for_discriminator', self.discriminator_accuracy_for_discriminator),
+            tf.summary.scalar('discriminator_loss_on_discriminator_step', self.discriminator_loss_on_discriminator_step),
+        ])
+        generator_step_summaries = tf.summary.merge([
+            epoch_summary,
+            train_generator_summary,
+            tf.summary.scalar('discriminator_accuracy_for_generator', self.discriminator_accuracy_for_generator),
+            tf.summary.scalar('discriminator_loss_on_generator_step', self.discriminator_loss_on_generator_step),
+            tf.summary.scalar('reconstruction_loss_on_generator_step', self.reconstruction_loss_on_generator_step),
+            tf.summary.scalar('content_vector_loss_on_generator_step', self.content_vector_loss_on_generator_step),
+            tf.summary.scalar('generator_loss', self.generator_loss),
+        ])
+        return discriminator_step_summaries, generator_step_summaries
+
     def _encode(self, left_padded_input):
         embedding = self.embedding_translator.embed_inputs(left_padded_input)
         return self.encoder.encode_inputs_to_vector(embedding, domain_identifier=None)
@@ -72,3 +103,11 @@ class GanModel:
     def _transfer(self, left_padded_source):
         encoded_source = self._encode(left_padded_source)
         return self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
+
+    @staticmethod
+    def _create_assignable_scalar(name, type, init_value):
+        scalar = tf.Variable(initial_value=init_value, trainable=False, name='{}_var'.format(name), dtype=type)
+        placeholder = tf.placeholder(dtype=type, shape=(), name='{}_assignment_placeholder'.format(name))
+        assignment_op = tf.assign(scalar, placeholder)
+        return scalar, placeholder, assignment_op
+

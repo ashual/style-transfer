@@ -1,4 +1,3 @@
-import time
 import yaml
 from datasets.multi_batch_iterator import MultiBatchIterator
 from datasets.yelp_helpers import YelpSentences
@@ -42,11 +41,12 @@ class ModelTrainerGan(ModelTrainerBase):
         if self.config['model']['discriminator_type'] == 'embedding':
             self.model = GanModelEmbedding(self.config, self.operational_config, self.embedding_handler)
 
+        self.discriminator_step_summaries, self.generator_step_summaries = self.model.create_summaries()
+
     def get_trainer_name(self):
         return '{}_{}'.format(self.__class__.__name__, self.config['model']['discriminator_type'])
 
     def do_generator_train(self, sess, global_step, epoch_num, batch_index, feed_dictionary):
-        # TODO: outputs to measure progress, summaries
         print('started generator')
         print('running loss: {}'.format(self.policy.running_loss))  # TODO: remove
         execution_list = [
@@ -62,21 +62,27 @@ class ModelTrainerGan(ModelTrainerBase):
             # the generator is still improving
             print('new running loss: {}'.format(self.policy.running_loss))  # TODO: remove
             print()
-            sess.run(self.model.generator_train_step, feed_dictionary)
+            _, s = sess.run([
+                self.model.generator_train_step,
+                self.generator_step_summaries
+            ], feed_dictionary)
+            return s
         else:
             print('generator too good - training discriminator')
             print()
+            # activate the saver
+            self.saver_wrapper.save_model(sess, global_step=global_step)
             # the generator is no longer improving, will train discriminator next
             self.policy.do_train_switch(start_training_generator=False)
-            self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dictionary)
+            sess.run(self.model.assign_train_generator, {self.model.train_generator_placeholder: 0})
+            return self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dictionary)
 
     def do_discriminator_train(self, sess, global_step, epoch_num, batch_index, feed_dictionary):
-        # TODO: outputs to measure progress, summaries
         print('started discriminator')
         print('running loss: {}'.format(self.policy.running_loss))  # TODO: remove
         execution_list = [
             self.model.discriminator_step_prediction,
-            self.model.discriminator_loss,
+            self.model.discriminator_loss_on_discriminator_step,
             self.model.discriminator_accuracy_for_discriminator
         ]
         pred, loss, acc = sess.run(execution_list, feed_dictionary)
@@ -87,19 +93,55 @@ class ModelTrainerGan(ModelTrainerBase):
             # the discriminator is still improving
             print('new running loss: {}'.format(self.policy.running_loss))  # TODO: remove
             print()
-            sess.run(self.model.discriminator_train_step, feed_dictionary)
+            _, s = sess.run([
+                self.model.discriminator_train_step,
+                self.discriminator_step_summaries
+            ], feed_dictionary)
+            return s
         else:
             print('discriminator too good - training generator')
             print()
             # the discriminator is no longer improving, will train generator next
             self.policy.do_train_switch(start_training_generator=True)
-            self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dictionary)
+            sess.run(self.model.assign_train_generator, {self.model.train_generator_placeholder: 1})
+            return self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dictionary)
+
+    def transfer_batch(self, sess, batch):
+        feed_dict = {
+            self.model.left_padded_source_batch: batch[0].left_padded_sentences,
+            self.model.dropout_placeholder: 0.0,
+            self.model.discriminator_dropout_placeholder: 0.0,
+            self.model.encoder.should_print: self.operational_config['debug'],
+            self.model.decoder.should_print: self.operational_config['debug'],
+            self.model.discriminator.should_print: self.operational_config['debug'],
+            self.model.embedding_translator.should_print: self.operational_config['debug'],
+        }
+        transferred_result = sess.run(self.model.transfer, feed_dict)
+        end_of_sentence_index = self.embedding_handler.word_to_index[self.embedding_handler.end_of_sentence_token]
+        # original without paddings:
+        original = self.remove_by_mask(batch[0].right_padded_sentences, batch[0].right_padded_masks)
+        # only take the prefix before EOS:
+        transferred = []
+        for s in transferred_result:
+            if end_of_sentence_index in s:
+                transferred.append(s[:s.tolist().index(end_of_sentence_index) + 1])
+            else:
+                transferred.append(s)
+        # print the transfer
+        self.print_side_by_side(
+            original,
+            transferred,
+            'original: ',
+            'transferred: ',
+            self.embedding_handler
+        )
 
     def do_before_train_loop(self, sess):
         sess.run(self.model.embedding_translator.assign_embedding(), {
             self.model.embedding_translator.embedding_placeholder: self.embedding_handler.embedding_np
         })
         self.policy.do_train_switch(start_training_generator=False)
+        sess.run(self.model.assign_train_generator, {self.model.train_generator_placeholder: 0})
 
     def do_train_batch(self, sess, global_step, epoch_num, batch_index, batch):
         feed_dict = {
@@ -122,36 +164,21 @@ class ModelTrainerGan(ModelTrainerBase):
             # should train discriminator
             return self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dict)
 
-    # def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch):
-        # feed_dict = {
-        #     self.left_padded_source_batch: batch[0].left_padded_sentences,
-        #     self.dropout_placeholder: 0.0,
-        #     self.encoder.should_print: self.operational_config['debug'],
-        #     self.decoder.should_print: self.operational_config['debug'],
-        #     self.embedding_translator.should_print: self.operational_config['debug'],
-        # }
-        # transferred_result = sess.run(self.transfer, feed_dict)
-        # end_of_sentence_index = self.embedding_handler.word_to_index[self.embedding_handler.end_of_sentence_token]
-        # # only take the prefix before EOS:
-        # transferred_result = [s[:s.tolist().index(end_of_sentence_index) + 1] for s in transferred_result if
-        #                      end_of_sentence_index in s]
-        # # print the transfer
-        # self.print_side_by_side(
-        #     self.remove_by_mask(batch[0].right_padded_sentences, batch[0].right_padded_masks),
-        #     transfered_result,
-        #     'original: ',
-        #     'transferred: ',
-        #     self.embedding_handler
-        # )
-        # print the accuracy traces:
+    def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch):
+        self.transfer_batch(sess, batch)
 
     def do_after_train_loop(self, sess):
-        pass
+        # make sure the model is correct:
+        self.saver_wrapper.load_model(sess)
+        print('model loaded, sample sentences:')
+        for batch in self.batch_iterator_validation:
+            self.transfer_batch(sess, batch)
+            break
 
-    def do_before_epoch(self, sess):
-        pass
+    def do_before_epoch(self, sess, global_step, epoch_num):
+        sess.run(self.model.assign_epoch, {self.model.epoch_placeholder: epoch_num})
 
-    def do_after_epoch(self, sess):
+    def do_after_epoch(self, sess, global_step, epoch_num):
         pass
 
 

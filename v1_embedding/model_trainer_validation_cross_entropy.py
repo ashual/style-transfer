@@ -183,7 +183,7 @@ class ModelTrainerValidation(ModelTrainerBase):
             print()
             break
 
-    def do_before_epoch(self, sess):
+    def do_before_epoch(self, sess, global_step, epoch_num):
         enlarge = False
         message = ''
         if not self.config['model']['curriculum_training'] or\
@@ -215,7 +215,7 @@ class ModelTrainerValidation(ModelTrainerBase):
         else:
             self.best_loss = min(self.best_loss, self.loss_output)
 
-    def do_after_epoch(self, sess):
+    def do_after_epoch(self, sess, global_step, epoch_num):
         pass
 
 
