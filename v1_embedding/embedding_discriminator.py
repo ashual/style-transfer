@@ -29,8 +29,5 @@ class EmbeddingDiscriminator(BaseModel):
                 hidden = rnn_res
             batch_norm_activations = tf.contrib.layers.batch_norm(tf.matmul(hidden, self.w2) + self.b2,
                                                                   center=True, scale=True, is_training=True)
-            # batch_norm_activations = tf.contrib.layers.batch_norm(tf.matmul(hidden, self.w2) + self.b2,
-            #                                                       center=True, scale=True, is_training=True,
-            #                                                       scope="batch_norm", reuse=self.reuse_flag)
             prediction = tf.nn.sigmoid(batch_norm_activations)
             return self.print_tensor_with_shape(prediction, "prediction")
