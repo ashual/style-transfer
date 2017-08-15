@@ -9,6 +9,7 @@ model:
   bidirectional_encoder: False
   curriculum_training: False
   distance_loss: 1.0
+  #  margin_loss: 1.
   margin: 0.5
   random_words_size: 10
 
