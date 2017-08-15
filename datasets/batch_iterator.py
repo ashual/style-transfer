@@ -24,8 +24,8 @@ class BatchIterator:
             if res.get_len() >= self.batch_size:
                 break
             else:
-                left_sentence, left_mask, right_sentence, right_mask = self.normalized_sentence(sentence)
-                res.add(left_sentence, left_mask, right_sentence, right_mask)
+                sentences, lengths = self.normalized_sentence(sentence)
+                res.add(sentences, lengths)
         if res.get_len() == 0:
             raise StopIteration
         return res
@@ -37,17 +37,13 @@ class BatchIterator:
         # cut to the allowed size
         sentence_arr = sentence_arr[:self.sentence_len]
         sentence_arr = self.embedding_handler.get_word_to_index([sentence_arr])[0]
-        padding_arr = [1] * len(sentence_arr)
+        sentence_length = len(sentence_arr)
         # add padding if needed
-        padding_length = (self.sentence_len - len(sentence_arr))
-        # the padding index would be like extending the voabulary by one, in the embedding matrix of the embedding
-        # translator we add a constatnt 0 row for this index
+        padding_length = (self.sentence_len - sentence_length)
+        # the padding index would be like extending the vocabulary by one, in the embedding matrix of the embedding
+        # translator we add a constant 0 row for this index
         pad_index = self.embedding_handler.get_vocabulary_length()
-        # left
-        left_sentence_arr = [pad_index] * padding_length + sentence_arr
-        left_padding_arr = [0] * padding_length + padding_arr
         # right
-        right_sentence_arr = sentence_arr + [pad_index] * padding_length
-        right_padding_arr = padding_arr + [0] * padding_length
+        sentence_arr = sentence_arr + [pad_index] * padding_length
         # return as indices sentence
-        return left_sentence_arr, left_padding_arr, right_sentence_arr, right_padding_arr
+        return sentence_arr, sentence_length

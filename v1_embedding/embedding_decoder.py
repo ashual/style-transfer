@@ -26,7 +26,8 @@ class EmbeddingDecoder(BaseModel):
         with tf.variable_scope('{}/get_zero_state'.format(self.name)):
             return self.multilayer_decoder.zero_state(batch_size, tf.float32)
 
-    def decode_vector_to_sequence(self, encoded_vector, initial_decoder_state, inputs, domain_identifier):
+    def decode_vector_to_sequence(self, encoded_vector, initial_decoder_state, inputs, input_lengths,
+                                  domain_identifier):
         with tf.variable_scope('{}/preprocessing'.format(self.name)):
             # encoded vector (batch, context)
             encoded_vector = self.print_tensor_with_shape(encoded_vector, "encoded_vector")
@@ -47,19 +48,20 @@ class EmbeddingDecoder(BaseModel):
             self.reuse_flag = True
             decoded_vector, decoder_last_state = tf.nn.dynamic_rnn(self.multilayer_decoder, decoder_inputs,
                                                                    initial_state=initial_decoder_state,
-                                                                   time_major=False)
+                                                                   time_major=False, sequence_length=input_lengths)
             decoded_vector = self.print_tensor_with_shape(decoded_vector, "decoded_vector")
             # decoder_last_state = self.print_tensor_with_shape(decoder_last_state, "decoder_last_state")
 
             return decoded_vector, decoder_last_state
 
-    def do_teacher_forcing(self, encoded_vector, inputs, domain_identifier=None):
+    def do_teacher_forcing(self, encoded_vector, inputs, input_lengths, domain_identifier=None):
         with tf.variable_scope('{}/teacher_forcing'.format(self.name)):
             batch_size = tf.shape(inputs)[0]
             zero_state = self.get_zero_state(batch_size)
             starting_inputs = tf.tile(self.starting_input, (batch_size, 1, 1))
             decoder_inputs = tf.concat((starting_inputs, inputs), axis=1)
-            return self.decode_vector_to_sequence(encoded_vector, zero_state, decoder_inputs, domain_identifier)[0]
+            return self.decode_vector_to_sequence(encoded_vector, zero_state, decoder_inputs, input_lengths,
+                                                  domain_identifier)[0]
 
     def do_iterative_decoding(self, encoded_vector, domain_identifier=None):
         with tf.variable_scope('{}/iterative_decoding'.format(self.name)):
@@ -70,7 +72,7 @@ class EmbeddingDecoder(BaseModel):
             decoded_res = []
             for i in range(self.maximal_decoding):
                 decoded_vector, current_state = self.decode_vector_to_sequence(
-                    encoded_vector, current_state, current_input, domain_identifier
+                    encoded_vector, current_state, current_input, None, domain_identifier
                 )
                 decoded_res.append(decoded_vector)
             return tf.concat(decoded_res, axis=1)

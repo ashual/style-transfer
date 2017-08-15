@@ -52,9 +52,9 @@ class ModelTrainerBase:
             print(translated_batch2[i])
 
     @staticmethod
-    def remove_by_mask(sentences, mask):
+    def remove_by_length(sentences, lengths):
         return [[
-            word for word_index, word in enumerate(sentence) if mask[sentence_index][word_index]
+            word for word_index, word in enumerate(sentence) if word_index < lengths[sentence_index]
         ] for sentence_index, sentence in enumerate(sentences)]
 
     def do_train_loop(self):

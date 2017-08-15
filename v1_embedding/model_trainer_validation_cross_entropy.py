@@ -19,13 +19,10 @@ class ModelTrainerValidation(ModelTrainerBase):
         self.best_validation_acc = tf.Variable(-1.0, trainable=False)
 
         self.dropout_placeholder = tf.placeholder(tf.float32, shape=())
-        # placeholder for sentences (batch, time)=> index of word s.t the padding is on the left
-        self.left_padded_batch = tf.placeholder(tf.int64, shape=(None, None))
         # placeholder for sentences (batch, time)=> index of word s.t the padding is on the right
-        self.right_padded_batch = tf.placeholder(tf.int64, shape=(None, None))
+        self.batch = tf.placeholder(tf.int64, shape=(None, None))
 
-        self.source_identifier = tf.ones(shape=())
-        self.target_identifier = -1 * tf.ones(shape=())
+        self.batch_lengths = tf.placeholder(tf.int32, shape=(None))
 
         self.dataset = YelpSentences(positive=False, limit_sentences=self.config['sentence']['limit'],
                                      dataset_cache_dir=self.get_dataset_cache_dir())
@@ -50,16 +47,15 @@ class ModelTrainerValidation(ModelTrainerBase):
         self.loss_handler = LossHandler(self.embedding_handler.get_vocabulary_length())
 
         # "One Hot Vector" -> Embedded Vector (w2v)
-        left_padded_embeddings = self.embedding_translator.embed_inputs(self.left_padded_batch)
-        right_padded_embedding = self.embedding_translator.embed_inputs(self.right_padded_batch)
+        embeddings = self.embedding_translator.embed_inputs(self.batch)
         # Embedded Vector (w2v) -> Encoded (constant length)
-        encoded = self.encoder.encode_inputs_to_vector(left_padded_embeddings, self.source_identifier)
+        encoded = self.encoder.encode_inputs_to_vector(embeddings, self.batch_lengths)
         # Encoded -> Decoded
-        decoded = self.decoder.do_teacher_forcing(encoded, right_padded_embedding[:, :-1, :], self.source_identifier)
+        decoded = self.decoder.do_teacher_forcing(encoded, embeddings[:, :-1, :], self.batch_lengths)
         # decoded -> logits
         logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(decoded)
         # cross entropy loss
-        self.loss = self.loss_handler.get_sentence_reconstruction_loss(self.right_padded_batch, logits)
+        self.loss = self.loss_handler.get_sentence_reconstruction_loss(self.batch, logits)
         # training
         optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
         grads_and_vars = optimizer.compute_gradients(self.loss, colocate_gradients_with_ops=True)
@@ -67,7 +63,7 @@ class ModelTrainerValidation(ModelTrainerBase):
         # maximal word for each step
         self.outputs = self.embedding_translator.translate_logits_to_words(logits)
         # accuracy
-        self.accuracy = self.loss_handler.get_accuracy(self.right_padded_batch, self.outputs)
+        self.accuracy = self.loss_handler.get_accuracy(self.batch, self.outputs)
         self.best_loss = float('inf')
         self.loss_output = float('inf')
         self.epoch = tf.Variable(0, trainable=False)
@@ -107,14 +103,14 @@ class ModelTrainerValidation(ModelTrainerBase):
         })
 
     def do_train_batch(self, sess, global_step, epoch_num, batch_index, batch):
-        sess.run([tf.assign(self.epoch, epoch_num)])
         feed_dict = {
-            self.left_padded_batch: batch.left_padded_sentences,
-            self.right_padded_batch: batch.right_padded_sentences,
+            self.batch: batch.sentences,
+            self.batch_lengths: batch.lengths,
             self.dropout_placeholder: self.config['model']['dropout'],
             self.encoder.should_print: self.operational_config['debug'],
             self.decoder.should_print: self.operational_config['debug'],
         }
+        sess.run([tf.assign(self.epoch, epoch_num)])
         train_summaries = None
         execution_list = [self.train_step, self.loss, self.outputs, self.accuracy, self.train_summaries]
 
@@ -124,8 +120,8 @@ class ModelTrainerValidation(ModelTrainerBase):
             _, loss_output, decoded_output, batch_acc, train_summaries = sess.run(execution_list, feed_dict)
             total_time = time.time() - start_time
             self.print_side_by_side(
-                self.remove_by_mask(batch.right_padded_sentences, batch.right_padded_masks),
-                self.remove_by_mask(decoded_output, batch.right_padded_masks),
+                self.remove_by_length(batch.sentences, batch.lengths),
+                self.remove_by_length(decoded_output, batch.lengths),
                 'original: ',
                 'reconstructed: ',
                 self.embedding_handler
@@ -142,8 +138,8 @@ class ModelTrainerValidation(ModelTrainerBase):
 
     def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch):
         feed_dict = {
-            self.left_padded_batch: batch.left_padded_sentences,
-            self.right_padded_batch: batch.right_padded_sentences,
+            self.batch: batch.sentences,
+            self.batch_lengths: batch.lengths,
             self.dropout_placeholder: 0.0,
             self.encoder.should_print: self.operational_config['debug'],
             self.decoder.should_print: self.operational_config['debug'],
@@ -172,8 +168,8 @@ class ModelTrainerValidation(ModelTrainerBase):
         self.saver_wrapper.load_model(sess)
         for batch in self.batch_iterator_validation:
             feed_dict = {
-                self.left_padded_batch: batch.left_padded_sentences,
-                self.right_padded_batch: batch.right_padded_sentences,
+                self.batch: batch.sentences,
+                self.batch_lengths: batch.lengths,
                 self.dropout_placeholder: 0.0,
                 self.encoder.should_print: self.operational_config['debug'],
                 self.decoder.should_print: self.operational_config['debug'],

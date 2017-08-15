@@ -122,7 +122,7 @@ class ModelTrainerGan(ModelTrainerBase):
         transferred_result = sess.run(self.model.transfer, feed_dict)
         end_of_sentence_index = self.embedding_handler.word_to_index[self.embedding_handler.end_of_sentence_token]
         # original without paddings:
-        original = self.remove_by_mask(batch[0].right_padded_sentences, batch[0].right_padded_masks)
+        original = self.remove_by_length(batch[0].right_padded_sentences, batch[0].right_padded_masks)
         # only take the prefix before EOS:
         transferred = []
         for s in transferred_result:
