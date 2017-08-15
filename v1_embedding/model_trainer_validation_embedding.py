@@ -62,17 +62,19 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
         decoded = self.decoder.do_teacher_forcing(encoded, right_padded_embedding[:, :-1, :], self.source_identifier)
         self.decoded = decoded
         distance_loss = self.loss_handler.get_distance_loss(right_padded_embedding, decoded, self.right_padded_masks)
+        self.distance_loss = distance_loss
         input_shape = tf.shape(self.left_padded_batch)
         random_words = tf.random_uniform(shape=(input_shape[0], input_shape[1], config['model']['random_words_size']),
                                          minval=0, maxval=self.embedding_handler.get_vocabulary_length(),
                                          dtype=tf.int32)
         embedded_random_words = self.embedding_translator.embed_inputs(random_words)
+        margin = np.floor(np.sqrt(self.config['embedding']['word_size'] * 0.25))
         margin_loss = self.loss_handler.get_margin_loss(decoded,
                                                         self.right_padded_masks,
                                                         embedded_random_words,
-                                                        self.config['model']['margin'],
-                                                        )
-        self.loss = self.config['model']['distance_loss'] * distance_loss + margin_loss
+                                                        margin)
+        self.margin_loss = margin_loss
+        self.loss = distance_loss + margin_loss * self.config['model']['margin_loss']
         # training
         optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
         grads_and_vars = optimizer.compute_gradients(self.loss, colocate_gradients_with_ops=True)
@@ -144,13 +146,14 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
             self.decoder.should_print: self.operational_config['debug']
         }
         train_summaries = None
-        execution_list = [self.train_step, self.loss, self.decoded, self.train_summaries]
+        execution_list = [self.train_step, self.loss, self.decoded, self.train_summaries, self.margin_loss, self.distance_loss]
 
         # print results
         if batch_index % 100 == 0:
             start_time = time.time()
-            _, loss_output, decoded, train_summaries = sess.run(execution_list, feed_dict)
+            _, loss_output, decoded, train_summaries, margin_l, distance_l = sess.run(execution_list, feed_dict)
             total_time = time.time() - start_time
+            print('loss {} margin {} distance {}'.format(loss_output, margin_l, distance_l))
             decoded_output = self.decode_sentences_to_indices(decoded)
             decoded_input = batch.right_padded_sentences
             accuracy = self.calc_accuracy(decoded_input, decoded_output, batch.right_padded_masks)
