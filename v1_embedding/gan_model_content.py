@@ -15,17 +15,14 @@ class GanModelContent(GanModel):
         # losses and accuracy:
         self.discriminator_step_prediction, self.discriminator_loss_on_discriminator_step, \
         self.discriminator_accuracy_for_discriminator = self.get_discriminator_loss(
-            self.left_padded_source_batch,
-            self.left_padded_target_batch
+            self.source_batch, self.source_lengths, self.target_batch, self.target_lengths
         )
 
         self.generator_step_prediction, self.discriminator_accuracy_for_generator, \
         self.discriminator_loss_on_generator_step, self.reconstruction_loss_on_generator_step, \
         self.content_vector_loss_on_generator_step = self.get_generator_loss(
-                self.left_padded_source_batch,
-                self.left_padded_target_batch,
-                self.right_padded_target_batch
-            )
+            self.source_batch, self.source_lengths, self.target_batch, self.target_lengths
+        )
         self.generator_loss = self.config['model']['reconstruction_coefficient'] * \
                               self.reconstruction_loss_on_generator_step \
                               + self.config['model']['semantic_distance_coefficient'] * \
@@ -69,28 +66,29 @@ class GanModelContent(GanModel):
 
         return prediction, total_loss, total_accuracy
 
-    def get_discriminator_loss(self, left_padded_source_batch, left_padded_target_batch):
-        encoded_source = self._encode(left_padded_source_batch)
-        encoded_target = self._encode(left_padded_target_batch)
+    def get_discriminator_loss(self, source_batch, source_lengths, target_batch, target_lengths):
+        encoded_source = self._encode(source_batch, source_lengths)
+        encoded_target = self._encode(target_batch, target_lengths)
         return self._get_discriminator_prediction_loss_and_accuracy(encoded_source, encoded_target)
 
-    def get_generator_loss(self, left_padded_source_batch, left_padded_target_batch, right_padded_target_batch):
-        encoded_source = self._encode(left_padded_source_batch)
+    def get_generator_loss(self, source_batch, source_lengths, target_batch, target_lengths):
+        encoded_source = self._encode(source_batch, source_lengths)
 
         # reconstruction loss - recover target
-        encoded_target = self._encode(left_padded_target_batch)
-        right_padded_target_embedding = self.embedding_translator.embed_inputs(right_padded_target_batch)
+        encoded_target = self._encode(target_batch, target_lengths)
+        target_embedding = self.embedding_translator.embed_inputs(target_batch)
         teacher_forced_target = self.decoder.do_teacher_forcing(encoded_target,
-                                                                right_padded_target_embedding[:, :-1, :],
+                                                                target_embedding[:, :-1, :],
+                                                                target_lengths,
                                                                 domain_identifier=None)
         reconstructed_target_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(
             teacher_forced_target)
-        reconstruction_loss = self.loss_handler.get_sentence_reconstruction_loss(right_padded_target_batch,
+        reconstruction_loss = self.loss_handler.get_sentence_reconstruction_loss(target_batch,
                                                                                  reconstructed_target_logits)
 
         # semantic vector distance
         transferred_source = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
-        encoded_again = self.encoder.encode_inputs_to_vector(transferred_source, domain_identifier=None)
+        encoded_again = self.encoder.encode_inputs_to_vector(transferred_source, None, domain_identifier=None)
         semantic_distance_loss = self.loss_handler.get_context_vector_distance_loss(encoded_source, encoded_again)
 
         # professor forcing loss source

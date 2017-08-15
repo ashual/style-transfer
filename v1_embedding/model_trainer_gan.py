@@ -111,7 +111,8 @@ class ModelTrainerGan(ModelTrainerBase):
 
     def transfer_batch(self, sess, batch):
         feed_dict = {
-            self.model.left_padded_source_batch: batch[0].left_padded_sentences,
+            self.model.source_batch: batch[0].sentences,
+            self.model.source_lengths: batch[0].lengths,
             self.model.dropout_placeholder: 0.0,
             self.model.discriminator_dropout_placeholder: 0.0,
             self.model.encoder.should_print: self.operational_config['debug'],
@@ -122,7 +123,7 @@ class ModelTrainerGan(ModelTrainerBase):
         transferred_result = sess.run(self.model.transfer, feed_dict)
         end_of_sentence_index = self.embedding_handler.word_to_index[self.embedding_handler.end_of_sentence_token]
         # original without paddings:
-        original = self.remove_by_length(batch[0].right_padded_sentences, batch[0].right_padded_masks)
+        original = self.remove_by_length(batch[0].sentences, batch[0].lengths)
         # only take the prefix before EOS:
         transferred = []
         for s in transferred_result:
@@ -148,10 +149,10 @@ class ModelTrainerGan(ModelTrainerBase):
 
     def do_train_batch(self, sess, global_step, epoch_num, batch_index, batch):
         feed_dict = {
-            self.model.left_padded_source_batch: batch[0].left_padded_sentences,
-            self.model.left_padded_target_batch: batch[1].left_padded_sentences,
-            self.model.right_padded_source_batch: batch[0].right_padded_sentences,
-            self.model.right_padded_target_batch: batch[1].right_padded_sentences,
+            self.model.source_batch: batch[0].sentences,
+            self.model.target_batch: batch[1].sentences,
+            self.model.source_lengths: batch[0].lengths,
+            self.model.target_lengths: batch[1].lengths,
             self.model.dropout_placeholder: self.config['model']['dropout'],
             self.model.discriminator_dropout_placeholder: self.config['model']['discriminator_dropout'],
             self.model.encoder.should_print: self.operational_config['debug'],

@@ -21,14 +21,13 @@ class GanModel:
         self.dropout_placeholder = tf.placeholder(tf.float32, shape=(), name='dropout_placeholder')
         self.discriminator_dropout_placeholder = tf.placeholder(tf.float32, shape=(),
                                                                 name='discriminator_dropout_placeholder')
-        # placeholder for source sentences (batch, time)=> index of word s.t the padding is on the left
-        self.left_padded_source_batch = tf.placeholder(tf.int64, shape=(None, None), name='left_padded_source_batch')
         # placeholder for source sentences (batch, time)=> index of word s.t the padding is on the right
-        self.right_padded_source_batch = tf.placeholder(tf.int64, shape=(None, None), name='right_padded_source_batch')
-        # placeholder for target sentences (batch, time)=> index of word s.t the padding is on the left
-        self.left_padded_target_batch = tf.placeholder(tf.int64, shape=(None, None), name='left_padded_target_batch')
+        self.source_batch = tf.placeholder(tf.int64, shape=(None, None))
         # placeholder for target sentences (batch, time)=> index of word s.t the padding is on the right
-        self.right_padded_target_batch = tf.placeholder(tf.int64, shape=(None, None), name='right_padded_target_batch')
+        self.target_batch = tf.placeholder(tf.int64, shape=(None, None))
+
+        self.source_lengths = tf.placeholder(tf.int32, shape=(None))
+        self.target_lengths = tf.placeholder(tf.int32, shape=(None))
 
         self.embedding_translator = EmbeddingTranslator(self.embedding_handler,
                                                         self.config['model']['translation_hidden_size'],
@@ -62,7 +61,7 @@ class GanModel:
 
         # do transfer
         with tf.variable_scope('TransferSourceToTarget'):
-            transferred_embeddings = self._transfer(self.left_padded_source_batch)
+            transferred_embeddings = self._transfer(self.source_batch, self.source_lengths)
             transferred_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(
                 transferred_embeddings)
             self.transfer = self.embedding_translator.translate_logits_to_words(transferred_logits)
@@ -96,12 +95,12 @@ class GanModel:
         ])
         return discriminator_step_summaries, generator_step_summaries
 
-    def _encode(self, left_padded_input):
-        embedding = self.embedding_translator.embed_inputs(left_padded_input)
-        return self.encoder.encode_inputs_to_vector(embedding, domain_identifier=None)
+    def _encode(self, inputs, input_lengths):
+        embedding = self.embedding_translator.embed_inputs(inputs)
+        return self.encoder.encode_inputs_to_vector(embedding, input_lengths, domain_identifier=None)
 
-    def _transfer(self, left_padded_source):
-        encoded_source = self._encode(left_padded_source)
+    def _transfer(self, inputs, input_lengths):
+        encoded_source = self._encode(inputs, input_lengths)
         return self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
 
     @staticmethod

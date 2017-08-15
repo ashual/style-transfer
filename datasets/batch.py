@@ -3,9 +3,9 @@ class Batch:
         self.sentences = []
         self.lengths = []
 
-    def add(self, sentences, lengths):
-        self.sentences.append(sentences)
-        self.lengths.append(lengths)
+    def add(self, sentence, length):
+        self.sentences.append(sentence)
+        self.lengths.append(length)
 
     def get_len(self):
         return len(self.sentences)
