@@ -25,7 +25,6 @@ discriminator_embedding:
 discriminator_content:
   hidden_states: [1000]
 
-
 embedding:
 #  min_word_occurrences: 2
   min_word_occurrences: 0

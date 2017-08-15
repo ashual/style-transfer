@@ -13,19 +13,23 @@ class GanModelContent(GanModel):
                                                   self.discriminator_dropout_placeholder)
 
         # losses and accuracy:
-        self.discriminator_step_prediction, self.discriminator_loss, self.discriminator_accuracy_for_discriminator = \
-            self.get_discriminator_loss(
-                self.left_padded_source_batch,
-                self.left_padded_target_batch
-            )
+        self.discriminator_step_prediction, self.discriminator_loss_on_discriminator_step, \
+        self.discriminator_accuracy_for_discriminator = self.get_discriminator_loss(
+            self.left_padded_source_batch,
+            self.left_padded_target_batch
+        )
 
-        self.generator_step_prediction, self.generator_loss, self.discriminator_accuracy_for_generator, \
-        self.discriminator_loss_on_generator_step = \
-            self.get_generator_loss(
+        self.generator_step_prediction, self.discriminator_accuracy_for_generator, \
+        self.discriminator_loss_on_generator_step, self.reconstruction_loss_on_generator_step, \
+        self.content_vector_loss_on_generator_step = self.get_generator_loss(
                 self.left_padded_source_batch,
                 self.left_padded_target_batch,
                 self.right_padded_target_batch
             )
+        self.generator_loss = self.config['model']['reconstruction_coefficient'] * \
+                              self.reconstruction_loss_on_generator_step \
+                              + self.config['model']['semantic_distance_coefficient'] * \
+                                self.content_vector_loss_on_generator_step - self.discriminator_loss_on_generator_step
 
         # train steps
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
@@ -34,7 +38,7 @@ class GanModelContent(GanModel):
                 discriminator_optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
                 discriminator_var_list = self.discriminator.get_trainable_parameters()
                 discriminator_grads_and_vars = discriminator_optimizer.compute_gradients(
-                    self.discriminator_loss,
+                    self.discriminator_loss_on_discriminator_step,
                     colocate_gradients_with_ops=True,
                     var_list=discriminator_var_list
                 )
@@ -95,7 +99,5 @@ class GanModelContent(GanModel):
                 encoded_source, encoded_target
             )
 
-        total_loss = self.config['model']['reconstruction_coefficient'] * reconstruction_loss \
-                     + self.config['model']['semantic_distance_coefficient'] * semantic_distance_loss \
-                     - discriminator_loss
-        return discriminator_prediction, total_loss, discriminator_accuracy, discriminator_loss
+        return discriminator_prediction, discriminator_accuracy, discriminator_loss, reconstruction_loss, \
+               semantic_distance_loss
