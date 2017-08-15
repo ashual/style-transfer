@@ -4,13 +4,12 @@ model:
   translation_hidden_size: 1000
   encoder_hidden_states: [1500, 1000, 500]
   decoder_hidden_states: [1000, 1500]
-  learn_rate: 1.0
+  learn_rate: 0.01
   dropout: 0.1
   bidirectional_encoder: False
-  curriculum_training: True
-  distance_loss: 1.0
-  margin: 0.5
-  random_words_size: 10
+  curriculum_training: False
+  margin_loss: 1.
+  random_words_size: 5
 
 embedding:
   min_word_occurrences: 2
@@ -22,7 +21,7 @@ loss:
   lower_range: 3.0
 
 sentence:
-  #limit: 300000
-  limit: 3
+  limit: 1000
+  #limit: 3
   min_length: 3
   max_length: 15
