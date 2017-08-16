@@ -83,7 +83,7 @@ class ModelTrainerBase:
                     train_summaries = self.do_train_batch(sess, global_step, epoch_num, batch_index, batch)
                     if train_summaries and self.operational_config['use_tensorboard']:
                         summary_writer_train.add_summary(train_summaries, global_step=global_step)
-                    if batch_index % 100 == 0:
+                    if batch_index % self.operational_config['validation_batch_frequency'] == 0:
                         for validation_batch in self.batch_iterator_validation:
                             validation_summaries = self.do_validation_batch(sess, global_step, epoch_num, batch_index,
                                                                             validation_batch)
