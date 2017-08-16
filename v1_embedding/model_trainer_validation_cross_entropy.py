@@ -115,7 +115,7 @@ class ModelTrainerValidation(ModelTrainerBase):
         execution_list = [self.train_step, self.loss, self.outputs, self.accuracy, self.train_summaries]
 
         # print results
-        if (batch_index % self.operational_config['validation_batch_frequency']) == 0:
+        if (global_step % self.operational_config['validation_batch_frequency']) == 0:
             start_time = time.time()
             _, loss_output, decoded_output, batch_acc, train_summaries = sess.run(execution_list, feed_dict)
             total_time = time.time() - start_time
