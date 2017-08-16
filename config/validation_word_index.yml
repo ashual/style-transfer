@@ -4,7 +4,7 @@ model:
   translation_hidden_size: 1000
   encoder_hidden_states: [1500, 1000, 500]
   decoder_hidden_states: [1000, 1500]
-  learn_rate: 0.01
+  learn_rate: 1.1
   dropout: 0.1
   bidirectional_encoder: False
   curriculum_training: False
@@ -14,7 +14,7 @@ model:
 embedding:
   min_word_occurrences: 2
   word_size: 50
-  should_train: True
+  should_train: False
 
 loss:
   upper_range: 5.0
