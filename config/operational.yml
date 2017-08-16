@@ -2,3 +2,4 @@ load_model: True
 debug: False
 print_device: False
 run_optimizer: True
+use_tensorboard: True

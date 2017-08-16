@@ -65,8 +65,9 @@ class ModelTrainerBase:
         if self.operational_config['run_optimizer']:
             session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
         with tf.Session(config=session_config) as sess:
-            summary_writer_train = tf.summary.FileWriter(os.path.join(self.get_summaries_dir(), 'train'), sess.graph)
-            summary_writer_validation = tf.summary.FileWriter(os.path.join(self.get_summaries_dir(), 'validation'))
+            if self.operational_config['use_tensorboard']:
+                summary_writer_train = tf.summary.FileWriter(os.path.join(self.get_summaries_dir(), 'train'), sess.graph)
+                summary_writer_validation = tf.summary.FileWriter(os.path.join(self.get_summaries_dir(), 'validation'))
 
             sess.run(tf.global_variables_initializer())
             if self.operational_config['load_model']:
@@ -80,13 +81,13 @@ class ModelTrainerBase:
                 self.do_before_epoch(sess, global_step, epoch_num)
                 for batch_index, batch in enumerate(self.batch_iterator):
                     train_summaries = self.do_train_batch(sess, global_step, epoch_num, batch_index, batch)
-                    if train_summaries:
+                    if train_summaries and self.operational_config['use_tensorboard']:
                         summary_writer_train.add_summary(train_summaries, global_step=global_step)
                     if batch_index % 100 == 0:
                         for validation_batch in self.batch_iterator_validation:
                             validation_summaries = self.do_validation_batch(sess, global_step, epoch_num, batch_index,
                                                                             validation_batch)
-                            if validation_summaries:
+                            if validation_summaries and self.operational_config['use_tensorboard']:
                                 summary_writer_validation.add_summary(validation_summaries, global_step=global_step)
                             break
                     global_step += 1
