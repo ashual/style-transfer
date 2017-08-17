@@ -15,8 +15,10 @@ class LossHandler(BaseModel):
             squared_difference = tf.squared_difference(encoded_source, encoded_dest)
             return tf.reduce_mean(squared_difference)
 
-    def get_distance_loss(self, source, target, mask):
+    def get_distance_loss(self, source, target, padding_mask):
         sq_difference = tf.sqrt(tf.reduce_sum(tf.squared_difference(source, target), axis=-1))
+        mask = tf.where(padding_mask, tf.ones_like(padding_mask, dtype=tf.float32),
+                        tf.zeros_like(padding_mask, dtype=tf.float32))
         sum = tf.reduce_sum(sq_difference * mask)
         mask_sum = tf.reduce_sum(mask)
         return sum / mask_sum
@@ -24,7 +26,7 @@ class LossHandler(BaseModel):
     def mean_squared_error(self, source, target):
         return tf.losses.mean_squared_error(source, target)
 
-    def get_margin_loss(self, target, mask, random_words, margin):
+    def get_margin_loss(self, target, padding_mask, random_words, margin):
         len_random_words = tf.shape(random_words)[2]
         target_expand = tf.expand_dims(target, 2)
         target_expand = tf.tile(target_expand, [1, 1, len_random_words, 1])
@@ -33,6 +35,8 @@ class LossHandler(BaseModel):
         per_word_margin_loss = tf.maximum(0.0, margin-per_random_word_distance)
         per_word_distance = tf.reduce_mean(per_word_margin_loss, axis=-1)
 
+        mask = tf.where(padding_mask, tf.ones_like(padding_mask, dtype=tf.float32),
+                        tf.zeros_like(padding_mask, dtype=tf.float32))
         sum = tf.reduce_sum(per_word_distance * mask)
         mask_sum = tf.reduce_sum(mask)
         return sum / mask_sum

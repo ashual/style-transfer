@@ -4,6 +4,7 @@ import time
 from datasets.batch_iterator import BatchIterator
 from datasets.yelp_helpers import YelpSentences
 from v1_embedding.base_model import BaseModel
+from v1_embedding.embedding_container import EmbeddingContainer
 from v1_embedding.embedding_translator import EmbeddingTranslator
 from v1_embedding.loss_handler import LossHandler
 from v1_embedding.word_indexing_embedding_handler import WordIndexingEmbeddingHandler
@@ -32,9 +33,9 @@ class ModelTrainerValidation(ModelTrainerBase):
             self.config['embedding']['word_size'],
             self.config['embedding']['min_word_occurrences']
         )
+        self.embedding_container = EmbeddingContainer(self.embedding_handler, self.config['embedding']['should_train'])
         self.embedding_translator = EmbeddingTranslator(self.embedding_handler,
                                                         self.config['model']['translation_hidden_size'],
-                                                        self.config['embedding']['should_train'],
                                                         self.dropout_placeholder)
         self.encoder = EmbeddingEncoder(self.config['model']['encoder_hidden_states'],
                                         self.dropout_placeholder,
@@ -47,7 +48,7 @@ class ModelTrainerValidation(ModelTrainerBase):
         self.loss_handler = LossHandler(self.embedding_handler.get_vocabulary_length())
 
         # "One Hot Vector" -> Embedded Vector (w2v)
-        embeddings = self.embedding_translator.embed_inputs(self.batch)
+        embeddings = self.embedding_container.embed_inputs(self.batch)
         # Embedded Vector (w2v) -> Encoded (constant length)
         encoded = self.encoder.encode_inputs_to_vector(embeddings, self.batch_lengths)
         # Encoded -> Decoded
@@ -83,7 +84,8 @@ class ModelTrainerValidation(ModelTrainerBase):
         # needed by ModelTrainerBase
         self.batch_iterator = BatchIterator(self.dataset, self.embedding_handler,
                                             sentence_len=self.config['sentence']['min_length'],
-                                            batch_size=self.config['model']['batch_size'])
+                                            batch_size=self.config['model']['batch_size']
+                                            )
 
         self.batch_iterator_validation = BatchIterator(self.dataset,
                                                        self.embedding_handler,
@@ -98,8 +100,8 @@ class ModelTrainerValidation(ModelTrainerBase):
     def do_before_train_loop(self, sess):
         best_validation_acc = sess.run(self.best_validation_acc)
         print('starting validation accuracy: {}'.format(best_validation_acc))
-        sess.run(self.embedding_translator.assign_embedding(), {
-            self.embedding_translator.embedding_placeholder: self.embedding_handler.embedding_np
+        sess.run(self.embedding_container.assign_embedding(), {
+            self.embedding_container.embedding_placeholder: self.embedding_handler.embedding_np
         })
 
     def do_train_batch(self, sess, global_step, epoch_num, batch_index, batch, extract_summaries=False):
@@ -110,7 +112,6 @@ class ModelTrainerValidation(ModelTrainerBase):
             self.encoder.should_print: self.operational_config['debug'],
             self.decoder.should_print: self.operational_config['debug'],
         }
-        sess.run([tf.assign(self.epoch, epoch_num)])
         execution_list = [self.train_step, self.loss, self.outputs, self.accuracy, self.train_summaries]
         start_time = time.time()
         if extract_summaries:
@@ -179,9 +180,10 @@ class ModelTrainerValidation(ModelTrainerBase):
             break
 
     def do_before_epoch(self, sess, global_step, epoch_num):
+        sess.run([tf.assign(self.epoch, epoch_num)])
         enlarge = False
         message = ''
-        if not self.config['model']['curriculum_training'] or\
+        if not self.config['model']['curriculum_training'] or \
                         self.batch_iterator.sentence_len >= self.config['sentence']['max_length']:
             return
         # The loss is ok, but keep decreasing
@@ -215,7 +217,7 @@ class ModelTrainerValidation(ModelTrainerBase):
 
 
 if __name__ == "__main__":
-    with open("config/validation_word_index.yml", 'r') as ymlfile:
+    with open("config/validation_cross_entropy.yml", 'r') as ymlfile:
         config = yaml.load(ymlfile)
     with open("config/operational.yml", 'r') as ymlfile:
         operational_config = yaml.load(ymlfile)
