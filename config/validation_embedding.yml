@@ -8,8 +8,8 @@ model:
   dropout: 0.1
   bidirectional_encoder: False
   curriculum_training: False
-  distance_loss: 1.0
-  #  margin_loss: 1.
+#  distance_loss: 1.0
+  margin_coefficient: 1.
   margin: 0.5
   random_words_size: 10
 
@@ -23,7 +23,7 @@ loss:
   lower_range: 3.0
 
 sentence:
-  #limit: 300000
+  #limit: 1000
   limit: 5
   min_length: 3
   max_length: 15
