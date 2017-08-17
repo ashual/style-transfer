@@ -6,7 +6,6 @@ from datasets.batch_iterator import BatchIterator
 from datasets.yelp_helpers import YelpSentences
 from v1_embedding.base_model import BaseModel
 from v1_embedding.embedding_container import EmbeddingContainer
-from v1_embedding.embedding_translator import EmbeddingTranslator
 from v1_embedding.loss_handler import LossHandler
 from v1_embedding.word_indexing_embedding_handler import WordIndexingEmbeddingHandler
 from v1_embedding.embedding_encoder import EmbeddingEncoder
@@ -51,7 +50,6 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
         encoded = self.encoder.encode_inputs_to_vector(embeddings, self.batch_lengths)
         # Encoded -> Decoded
         decoded = self.decoder.do_teacher_forcing(encoded, embeddings[:, :-1, :], self.batch_lengths)
-        self.decoded = decoded
         vocabulary_length = self.embedding_handler.get_vocabulary_length()
         padding_mask = tf.not_equal(self.batch, vocabulary_length)
         distance_loss = self.loss_handler.get_distance_loss(embeddings, decoded, padding_mask)
@@ -63,14 +61,14 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
         embedded_random_words = self.embedding_container.embed_inputs(random_words)
         margin = np.floor(np.sqrt(self.config['embedding']['word_size'] * 0.25))
         margin_loss = self.loss_handler.get_margin_loss(decoded, padding_mask, embedded_random_words, margin)
+        self.outputs = self.decoded_to_closest(decoded, vocabulary_length)
+        self.accuracy = self.loss_handler.get_accuracy(self.batch, self.outputs)
         self.margin_loss = margin_loss
         self.loss = distance_loss + margin_loss * self.config['model']['margin_coefficient']
         # training
         optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
         grads_and_vars = optimizer.compute_gradients(self.loss, colocate_gradients_with_ops=True)
         self.train_step = optimizer.apply_gradients(grads_and_vars)
-        # accuracy
-        self.accuracy = tf.Variable(0, trainable=False)
         self.best_loss = float('inf')
         self.loss_output = float('inf')
         self.epoch = tf.Variable(0, trainable=False)
@@ -107,15 +105,18 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
                                                       distance_loss_summary, margin_loss_summary, epoch,
                                                       sentence_length])
 
-    @staticmethod
-    def calc_accuracy(source, target, seq_len):
-        # get the places where label == prediction that are not padding
-        correct_prediction = np.equal(source, target)
-        mask = [[word_index < seq_len[i] for word_index, w in enumerate(s)] for i, s in enumerate(source)]
-        relevant_correct_predictions = np.sum(np.logical_and(mask, correct_prediction).astype(int))
-        # cast the padding
-        padding_size = np.sum(np.array(mask).astype(int))
-        return relevant_correct_predictions / padding_size
+    def decoded_to_closest(self, decoded, vocabulary_length):
+        expanded_decoded = tf.expand_dims(decoded, axis=2)
+        tiled_decoded = tf.tile(expanded_decoded, [1, 1, vocabulary_length, 1])
+
+        expanded_w = tf.expand_dims(tf.expand_dims(self.embedding_container.w, axis=0), axis=0)
+        decoded_shape = tf.shape(decoded)
+        tiled_w = tf.tile(expanded_w, [decoded_shape[0], decoded_shape[1], 1, 1])
+
+        square = tf.square(tiled_decoded - tiled_w)
+        per_word_per_vocabulary_distance = tf.reduce_sum(square, axis=-1)
+        best_match = tf.argmin(per_word_per_vocabulary_distance, axis=-1)
+        return best_match
 
     def do_before_train_loop(self, sess):
         best_validation_acc = sess.run(self.best_validation_acc)
@@ -132,27 +133,24 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
             self.encoder.should_print: self.operational_config['debug'],
             self.decoder.should_print: self.operational_config['debug'],
         }
-        execution_list = [self.train_step, self.margin_loss, self.distance_loss, self.loss, self.decoded,
+        execution_list = [self.train_step, self.margin_loss, self.distance_loss, self.loss, self.outputs, self.accuracy,
                           self.train_summaries]
         start_time = time.time()
         if extract_summaries:
-            _, margin_loss_output, distance_loss_output, loss_output, decoded, train_summaries = sess.run(
+            _, margin_loss_output, distance_loss_output, loss_output, outputs, accuracy, train_summaries = sess.run(
                 execution_list, feed_dict)
         else:
             train_summaries = None
-            _, margin_loss_output, distance_loss_output, loss_output, decoded = sess.run(
+            _, margin_loss_output, distance_loss_output, loss_output, outputs, accuracy = sess.run(
                 execution_list[:-1], feed_dict)
         total_time = time.time() - start_time
 
         # print results
         if extract_summaries:
             print('loss {} margin {} distance {}'.format(loss_output, margin_loss_output, distance_loss_output))
-            decoded_output = self.decode_sentences_to_indices(decoded)
-            accuracy = self.calc_accuracy(batch.sentences, decoded_output, batch.lengths)
-            sess.run([tf.assign(self.accuracy, accuracy)])
             self.print_side_by_side(
                 self.remove_by_length(batch.sentences, batch.lengths),
-                self.remove_by_length(decoded_output, batch.lengths),
+                self.remove_by_length(outputs, batch.lengths),
                 'original: ',
                 'reconstructed: ',
                 self.embedding_handler
@@ -172,14 +170,12 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
             self.encoder.should_print: self.operational_config['debug'],
             self.decoder.should_print: self.operational_config['debug'],
         }
-        self.loss_output, decoded, validation_summaries, best_validation_acc = sess.run(
+        self.loss_output, validation_acc, validation_summaries, best_validation_acc = sess.run(
             [self.loss,
-             self.decoded,
+             self.accuracy,
              self.validation_summaries,
              self.best_validation_acc],
             feed_dict)
-        decoded_output = self.decode_sentences_to_indices(decoded)
-        validation_acc = self.calc_accuracy(batch.sentences, decoded_output, batch.lengths)
         print('validation: loss - {}, accuracy - {} (best - {})'.format(
             self.loss_output, validation_acc, best_validation_acc)
         )
@@ -244,19 +240,6 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
 
     def do_after_epoch(self, sess, global_step, epoch_num):
         pass
-
-    def decoded_to_vocab(self, decoded):
-        square = np.square(self.embedding_handler.embedding_np - decoded)
-        dist = np.sum(square, axis=1)
-        best_index = np.argmin(dist, 0)
-        return best_index
-
-    def decoded_sentences_to_vocab(self, sentences_indices):
-        indices = [[self.decoded_to_vocab(x) for x in r] for r in sentences_indices]
-        return self.embedding_handler.get_index_to_word(indices)
-
-    def decode_sentences_to_indices(self, sentences_embedding):
-        return [[self.decoded_to_vocab(x) for x in r] for r in sentences_embedding]
 
 
 if __name__ == "__main__":
