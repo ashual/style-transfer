@@ -1,7 +1,6 @@
 model:
   number_of_epochs: 5000
   batch_size: 10
-  translation_hidden_size: 1000
   encoder_hidden_states: [1500, 1000, 500]
   decoder_hidden_states: [1000, 1500]
   learn_rate: 1.1
@@ -10,7 +9,6 @@ model:
   curriculum_training: False
 #  distance_loss: 1.0
   margin_coefficient: 1.
-  margin: 0.5
   random_words_size: 10
 
 embedding:
