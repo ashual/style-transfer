@@ -77,6 +77,8 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
         self.sentence_length = tf.Variable(self.config['sentence']['min_length'], trainable=False)
         # summaries
         loss_summary = tf.summary.scalar('loss', self.loss)
+        distance_loss_summary = tf.summary.scalar('distance_loss', self.distance_loss)
+        margin_loss_summary = tf.summary.scalar('margin_loss', self.margin_loss)
         accuracy_summary = tf.summary.scalar('accuracy', self.accuracy)
         epoch = tf.summary.scalar('epoch', self.epoch)
         sentence_length = tf.summary.scalar('sentence_length', self.sentence_length)
@@ -98,9 +100,11 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
                                                        sentence_len=self.config['sentence']['min_length'],
                                                        batch_size=1000)
 
-        self.train_summaries = tf.summary.merge([loss_summary, accuracy_summary, weight_summaries, gradient_summaries,
+        self.train_summaries = tf.summary.merge([loss_summary, distance_loss_summary, margin_loss_summary,
+                                                 accuracy_summary, weight_summaries, gradient_summaries,
                                                  gradient_global_norm, epoch, sentence_length])
-        self.validation_summaries = tf.summary.merge([accuracy_summary, weight_summaries, loss_summary, epoch,
+        self.validation_summaries = tf.summary.merge([accuracy_summary, weight_summaries, loss_summary,
+                                                      distance_loss_summary, margin_loss_summary, epoch,
                                                       sentence_length])
 
     @staticmethod
