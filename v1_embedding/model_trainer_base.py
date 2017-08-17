@@ -65,7 +65,8 @@ class ModelTrainerBase:
         if self.operational_config['run_optimizer']:
             session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
         with tf.Session(config=session_config) as sess:
-            if self.operational_config['use_tensorboard']:
+            use_tensorboard = self.operational_config['tensorboard_frequency'] > 0
+            if use_tensorboard:
                 summary_writer_train = tf.summary.FileWriter(os.path.join(self.get_summaries_dir(), 'train'), sess.graph)
                 summary_writer_validation = tf.summary.FileWriter(os.path.join(self.get_summaries_dir(), 'validation'))
 
@@ -80,14 +81,17 @@ class ModelTrainerBase:
                 print('epoch {} of {}'.format(epoch_num+1, self.config['model']['number_of_epochs']))
                 self.do_before_epoch(sess, global_step, epoch_num)
                 for batch_index, batch in enumerate(self.batch_iterator):
-                    train_summaries = self.do_train_batch(sess, global_step, epoch_num, batch_index, batch)
-                    if train_summaries and self.operational_config['use_tensorboard']:
+                    extract_summaries = use_tensorboard and \
+                                        (global_step % self.operational_config['tensorboard_frequency'] == 0)
+                    train_summaries = self.do_train_batch(sess, global_step, epoch_num, batch_index, batch,
+                                                          extract_summaries=extract_summaries)
+                    if train_summaries and extract_summaries:
                         summary_writer_train.add_summary(train_summaries, global_step=global_step)
                     if (global_step % self.operational_config['validation_batch_frequency']) == 0:
                         for validation_batch in self.batch_iterator_validation:
                             validation_summaries = self.do_validation_batch(sess, global_step, epoch_num, batch_index,
                                                                             validation_batch)
-                            if validation_summaries and self.operational_config['use_tensorboard']:
+                            if validation_summaries and use_tensorboard:
                                 summary_writer_validation.add_summary(validation_summaries, global_step=global_step)
                             break
                     global_step += 1
@@ -97,7 +101,7 @@ class ModelTrainerBase:
     def do_before_train_loop(self, sess):
         pass
 
-    def do_train_batch(self, sess, global_step, epoch_num, batch_index, batch):
+    def do_train_batch(self, sess, global_step, epoch_num, batch_index, batch, extract_summaries=False):
         pass
 
     def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch):

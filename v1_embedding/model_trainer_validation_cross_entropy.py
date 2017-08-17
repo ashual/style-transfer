@@ -102,7 +102,7 @@ class ModelTrainerValidation(ModelTrainerBase):
             self.embedding_translator.embedding_placeholder: self.embedding_handler.embedding_np
         })
 
-    def do_train_batch(self, sess, global_step, epoch_num, batch_index, batch):
+    def do_train_batch(self, sess, global_step, epoch_num, batch_index, batch, extract_summaries=False):
         feed_dict = {
             self.batch: batch.sentences,
             self.batch_lengths: batch.lengths,
@@ -111,14 +111,17 @@ class ModelTrainerValidation(ModelTrainerBase):
             self.decoder.should_print: self.operational_config['debug'],
         }
         sess.run([tf.assign(self.epoch, epoch_num)])
-        train_summaries = None
         execution_list = [self.train_step, self.loss, self.outputs, self.accuracy, self.train_summaries]
+        start_time = time.time()
+        if extract_summaries:
+            _, loss_output, decoded_output, batch_acc, train_summaries = sess.run(execution_list, feed_dict)
+        else:
+            train_summaries = None
+            _, loss_output, decoded_output, batch_acc = sess.run(execution_list[:-1], feed_dict)
+        total_time = time.time() - start_time
 
         # print results
-        if (global_step % self.operational_config['validation_batch_frequency']) == 0:
-            start_time = time.time()
-            _, loss_output, decoded_output, batch_acc, train_summaries = sess.run(execution_list, feed_dict)
-            total_time = time.time() - start_time
+        if extract_summaries:
             self.print_side_by_side(
                 self.remove_by_length(batch.sentences, batch.lengths),
                 self.remove_by_length(decoded_output, batch.lengths),
@@ -126,13 +129,9 @@ class ModelTrainerValidation(ModelTrainerBase):
                 'reconstructed: ',
                 self.embedding_handler
             )
-            print('epoch-index: {} batch-index: {} acc: {} loss: {} runtime: {}'.format(epoch_num, batch_index,
-                                                                                        batch_acc, loss_output,
-                                                                                        total_time))
+            print('epoch-index: {} batch-index: {} acc: {} loss: {} runtime(forwards and backwards): {}'.
+                  format(epoch_num, batch_index, batch_acc, loss_output, total_time))
             print()
-        else:
-            # will not run summaries
-            _, loss_output, decoded_output, batch_acc = sess.run(execution_list[:-1], feed_dict)
 
         return train_summaries
 

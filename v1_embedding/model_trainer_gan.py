@@ -49,7 +49,7 @@ class ModelTrainerGan(ModelTrainerBase):
     def get_trainer_name(self):
         return '{}_{}'.format(self.__class__.__name__, self.config['model']['discriminator_type'])
 
-    def do_generator_train(self, sess, global_step, epoch_num, batch_index, feed_dictionary):
+    def do_generator_train(self, sess, global_step, epoch_num, batch_index, feed_dictionary, extract_summaries):
         print('started generator')
         print('running loss: {}'.format(self.policy.running_loss))  # TODO: remove
         execution_list = [
@@ -65,11 +65,13 @@ class ModelTrainerGan(ModelTrainerBase):
             # the generator is still improving
             print('new running loss: {}'.format(self.policy.running_loss))  # TODO: remove
             print()
-            _, s = sess.run([
-                self.model.generator_train_step,
-                self.generator_step_summaries
-            ], feed_dictionary)
-            return s
+            execution_list = [self.model.generator_train_step, self.generator_step_summaries]
+            if extract_summaries:
+                _, s = sess.run(execution_list, feed_dictionary)
+                return s
+            else:
+                sess.run(execution_list[:-1], feed_dictionary)
+                return None
         else:
             print('generator too good - training discriminator')
             print()
@@ -78,9 +80,10 @@ class ModelTrainerGan(ModelTrainerBase):
             # the generator is no longer improving, will train discriminator next
             self.policy.do_train_switch(start_training_generator=False)
             sess.run(self.model.assign_train_generator, {self.model.train_generator_placeholder: 0})
-            return self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dictionary)
+            return self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dictionary,
+                                               extract_summaries=extract_summaries)
 
-    def do_discriminator_train(self, sess, global_step, epoch_num, batch_index, feed_dictionary):
+    def do_discriminator_train(self, sess, global_step, epoch_num, batch_index, feed_dictionary, extract_summaries):
         print('started discriminator')
         print('running loss: {}'.format(self.policy.running_loss))  # TODO: remove
         execution_list = [
@@ -96,18 +99,21 @@ class ModelTrainerGan(ModelTrainerBase):
             # the discriminator is still improving
             print('new running loss: {}'.format(self.policy.running_loss))  # TODO: remove
             print()
-            _, s = sess.run([
-                self.model.discriminator_train_step,
-                self.discriminator_step_summaries
-            ], feed_dictionary)
-            return s
+            execution_list = [self.model.discriminator_train_step, self.discriminator_step_summaries]
+            if extract_summaries:
+                _, s = sess.run(execution_list, feed_dictionary)
+                return s
+            else:
+                sess.run(execution_list[:-1], feed_dictionary)
+                return None
         else:
             print('discriminator too good - training generator')
             print()
             # the discriminator is no longer improving, will train generator next
             self.policy.do_train_switch(start_training_generator=True)
             sess.run(self.model.assign_train_generator, {self.model.train_generator_placeholder: 1})
-            return self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dictionary)
+            return self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dictionary,
+                                           extract_summaries=extract_summaries)
 
     def transfer_batch(self, sess, batch):
         feed_dict = {
@@ -147,7 +153,7 @@ class ModelTrainerGan(ModelTrainerBase):
         self.policy.do_train_switch(start_training_generator=False)
         sess.run(self.model.assign_train_generator, {self.model.train_generator_placeholder: 0})
 
-    def do_train_batch(self, sess, global_step, epoch_num, batch_index, batch):
+    def do_train_batch(self, sess, global_step, epoch_num, batch_index, batch, extract_summaries=False):
         feed_dict = {
             self.model.source_batch: batch[0].sentences,
             self.model.target_batch: batch[1].sentences,
@@ -163,10 +169,12 @@ class ModelTrainerGan(ModelTrainerBase):
         print('batch len: {}'.format(batch[0].get_len()))
         if self.policy.train_generator:
             # should train the generator
-            return self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dict)
+            return self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dict,
+                                           extract_summaries=extract_summaries)
         else:
             # should train discriminator
-            return self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dict)
+            return self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dict,
+                                               extract_summaries=extract_summaries)
 
     def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch):
         self.transfer_batch(sess, batch)
