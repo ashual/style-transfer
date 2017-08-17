@@ -1,21 +1,39 @@
 import os
 import pickle
+import collections
 import numpy as np
+from nltk import word_tokenize
 
 
 class EmbeddingHandler:
-    def __init__(self, save_directory):
-        self.pad_token = 'PAD'
+    def __init__(self, save_directory, datasets, n, truncate_by_cutoff):
+        self.save_directory = save_directory
+        self.datasets = datasets
+        self.n = n
+        self.truncate_by_cutoff = truncate_by_cutoff
 
+        self.pad_token = 'PAD'
         self.end_of_sentence_token = 'END'
         self.unknown_token = 'UNK'
 
         self.word_to_index = None
         self.index_to_word = None
         self.embedding_np = None
+        self.initialized_from_cache = None
 
-        self.save_directory = save_directory
+    def load_or_create(self):
         self.initialized_from_cache = self.load_files()
+        if not self.initialized_from_cache:
+            print('creating embedding...')
+            vocab = self.build_dataset(EmbeddingHandler.read_data(self.datasets), self.n, self.truncate_by_cutoff)
+            # init mappings
+            self.vocabulary_to_internals(vocab)
+            # init embeddings
+            self.embedding_np = self.create_embedding(vocab)
+            self.save_files()
+        print('using {} unique words with embedding size of {} '.format(
+            self.embedding_np.shape[0],
+            self.embedding_np.shape[1]))
 
     def load_files(self):
         word_to_index_path, index_to_word_path, embedding_np_path = self.get_cache_file_names()
@@ -79,3 +97,23 @@ class EmbeddingHandler:
 
     def get_embedding_array(self):
         return self.embedding_np
+
+    @staticmethod
+    def read_data(datasets):
+        data = []
+        for dataset in datasets:
+            for sentence in dataset.get_content():
+                data.extend(word_tokenize(sentence))
+        return data
+
+    def build_dataset(self, words, n, truncate_by_cutoff):
+        """Process raw inputs into a dataset."""
+        vocab = [self.end_of_sentence_token, self.unknown_token]
+        if truncate_by_cutoff:
+            vocab += [w for w, c in collections.Counter(words).most_common() if c >= n]
+        else:
+            vocab += [w for w, _ in collections.Counter(words).most_common(n - 1)]
+        return vocab
+
+    def create_embedding(self, vocab):
+        raise NotImplemented

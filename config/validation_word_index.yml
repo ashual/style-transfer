@@ -1,25 +1,30 @@
 model:
-  number_of_epochs: 500
+  number_of_epochs: 5000
   batch_size: 10
-  translation_hidden_size: 0
+  translation_hidden_size: 1000
   encoder_hidden_states: [1500, 1000, 500]
   decoder_hidden_states: [1000, 1500]
-  learn_rate: 0.0035
+  learn_rate: 1.1
   dropout: 0.1
   bidirectional_encoder: False
   curriculum_training: True
+  margin: 1.
+  random_words_size: 2
 
 embedding:
   min_word_occurrences: 2
+  should_train: False
+  glove_file: data/glove.6B/glove.6B.50d.txt
+  # If is_glove=true then word_size:=50
+  is_glove: False
   word_size: 50
-  should_train: True
 
 loss:
   upper_range: 5.0
   lower_range: 3.0
 
 sentence:
-  #limit: 300000
-  limit: 3
+  limit: 1000
+  #limit: 4
   min_length: 3
   max_length: 15
