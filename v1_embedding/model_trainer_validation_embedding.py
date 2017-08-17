@@ -12,6 +12,8 @@ from v1_embedding.embedding_encoder import EmbeddingEncoder
 from v1_embedding.embedding_decoder import EmbeddingDecoder
 from v1_embedding.model_trainer_base import ModelTrainerBase
 
+# Note: this model reached 100% accuracy in 3 words with validation_word_index.yml configuration
+
 
 class ModelTrainerValidationEmbedding(ModelTrainerBase):
     def __init__(self, config_file, operational_config_file):
