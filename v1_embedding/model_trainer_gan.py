@@ -115,7 +115,7 @@ class ModelTrainerGan(ModelTrainerBase):
             return self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dictionary,
                                            extract_summaries=extract_summaries)
 
-    def transfer_batch(self, sess, batch):
+    def transfer_batch(self, sess, batch, return_result_as_summary=True):
         feed_dict = {
             self.model.source_batch: batch[0].sentences,
             self.model.source_lengths: batch[0].lengths,
@@ -138,13 +138,22 @@ class ModelTrainerGan(ModelTrainerBase):
             else:
                 transferred.append(s)
         # print the transfer
-        self.print_side_by_side(
+        original_strings, transferred_strings = self.print_side_by_side(
             original,
             transferred,
             'original: ',
             'transferred: ',
             self.embedding_handler
         )
+        if return_result_as_summary:
+            # output validation summary for first 5 sentences
+            to_print = 5
+            return sess.run(self.model.text_watcher.summary, {
+                self.model.text_watcher.placeholder1: [' '.join(s) for s in original_strings[:to_print]],
+                self.model.text_watcher.placeholder2: [' '.join(s) for s in transferred_strings[:to_print]],
+            })
+        else:
+            return None
 
     def do_before_train_loop(self, sess):
         sess.run(self.model.embedding_translator.assign_embedding(), {
@@ -177,14 +186,14 @@ class ModelTrainerGan(ModelTrainerBase):
                                                extract_summaries=extract_summaries)
 
     def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch):
-        self.transfer_batch(sess, batch)
+        return self.transfer_batch(sess, batch, return_result_as_summary=True)
 
     def do_after_train_loop(self, sess):
         # make sure the model is correct:
         self.saver_wrapper.load_model(sess)
         print('model loaded, sample sentences:')
         for batch in self.batch_iterator_validation:
-            self.transfer_batch(sess, batch)
+            self.transfer_batch(sess, batch, return_result_as_summary=False)
             break
 
     def do_before_epoch(self, sess, global_step, epoch_num):

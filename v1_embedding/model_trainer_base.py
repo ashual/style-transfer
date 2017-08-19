@@ -50,6 +50,7 @@ class ModelTrainerBase:
             print(translated_batch1[i])
             print(message2)
             print(translated_batch2[i])
+        return translated_batch1, translated_batch2
 
     @staticmethod
     def remove_by_length(sentences, lengths):

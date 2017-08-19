@@ -4,6 +4,7 @@ from v1_embedding.embedding_decoder import EmbeddingDecoder
 from v1_embedding.embedding_encoder import EmbeddingEncoder
 from v1_embedding.embedding_translator import EmbeddingTranslator
 from v1_embedding.loss_handler import LossHandler
+from v1_embedding.text_watcher import TextWatcher
 
 
 # this model tries to transfer from one domain to another.
@@ -74,6 +75,7 @@ class GanModel:
             GanModel._create_assignable_scalar(
                 'train_generator', tf.int32, init_value=0
         )
+        self.text_watcher = TextWatcher('original', 'transferred')
 
     def create_summaries(self):
         epoch_summary = tf.summary.scalar('epoch', self.epoch)
