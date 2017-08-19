@@ -6,22 +6,22 @@ model:
   learn_rate: 1.1
   dropout: 0.1
   bidirectional_encoder: False
-  curriculum_training: False
+  curriculum_training: True
 #  distance_loss: 1.0
-  margin_coefficient: 1.
-  random_words_size: 10
+  margin_coefficient: 1.0
+  random_words_size: 5
 
 embedding:
   min_word_occurrences: 2
-  word_size: 50
+  word_size: 100
   should_train: False
 
 loss:
-  upper_range: 5.0
-  lower_range: 3.0
+  upper_range: 3.0
+  lower_range: 1.5
 
 sentence:
-  #limit: 1000
-  limit: 5
+  limit: 1000
+  #limit: 5
   min_length: 3
   max_length: 15
