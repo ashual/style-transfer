@@ -1,7 +1,6 @@
 import yaml
 import tensorflow as tf
 import time
-import numpy as np
 from datasets.batch_iterator import BatchIterator
 from datasets.yelp_helpers import YelpSentences
 from v1_embedding.base_model import BaseModel
@@ -52,19 +51,15 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
         decoded = self.decoder.do_teacher_forcing(encoded, embeddings[:, :-1, :], self.batch_lengths)
         vocabulary_length = self.embedding_handler.get_vocabulary_length()
         padding_mask = tf.not_equal(self.batch, vocabulary_length)
-        distance_loss = self.loss_handler.get_distance_loss(embeddings, decoded, padding_mask)
-        self.distance_loss = distance_loss
         input_shape = tf.shape(self.batch)
         random_words = tf.random_uniform(shape=(input_shape[0], input_shape[1], config['model']['random_words_size']),
                                          minval=0, maxval=vocabulary_length,
                                          dtype=tf.int32)
         embedded_random_words = self.embedding_container.embed_inputs(random_words)
-        margin = np.floor(np.sqrt(self.config['embedding']['word_size'] * 0.25))
-        margin_loss = self.loss_handler.get_margin_loss(decoded, padding_mask, embedded_random_words, margin)
         self.outputs = self.decoded_to_closest(decoded, vocabulary_length)
         self.accuracy = self.loss_handler.get_accuracy(self.batch, self.outputs)
-        self.margin_loss = margin_loss
-        self.loss = distance_loss + margin_loss * self.config['model']['margin_coefficient']
+        self.loss = self.loss_handler.get_margin_loss_v2(embeddings, decoded, embedded_random_words, padding_mask,
+                                                         self.config['model']['margin'])
         # training
         optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
         grads_and_vars = optimizer.compute_gradients(self.loss, colocate_gradients_with_ops=True)
@@ -75,8 +70,6 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
         self.sentence_length = tf.Variable(self.config['sentence']['min_length'], trainable=False)
         # summaries
         loss_summary = tf.summary.scalar('loss', self.loss)
-        distance_loss_summary = tf.summary.scalar('distance_loss', self.distance_loss)
-        margin_loss_summary = tf.summary.scalar('margin_loss', self.margin_loss)
         accuracy_summary = tf.summary.scalar('accuracy', self.accuracy)
         epoch = tf.summary.scalar('epoch', self.epoch)
         sentence_length = tf.summary.scalar('sentence_length', self.sentence_length)
@@ -98,11 +91,9 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
                                                        sentence_len=self.config['sentence']['min_length'],
                                                        batch_size=1000)
 
-        self.train_summaries = tf.summary.merge([loss_summary, distance_loss_summary, margin_loss_summary,
-                                                 accuracy_summary, weight_summaries, gradient_summaries,
+        self.train_summaries = tf.summary.merge([loss_summary, accuracy_summary, weight_summaries, gradient_summaries,
                                                  gradient_global_norm, epoch, sentence_length])
-        self.validation_summaries = tf.summary.merge([accuracy_summary, weight_summaries, loss_summary,
-                                                      distance_loss_summary, margin_loss_summary, epoch,
+        self.validation_summaries = tf.summary.merge([accuracy_summary, weight_summaries, loss_summary, epoch,
                                                       sentence_length])
 
     def decoded_to_closest(self, decoded, vocabulary_length):
@@ -137,21 +128,21 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
             self.encoder.should_print: self.operational_config['debug'],
             self.decoder.should_print: self.operational_config['debug'],
         }
-        execution_list = [self.train_step, self.margin_loss, self.distance_loss, self.loss, self.outputs, self.accuracy,
+        execution_list = [self.train_step, self.loss, self.outputs, self.accuracy,
                           self.train_summaries]
         start_time = time.time()
         if extract_summaries:
-            _, margin_loss_output, distance_loss_output, loss_output, outputs, accuracy, train_summaries = sess.run(
+            _, loss_output, outputs, accuracy, train_summaries = sess.run(
                 execution_list, feed_dict)
         else:
             train_summaries = None
-            _, margin_loss_output, distance_loss_output, loss_output, outputs, accuracy = sess.run(
+            _, loss_output, outputs, accuracy = sess.run(
                 execution_list[:-1], feed_dict)
         total_time = time.time() - start_time
 
         # print results
         if extract_summaries:
-            print('loss {} margin {} distance {}'.format(loss_output, margin_loss_output, distance_loss_output))
+            print('loss {}'.format(loss_output))
             self.print_side_by_side(
                 self.remove_by_length(batch.sentences, batch.lengths),
                 self.remove_by_length(outputs, batch.lengths),
