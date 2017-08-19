@@ -7,9 +7,9 @@ model:
   dropout: 0.1
   bidirectional_encoder: False
   curriculum_training: False
-#  distance_loss: 1.0
-  margin_coefficient: 1.
+#  margin_coefficient: 1.
   random_words_size: 10
+  margin: 1.0
 
 embedding:
   min_word_occurrences: 2
