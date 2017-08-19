@@ -105,17 +105,34 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
                                                       distance_loss_summary, margin_loss_summary, epoch,
                                                       sentence_length])
 
+    # def decoded_to_closest(self, decoded, vocabulary_length):
+    #     expanded_decoded = tf.expand_dims(decoded, axis=2)
+    #     tiled_decoded = tf.tile(expanded_decoded, [1, 1, vocabulary_length, 1])
+    #
+    #     expanded_w = tf.expand_dims(tf.expand_dims(self.embedding_container.w, axis=0), axis=0)
+    #     decoded_shape = tf.shape(decoded)
+    #     tiled_w = tf.tile(expanded_w, [decoded_shape[0], decoded_shape[1], 1, 1])
+    #
+    #     square = tf.square(tiled_decoded - tiled_w)
+    #     per_word_per_vocabulary_distance = tf.reduce_sum(square, axis=-1)
+    #     best_match = tf.argmin(per_word_per_vocabulary_distance, axis=-1)
+    #     return best_match
+
     def decoded_to_closest(self, decoded, vocabulary_length):
-        expanded_decoded = tf.expand_dims(decoded, axis=2)
-        tiled_decoded = tf.tile(expanded_decoded, [1, 1, vocabulary_length, 1])
-
-        expanded_w = tf.expand_dims(tf.expand_dims(self.embedding_container.w, axis=0), axis=0)
         decoded_shape = tf.shape(decoded)
-        tiled_w = tf.tile(expanded_w, [decoded_shape[0], decoded_shape[1], 1, 1])
 
-        square = tf.square(tiled_decoded - tiled_w)
-        per_word_per_vocabulary_distance = tf.reduce_sum(square, axis=-1)
-        best_match = tf.argmin(per_word_per_vocabulary_distance, axis=-1)
+        distance_tensors = []
+        for vocab_word_index in range(vocabulary_length):
+            relevant_w = self.embedding_container.w[vocab_word_index, :]
+            expanded_w = tf.expand_dims(tf.expand_dims(relevant_w, axis=0), axis=0)
+            tiled_w = tf.tile(expanded_w, [decoded_shape[0], decoded_shape[1], 1])
+
+            square = tf.square(decoded - tiled_w)
+            per_vocab_distance = tf.reduce_sum(square, axis=-1)
+            distance_tensors.append(per_vocab_distance)
+
+        distance = tf.stack(distance_tensors, axis=-1)
+        best_match = tf.argmin(distance, axis=-1)
         return best_match
 
     def do_before_train_loop(self, sess):
