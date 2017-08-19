@@ -5,8 +5,9 @@ from v1_embedding.base_model import BaseModel
 class EmbeddingContainer(BaseModel):
     def __init__(self, embedding_handler, train_embeddings, name=None):
         BaseModel.__init__(self, name)
+        self.vocabulary_length = embedding_handler.get_vocabulary_length()
+        embedding_shape = [self.vocabulary_length, embedding_handler.get_embedding_size()]
         # placeholder to initiate the embedding weights
-        embedding_shape = [embedding_handler.get_vocabulary_length(), embedding_handler.get_embedding_size()]
         self.embedding_placeholder = tf.placeholder(tf.float32, shape=embedding_shape)
 
         with tf.variable_scope('{}/parameters'.format(self.name)):
@@ -26,3 +27,10 @@ class EmbeddingContainer(BaseModel):
             # to get vocabulary indices to embeddings
             embedded_inputs = tf.nn.embedding_lookup(self.extended_w, inputs)
             return self.print_tensor_with_shape(embedded_inputs, "embedded_inputs")
+
+    def get_random_words_embeddings(self, shape):
+        random_words = tf.random_uniform(shape=shape,
+                                         minval=0, maxval=self.vocabulary_length,
+                                         dtype=tf.int32)
+        return self.embed_inputs(random_words)
+

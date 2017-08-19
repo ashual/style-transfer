@@ -52,10 +52,9 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
         vocabulary_length = self.embedding_handler.get_vocabulary_length()
         padding_mask = tf.not_equal(self.batch, vocabulary_length)
         input_shape = tf.shape(self.batch)
-        random_words = tf.random_uniform(shape=(input_shape[0], input_shape[1], config['model']['random_words_size']),
-                                         minval=0, maxval=vocabulary_length,
-                                         dtype=tf.int32)
-        embedded_random_words = self.embedding_container.embed_inputs(random_words)
+        embedded_random_words = self.embedding_container.get_random_words_embeddings(
+            shape=(input_shape[0], input_shape[1], config['model']['random_words_size'])
+        )
         self.outputs = self.decoded_to_closest(decoded, vocabulary_length)
         self.accuracy = self.loss_handler.get_accuracy(self.batch, self.outputs)
         self.loss = self.loss_handler.get_margin_loss_v2(embeddings, decoded, embedded_random_words, padding_mask,

@@ -55,10 +55,9 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
         distance_loss = self.loss_handler.get_distance_loss(embeddings, decoded, padding_mask)
         self.distance_loss = distance_loss
         input_shape = tf.shape(self.batch)
-        random_words = tf.random_uniform(shape=(input_shape[0], input_shape[1], config['model']['random_words_size']),
-                                         minval=0, maxval=vocabulary_length,
-                                         dtype=tf.int32)
-        embedded_random_words = self.embedding_container.embed_inputs(random_words)
+        embedded_random_words = self.embedding_container.get_random_words_embeddings(
+            shape=(input_shape[0], input_shape[1], config['model']['random_words_size'])
+        )
         margin = np.floor(np.sqrt(self.config['embedding']['word_size'] * 0.25))
         margin_loss = self.loss_handler.get_margin_loss(decoded, padding_mask, embedded_random_words, margin)
         self.outputs = self.decoded_to_closest(decoded, vocabulary_length)
