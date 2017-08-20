@@ -1,5 +1,6 @@
 import tensorflow as tf
 from v1_embedding.base_model import BaseModel
+from tensorflow.contrib.rnn import *
 
 
 class EmbeddingEncoder(BaseModel):
@@ -9,23 +10,20 @@ class EmbeddingEncoder(BaseModel):
         # encoder - model
         with tf.variable_scope('{}/cells'.format(self.name)):
             if bidirectional:
-                self.multilayer_encoder_fw = tf.contrib.rnn.MultiRNNCell(self.generate_cells(hidden_states,
-                                                                                             dropout_placeholder))
-                self.multilayer_encoder_bw = tf.contrib.rnn.MultiRNNCell(self.generate_cells(hidden_states,
-                                                                                             dropout_placeholder))
+                self.multilayer_encoder_fw = self.generate_cells(hidden_states, dropout_placeholder)
+                self.multilayer_encoder_bw = self.generate_cells(hidden_states, dropout_placeholder)
             else:
-                self.multilayer_encoder = tf.contrib.rnn.MultiRNNCell(self.generate_cells(hidden_states,
-                                                                                          dropout_placeholder))
+                self.multilayer_encoder = self.generate_cells(hidden_states, dropout_placeholder)
         self.reuse_flag = False
 
     @staticmethod
     def generate_cells(hidden_states, dropout_placeholder):
         encoder_cells = []
         for hidden_size in hidden_states:
-            cell = tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True)
-            cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout_placeholder)
+            cell = BasicLSTMCell(hidden_size, state_is_tuple=True)
+            cell = DropoutWrapper(cell, output_keep_prob=1.0 - dropout_placeholder)
             encoder_cells.append(cell)
-        return encoder_cells
+        return CompiledWrapper(MultiRNNCell(encoder_cells))
 
     def encode_inputs_to_vector(self, inputs, input_lengths, domain_identifier=None):
         with tf.variable_scope('{}/preprocessing'.format(self.name)):

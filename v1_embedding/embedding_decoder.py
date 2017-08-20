@@ -1,5 +1,6 @@
 import tensorflow as tf
 from v1_embedding.base_model import BaseModel
+from tensorflow.contrib.rnn import *
 
 
 class EmbeddingDecoder(BaseModel):
@@ -11,13 +12,13 @@ class EmbeddingDecoder(BaseModel):
         with tf.variable_scope('{}/cells'.format(self.name)):
             decoder_cells = []
             for hidden_size in hidden_states:
-                cell = tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True)
-                cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout_placeholder)
+                cell = BasicLSTMCell(hidden_size, state_is_tuple=True)
+                cell = DropoutWrapper(cell, output_keep_prob=1.0 - dropout_placeholder)
                 decoder_cells.append(cell)
-            cell = tf.contrib.rnn.BasicLSTMCell(embedding_size, state_is_tuple=True)
-            cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout_placeholder)
+            cell = BasicLSTMCell(embedding_size, state_is_tuple=True)
+            cell = DropoutWrapper(cell, output_keep_prob=1.0 - dropout_placeholder)
             decoder_cells.append(cell)
-            self.multilayer_decoder = tf.contrib.rnn.MultiRNNCell(decoder_cells)
+            self.multilayer_decoder = CompiledWrapper(MultiRNNCell(decoder_cells))
             # contains the signal for the decoder to start
             self.starting_input = tf.zeros((1, 1, embedding_size))
         self.reuse_flag = False
