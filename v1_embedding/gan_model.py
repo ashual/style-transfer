@@ -67,9 +67,13 @@ class GanModel:
         # do transfer
         with tf.variable_scope('TransferSourceToTarget'):
             transferred_embeddings = self._transfer(self.source_batch, self.source_lengths)
-            transferred_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(
-                transferred_embeddings)
-            self.transfer = self.embedding_translator.translate_logits_to_words(transferred_logits)
+            if self.config['model']['loss_type'] == 'cross_entropy':
+                transferred_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(
+                    transferred_embeddings)
+                self.transfer = self.embedding_translator.translate_logits_to_words(transferred_logits)
+            else:
+                self.transfer = self.decoded_to_closest(transferred_embeddings,
+                                                        self.embedding_handler.get_vocabulary_length())
 
         # summaries
         self.epoch, self.epoch_placeholder, self.assign_epoch = GanModel._create_assignable_scalar(
@@ -80,6 +84,23 @@ class GanModel:
                 'train_generator', tf.int32, init_value=0
         )
         self.text_watcher = TextWatcher('original', 'transferred')
+
+    def decoded_to_closest(self, decoded, vocabulary_length):
+        decoded_shape = tf.shape(decoded)
+
+        distance_tensors = []
+        for vocab_word_index in range(vocabulary_length):
+            relevant_w = self.embedding_container.w[vocab_word_index, :]
+            expanded_w = tf.expand_dims(tf.expand_dims(relevant_w, axis=0), axis=0)
+            tiled_w = tf.tile(expanded_w, [decoded_shape[0], decoded_shape[1], 1])
+
+            square = tf.square(decoded - tiled_w)
+            per_vocab_distance = tf.reduce_sum(square, axis=-1)
+            distance_tensors.append(per_vocab_distance)
+
+        distance = tf.stack(distance_tensors, axis=-1)
+        best_match = tf.argmin(distance, axis=-1)
+        return best_match
 
     def create_summaries(self):
         epoch_summary = tf.summary.scalar('epoch', self.epoch)
