@@ -10,5 +10,5 @@ class TextWatcher:
     @staticmethod
     def _create_assignable_scalar(name):
         placeholder = tf.placeholder(dtype=tf.string, shape=(None), name='{}_placeholder'.format(name))
-        summary = tf.summary.text('name', placeholder)
+        summary = tf.summary.text(name, placeholder)
         return placeholder, summary
