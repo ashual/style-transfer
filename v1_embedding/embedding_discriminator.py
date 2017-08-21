@@ -22,12 +22,10 @@ class EmbeddingDiscriminator(BaseModel):
         with tf.variable_scope('{}/run'.format(self.name), reuse=self.reuse_flag):
             self.reuse_flag = True
             rnn_res = self.encoder.encode_inputs_to_vector(inputs, None)
-            rnn_res = self.print_tensor_with_shape(rnn_res, "rnn_res")
             if self.dense_hidden_size > 0:
                 hidden = tf.nn.relu(tf.matmul(rnn_res, self.w1) + self.b1)
             else:
                 hidden = rnn_res
             batch_norm_activations = tf.contrib.layers.batch_norm(tf.matmul(hidden, self.w2) + self.b2,
                                                                   center=True, scale=True, is_training=True)
-            prediction = tf.nn.sigmoid(batch_norm_activations)
-            return self.print_tensor_with_shape(prediction, "prediction")
+            return tf.nn.sigmoid(batch_norm_activations)

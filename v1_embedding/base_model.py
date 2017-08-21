@@ -3,21 +3,11 @@ import tensorflow as tf
 
 class BaseModel:
     def __init__(self, name=None):
-        self.should_print = tf.placeholder_with_default(False, shape=())
         self.name = self.__class__.__name__
         if name:
             self.name = '{}_{}'.format(name, self.name)
         self.trainable_parameters = None
         print('{} created'.format(self.name))
-
-    def print_tensor_with_shape(self, tensor, name):
-        return tensor
-        # Print is CPU based, removing it for now
-        # return tf.cond(self.should_print,
-        #                lambda: tf.Print(
-        #                    tf.Print(tensor, [tensor], message=name + ":"),
-        #                    [tf.shape(tensor)], message=name + " shape:"),
-        #                lambda: tf.identity(tensor))
 
     @staticmethod
     def create_input_parameters(input_size, output_size):
@@ -43,18 +33,15 @@ class BaseModel:
             res += BaseModel.create_summaries(v)
         return res
 
-    def concat_identifier(self, inputs, identifier):
+    @staticmethod
+    def concat_identifier(inputs, identifier):
         if identifier is None:
+            # result is (batch, time, embedding)
             identified_inputs = inputs
         else:
+            # result is (batch, time, embedding; domain)
             batch_size = tf.shape(inputs)[0]
             sentence_length = tf.shape(inputs)[1]
-
-            # the input sequence s.t (batch, time, embedding)
-            inputs = self.print_tensor_with_shape(inputs, "inputs")
-
-            # create the input: (batch, time, embedding; domain)
-            identifier = self.print_tensor_with_shape(identifier, "domain_identifier")
             identifier_tiled = identifier * tf.ones([batch_size, sentence_length, 1])
             identified_inputs = tf.concat((inputs, identifier_tiled), axis=2)
         return identified_inputs

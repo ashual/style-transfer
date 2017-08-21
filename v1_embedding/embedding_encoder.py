@@ -50,5 +50,5 @@ class EmbeddingEncoder(BaseModel):
                                                    initial_state=initial_state,
                                                    time_major=False, sequence_length=input_lengths)
                 res = final_state[-1].h
-            return self.print_tensor_with_shape(res, "encoded")
+            return res
 

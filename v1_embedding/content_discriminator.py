@@ -25,5 +25,4 @@ class ContentDiscriminator(BaseModel):
                 dropout = tf.nn.dropout(current, self.dropout_placeholder)
                 hidden = tf.nn.relu(tf.matmul(dropout, self.w[i]) + self.b[i])
                 current = tf.contrib.layers.batch_norm(hidden, center=True, scale=True, is_training=True)
-            prediction = tf.nn.sigmoid(current)
-            return self.print_tensor_with_shape(prediction, "prediction")
+            return tf.nn.sigmoid(current)

@@ -28,12 +28,9 @@ class EmbeddingDecoder(BaseModel):
 
     def decode_vector_to_sequence(self, encoded_vector, initial_decoder_state, inputs, input_lengths,
                                   domain_identifier):
-        with tf.variable_scope('{}/preprocessing'.format(self.name)):
-            # encoded vector (batch, context)
-            encoded_vector = self.print_tensor_with_shape(encoded_vector, "encoded_vector")
+            # encoded vector: (batch, context)
             # the input sequence s.t (batch, time, embedding)
-            inputs = self.print_tensor_with_shape(inputs, "inputs")
-
+        with tf.variable_scope('{}/preprocessing'.format(self.name)):
             # important sizes
             sentence_length = tf.shape(inputs)[1]
             # the decoder input need to append encoded vector to embedding of each input
@@ -42,16 +39,12 @@ class EmbeddingDecoder(BaseModel):
             decoder_inputs = tf.concat((inputs, decoder_inputs), axis=2)
 
             decoder_inputs = self.concat_identifier(decoder_inputs, domain_identifier)
-            decoder_inputs = self.print_tensor_with_shape(decoder_inputs, "decoder_inputs")
 
         with tf.variable_scope('{}/run'.format(self.name), reuse=self.reuse_flag):
             self.reuse_flag = True
             decoded_vector, decoder_last_state = tf.nn.dynamic_rnn(self.multilayer_decoder, decoder_inputs,
                                                                    initial_state=initial_decoder_state,
                                                                    time_major=False, sequence_length=input_lengths)
-            decoded_vector = self.print_tensor_with_shape(decoded_vector, "decoded_vector")
-            # decoder_last_state = self.print_tensor_with_shape(decoder_last_state, "decoder_last_state")
-
             return decoded_vector, decoder_last_state
 
     def do_teacher_forcing(self, encoded_vector, inputs, input_lengths, domain_identifier=None):

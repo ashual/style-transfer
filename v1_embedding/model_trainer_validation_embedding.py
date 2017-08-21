@@ -133,8 +133,6 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
             self.batch: batch.sentences,
             self.batch_lengths: batch.lengths,
             self.dropout_placeholder: self.config['model']['dropout'],
-            self.encoder.should_print: self.operational_config['debug'],
-            self.decoder.should_print: self.operational_config['debug'],
         }
         execution_list = [self.train_step, self.margin_loss, self.distance_loss, self.loss, self.outputs, self.accuracy,
                           self.train_summaries]
@@ -170,8 +168,6 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
             self.batch: batch.sentences,
             self.batch_lengths: batch.lengths,
             self.dropout_placeholder: 0.0,
-            self.encoder.should_print: self.operational_config['debug'],
-            self.decoder.should_print: self.operational_config['debug'],
         }
         self.loss_output, validation_acc, validation_summaries, best_validation_acc = sess.run(
             [self.loss,
@@ -200,8 +196,6 @@ class ModelTrainerValidationEmbedding(ModelTrainerBase):
                 self.batch: batch.sentences,
                 self.batch_lengths: batch.lengths,
                 self.dropout_placeholder: 0.0,
-                self.encoder.should_print: self.operational_config['debug'],
-                self.decoder.should_print: self.operational_config['debug'],
             }
             validation_acc = sess.run(self.accuracy, feed_dict)
             print('tested validation accuracy: {}'.format(validation_acc))

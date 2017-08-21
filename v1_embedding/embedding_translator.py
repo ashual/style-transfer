@@ -27,7 +27,6 @@ class EmbeddingTranslator(BaseModel):
 
     def translate_embedding_to_vocabulary_logits(self, inputs):
         with tf.variable_scope('{}/embedding_to_vocabulary_logits'.format(self.name)):
-            inputs = self.print_tensor_with_shape(inputs, "inputs")
             batch_size = tf.shape(inputs)[0]
             sentence_length = tf.shape(inputs)[1]
             embedded_inputs_flattened = tf.reshape(inputs, (batch_size * sentence_length, -1))
@@ -41,9 +40,8 @@ class EmbeddingTranslator(BaseModel):
                 vocabulary_logits_flattened,
                 (batch_size, sentence_length, self.vocabulary_length)
             )
-            return self.print_tensor_with_shape(vocabulary_logits, "vocabulary_logits")
+            return vocabulary_logits
 
     def translate_logits_to_words(self, logits_vector):
         with tf.variable_scope('{}/vocabulary_logits_to_words'.format(self.name)):
-            actual_words = tf.argmax(logits_vector, axis=2)
-            return self.print_tensor_with_shape(actual_words, "actual_words")
+            return tf.argmax(logits_vector, axis=2)

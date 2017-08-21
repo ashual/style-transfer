@@ -121,10 +121,6 @@ class ModelTrainerGan(ModelTrainerBase):
             self.model.source_lengths: batch[0].lengths,
             self.model.dropout_placeholder: 0.0,
             self.model.discriminator_dropout_placeholder: 0.0,
-            self.model.encoder.should_print: self.operational_config['debug'],
-            self.model.decoder.should_print: self.operational_config['debug'],
-            self.model.discriminator.should_print: self.operational_config['debug'],
-            self.model.embedding_translator.should_print: self.operational_config['debug'],
         }
         transferred_result = sess.run(self.model.transfer, feed_dict)
         end_of_sentence_index = self.embedding_handler.word_to_index[self.embedding_handler.end_of_sentence_token]
@@ -170,10 +166,6 @@ class ModelTrainerGan(ModelTrainerBase):
             self.model.target_lengths: batch[1].lengths,
             self.model.dropout_placeholder: self.config['model']['dropout'],
             self.model.discriminator_dropout_placeholder: self.config['model']['discriminator_dropout'],
-            self.model.encoder.should_print: self.operational_config['debug'],
-            self.model.decoder.should_print: self.operational_config['debug'],
-            self.model.discriminator.should_print: self.operational_config['debug'],
-            self.model.embedding_translator.should_print: self.operational_config['debug'],
         }
         print('batch len: {}'.format(batch[0].get_len()))
         if self.policy.train_generator:

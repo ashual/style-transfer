@@ -18,15 +18,12 @@ class EmbeddingContainer(BaseModel):
 
     def assign_embedding(self):
         with tf.variable_scope('{}/assign_embeddings'.format(self.name)):
-            embedding = self.print_tensor_with_shape(self.embedding_placeholder, "embedding")
-            return tf.assign(self.w, embedding)
+            return tf.assign(self.w, self.embedding_placeholder)
 
     def embed_inputs(self, inputs):
         with tf.variable_scope('{}/words_to_embeddings'.format(self.name)):
-            inputs = self.print_tensor_with_shape(inputs, "inputs")
             # to get vocabulary indices to embeddings
-            embedded_inputs = tf.nn.embedding_lookup(self.extended_w, inputs)
-            return self.print_tensor_with_shape(embedded_inputs, "embedded_inputs")
+            return tf.nn.embedding_lookup(self.extended_w, inputs)
 
     def get_random_words_embeddings(self, shape):
         random_words = tf.random_uniform(shape=shape,

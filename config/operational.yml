@@ -1,5 +1,4 @@
 load_model: True
-debug: False
 print_device: False
 run_optimizer: True
 tensorboard_frequency: 100
