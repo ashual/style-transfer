@@ -1,5 +1,7 @@
 import tensorflow as tf
+import numpy as np
 
+from v1_embedding.embedding_container import EmbeddingContainer
 from v1_embedding.embedding_decoder import EmbeddingDecoder
 from v1_embedding.embedding_encoder import EmbeddingEncoder
 from v1_embedding.embedding_translator import EmbeddingTranslator
@@ -30,9 +32,9 @@ class GanModel:
         self.source_lengths = tf.placeholder(tf.int32, shape=(None))
         self.target_lengths = tf.placeholder(tf.int32, shape=(None))
 
+        self.embedding_container = EmbeddingContainer(self.embedding_handler, self.config['embedding']['should_train'])
         self.embedding_translator = EmbeddingTranslator(self.embedding_handler,
                                                         self.config['model']['translation_hidden_size'],
-                                                        self.config['embedding']['should_train'],
                                                         self.dropout_placeholder)
         self.encoder = EmbeddingEncoder(self.config['model']['encoder_hidden_states'],
                                         self.dropout_placeholder,
@@ -98,12 +100,45 @@ class GanModel:
         return discriminator_step_summaries, generator_step_summaries
 
     def _encode(self, inputs, input_lengths):
-        embedding = self.embedding_translator.embed_inputs(inputs)
+        embedding = self.embedding_container.embed_inputs(inputs)
         return self.encoder.encode_inputs_to_vector(embedding, input_lengths, domain_identifier=None)
 
     def _transfer(self, inputs, input_lengths):
         encoded_source = self._encode(inputs, input_lengths)
         return self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)
+
+    def _get_generator_step_variables(self):
+        result = self.encoder.get_trainable_parameters() + self.decoder.get_trainable_parameters() +  \
+                  self.embedding_container.get_trainable_parameters()
+        if self.config['model']['loss_type'] == 'cross_entropy':
+            result += self.embedding_translator.get_trainable_parameters()
+        return result
+
+    def _reconstruction_loss(self, original_indices, decoded_embeddings):
+        vocabulary_length = self.embedding_handler.get_vocabulary_length()
+        input_shape = tf.shape(original_indices)
+        original_embedding = self.embedding_container.embed_inputs(original_indices)
+        if self.config['model']['loss_type'] == 'cross_entropy':
+            reconstructed_target_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(
+                decoded_embeddings)
+            return self.loss_handler.get_sentence_reconstruction_loss(original_indices, reconstructed_target_logits)
+        if self.config['model']['loss_type'] == 'margin1':
+            padding_mask = tf.not_equal(original_indices, vocabulary_length)
+            distance_loss = self.loss_handler.get_distance_loss(original_embedding, decoded_embeddings, padding_mask)
+            embedded_random_words = self.embedding_container.get_random_words_embeddings(
+                shape=(input_shape[0], input_shape[1], self.config['margin_loss1']['random_words_size'])
+            )
+            margin = np.floor(np.sqrt(self.config['embedding']['word_size'] * 0.25))
+            margin_loss = self.loss_handler.get_margin_loss(decoded_embeddings, padding_mask, embedded_random_words,
+                                                            margin)
+            return distance_loss + margin_loss * self.config['margin_loss1']['margin_coefficient']
+        if self.config['model']['loss_type'] == 'margin2':
+            padding_mask = tf.not_equal(original_indices, vocabulary_length)
+            embedded_random_words = self.embedding_container.get_random_words_embeddings(
+                shape=(input_shape[0], input_shape[1], self.config['margin_loss2']['random_words_size'])
+            )
+            return self.loss_handler.get_margin_loss_v2(original_embedding, decoded_embeddings, embedded_random_words,
+                                                        padding_mask, self.config['margin_loss2']['margin'])
 
     @staticmethod
     def _create_assignable_scalar(name, type, init_value):

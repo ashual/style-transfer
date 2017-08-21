@@ -44,9 +44,7 @@ class GanModelContent(GanModel):
                         discriminator_grads_and_vars)
             with tf.variable_scope('TrainGeneratorSteps'):
                 generator_optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
-                generator_var_list = self.encoder.get_trainable_parameters() + \
-                                     self.decoder.get_trainable_parameters() + \
-                                     self.embedding_translator.get_trainable_parameters()
+                generator_var_list = self._get_generator_step_variables()
                 generator_grads_and_vars = generator_optimizer.compute_gradients(
                     self.generator_loss,
                     colocate_gradients_with_ops=True,
@@ -76,15 +74,12 @@ class GanModelContent(GanModel):
 
         # reconstruction loss - recover target
         encoded_target = self._encode(target_batch, target_lengths)
-        target_embedding = self.embedding_translator.embed_inputs(target_batch)
+        target_embedding = self.embedding_container.embed_inputs(target_batch)
         teacher_forced_target = self.decoder.do_teacher_forcing(encoded_target,
                                                                 target_embedding[:, :-1, :],
                                                                 target_lengths,
                                                                 domain_identifier=None)
-        reconstructed_target_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(
-            teacher_forced_target)
-        reconstruction_loss = self.loss_handler.get_sentence_reconstruction_loss(target_batch,
-                                                                                 reconstructed_target_logits)
+        reconstruction_loss = self._reconstruction_loss(target_batch, teacher_forced_target)
 
         # semantic vector distance
         transferred_source = self.decoder.do_iterative_decoding(encoded_source, domain_identifier=None)

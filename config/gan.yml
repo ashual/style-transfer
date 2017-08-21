@@ -14,8 +14,19 @@ model:
 #  curriculum_training: True
   reconstruction_coefficient: 1.0
   semantic_distance_coefficient: 1.0
-  discriminator_type: 'embedding'
-#  discriminator_type: 'content'
+#  discriminator_type: 'embedding'
+  discriminator_type: 'content'
+#  loss_type: 'cross_entropy'
+#  loss_type: 'margin1'
+  loss_type: 'margin2'
+
+margin_loss1:
+  random_words_size: 5
+  margin_coefficient: 1.0
+
+margin_loss2:
+  random_words_size: 5
+  margin: 1.0
 
 discriminator_embedding:
   hidden_states: [1000]
@@ -37,7 +48,7 @@ embedding:
 #  lower_range: 3.0
 
 sentence:
-  limit: 300000
-#  limit: 150
+#  limit: 300000
+  limit: 150
   min_length: 3
   max_length: 15

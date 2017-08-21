@@ -156,8 +156,8 @@ class ModelTrainerGan(ModelTrainerBase):
             return None
 
     def do_before_train_loop(self, sess):
-        sess.run(self.model.embedding_translator.assign_embedding(), {
-            self.model.embedding_translator.embedding_placeholder: self.embedding_handler.embedding_np
+        sess.run(self.model.embedding_container.assign_embedding(), {
+            self.model.embedding_container.embedding_placeholder: self.embedding_handler.embedding_np
         })
         self.policy.do_train_switch(start_training_generator=False)
         sess.run(self.model.assign_train_generator, {self.model.train_generator_placeholder: 0})
