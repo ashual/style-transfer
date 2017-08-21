@@ -65,15 +65,14 @@ class GanModel:
         self.generator_train_step = None
 
         # do transfer
-        with tf.variable_scope('TransferSourceToTarget'):
-            transferred_embeddings = self._transfer(self.source_batch, self.source_lengths)
-            if self.config['model']['loss_type'] == 'cross_entropy':
-                transferred_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(
-                    transferred_embeddings)
-                self.transfer = self.embedding_translator.translate_logits_to_words(transferred_logits)
-            else:
-                self.transfer = self.decoded_to_closest(transferred_embeddings,
-                                                        self.embedding_handler.get_vocabulary_length())
+        transferred_embeddings = self._transfer(self.source_batch, self.source_lengths)
+        if self.config['model']['loss_type'] == 'cross_entropy':
+            transferred_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(
+                transferred_embeddings)
+            self.transfer = self.embedding_translator.translate_logits_to_words(transferred_logits)
+        else:
+            self.transfer = self.decoded_to_closest(transferred_embeddings,
+                                                    self.embedding_handler.get_vocabulary_length())
 
         # summaries
         self.epoch, self.epoch_placeholder, self.assign_epoch = GanModel._create_assignable_scalar(
@@ -132,7 +131,7 @@ class GanModel:
 
     def _get_generator_step_variables(self):
         result = self.encoder.get_trainable_parameters() + self.decoder.get_trainable_parameters() +  \
-                  self.embedding_container.get_trainable_parameters()
+                 self.embedding_container.get_trainable_parameters()
         if self.config['model']['loss_type'] == 'cross_entropy':
             result += self.embedding_translator.get_trainable_parameters()
         return result
