@@ -33,9 +33,11 @@ class GanModel:
         self.target_lengths = tf.placeholder(tf.int32, shape=(None))
 
         self.embedding_container = EmbeddingContainer(self.embedding_handler, self.config['embedding']['should_train'])
-        self.embedding_translator = EmbeddingTranslator(self.embedding_handler,
-                                                        self.config['model']['translation_hidden_size'],
-                                                        self.dropout_placeholder)
+        self.embedding_translator = None
+        if self.config['model']['loss_type'] == 'cross_entropy':
+            self.embedding_translator = EmbeddingTranslator(self.embedding_handler,
+                                                            self.config['model']['translation_hidden_size'],
+                                                            self.dropout_placeholder)
         self.encoder = EmbeddingEncoder(self.config['model']['encoder_hidden_states'],
                                         self.dropout_placeholder,
                                         self.config['model']['bidirectional_encoder'])

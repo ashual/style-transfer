@@ -1,9 +1,9 @@
 model:
-#  number_of_epochs: 5000
-  number_of_epochs: 50
-#  batch_size: 100
-  batch_size: 10
-  translation_hidden_size: 1000
+  number_of_epochs: 5000
+#  number_of_epochs: 50
+  batch_size: 100
+#  batch_size: 10
+#  translation_hidden_size: 1000
   encoder_hidden_states: [1500, 1000, 500]
   decoder_hidden_states: [1000, 1500]
 #  learn_rate: 0.0001
@@ -37,18 +37,20 @@ discriminator_content:
   hidden_states: [1000]
 
 embedding:
-#  min_word_occurrences: 2
-  min_word_occurrences: 0
-#  word_size: 200
-  word_size: 50
-  should_train: True
+  min_word_occurrences: 2
+#  min_word_occurrences: 0
+  word_size: 200
+#  word_size: 50
+  should_train: False
+#  should_train: True
 
 #loss:
 #  upper_range: 5.0
 #  lower_range: 3.0
 
 sentence:
-#  limit: 300000
-  limit: 150
-  min_length: 3
+  limit: 300000
+#  limit: 150
+  min_length: 6
+#  min_length: 3
   max_length: 15
