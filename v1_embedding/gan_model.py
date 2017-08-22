@@ -160,7 +160,7 @@ class GanModel:
                 shape=(input_shape[0], input_shape[1], self.config['margin_loss2']['random_words_size'])
             )
             return self.loss_handler.get_margin_loss_v2(original_embedding, decoded_embeddings, embedded_random_words,
-                                                        padding_mask, self.config['margin_loss2']['margin'])
+                                                        self.config['margin_loss2']['margin'], padding_mask)
 
     @staticmethod
     def _create_assignable_scalar(name, type, init_value):

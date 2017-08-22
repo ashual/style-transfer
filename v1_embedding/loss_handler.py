@@ -59,10 +59,11 @@ class LossHandler(BaseModel):
 
         return sum / mask_sum
 
-    def get_sentence_reconstruction_loss(self, labels, logits):
+    def get_sentence_reconstruction_loss(self, labels, logits, padding_mask=None):
         with tf.variable_scope('SentenceReconstructionLoss'):
             # get the places without padding
-            padding_mask = tf.not_equal(labels, self.vocabulary_length)
+            if padding_mask is None:
+                padding_mask = tf.not_equal(labels, self.vocabulary_length)
             # zero out places with padding, required for the softmax to be valid
             non_padding_labels = tf.where(tf.logical_not(padding_mask), tf.zeros_like(labels), labels)
             # get the cross entropy in each place
