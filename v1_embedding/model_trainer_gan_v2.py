@@ -48,15 +48,17 @@ class ModelTrainerGan(ModelTrainerBase):
         print('started generator')
         print('running loss: {}'.format(self.policy.running_loss))  # TODO: remove
         execution_list = [
-            self.model.prediction,
+            # self.model.prediction,
             self.model.discriminator_loss,
             self.model.accuracy
         ]
-        pred, loss, acc = sess.run(execution_list, feed_dictionary)
+        loss, acc = sess.run(execution_list, feed_dictionary)
+        # pred, loss, acc = sess.run(execution_list, feed_dictionary)
         # print('pred: {}'.format(pred))
         print('acc: {}'.format(acc))
         print('loss: {}'.format(loss))
-        if self.policy.should_train_generator(global_step, epoch_num, batch_index, pred, loss, acc):
+        # if self.policy.should_train_generator(global_step, epoch_num, batch_index, pred, loss, acc):
+        if self.policy.should_train_generator(global_step, epoch_num, batch_index, None, loss, acc):
             # the generator is still improving
             print('new running loss: {}'.format(self.policy.running_loss))  # TODO: remove
             print()
@@ -81,15 +83,17 @@ class ModelTrainerGan(ModelTrainerBase):
         print('started discriminator')
         print('running loss: {}'.format(self.policy.running_loss))  # TODO: remove
         execution_list = [
-            self.model.prediction,
+            # self.model.prediction,
             self.model.discriminator_loss,
             self.model.accuracy
         ]
-        pred, loss, acc = sess.run(execution_list, feed_dictionary)
+        # pred, loss, acc = sess.run(execution_list, feed_dictionary)
+        loss, acc = sess.run(execution_list, feed_dictionary)
         # print('pred: {}'.format(pred))
         print('acc: {}'.format(acc))
         print('loss: {}'.format(loss))
-        if self.policy.should_train_discriminator(global_step, epoch_num, batch_index, pred, loss, acc):
+        # if self.policy.should_train_discriminator(global_step, epoch_num, batch_index, pred, loss, acc):
+        if self.policy.should_train_discriminator(global_step, epoch_num, batch_index, None, loss, acc):
             # the discriminator is still improving
             print('new running loss: {}'.format(self.policy.running_loss))  # TODO: remove
             print()
