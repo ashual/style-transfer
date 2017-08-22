@@ -1,17 +1,17 @@
 model:
   number_of_epochs: 5000
   batch_size: 10
-  translation_hidden_size: 1000
+  translation_hidden_size: 3000
   encoder_hidden_states: [1500, 1000, 500]
   decoder_hidden_states: [1000, 1500]
-  learn_rate: 1.1
+  learn_rate: 0.01
   dropout: 0.1
   bidirectional_encoder: False
-  curriculum_training: False
+  curriculum_training: True
 
 embedding:
   min_word_occurrences: 2
-  word_size: 50
+  word_size: 100
   should_train: False
 
 loss:
@@ -19,7 +19,7 @@ loss:
   lower_range: 3.0
 
 sentence:
-  #limit: 1000
-  limit: 5
+  limit: 1000
+#  limit: 5
   min_length: 3
   max_length: 15
