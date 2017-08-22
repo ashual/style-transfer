@@ -41,7 +41,8 @@ class ModelTrainerGan(ModelTrainerBase):
         self.model = GanModel(self.config, self.operational_config, self.embedding_handler)
 
     def get_trainer_name(self):
-        return '{}_{}'.format(self.__class__.__name__, self.config['model']['discriminator_type'])
+        return '{}_{}_{}'.format(self.__class__.__name__, self.config['model']['discriminator_type'],
+                                 self.config['model']['loss_type'])
 
     def do_generator_train(self, sess, global_step, epoch_num, batch_index, feed_dictionary, extract_summaries):
         print('started generator')
@@ -133,15 +134,15 @@ class ModelTrainerGan(ModelTrainerBase):
             'transferred: ',
             self.embedding_handler
         )
-        if return_result_as_summary:
-            # output validation summary for first 5 sentences
-            to_print = 5
-            return sess.run(self.model.text_watcher.summary, {
-                self.model.text_watcher.placeholder1: [' '.join(s) for s in original_strings[:to_print]],
-                self.model.text_watcher.placeholder2: [' '.join(s) for s in transferred_strings[:to_print]],
-            })
-        else:
-            return None
+        # if return_result_as_summary:
+        #     # output validation summary for first 5 sentences
+        #     to_print = 5
+        #     return sess.run(self.model.text_watcher.summary, {
+        #         self.model.text_watcher.placeholder1: [' '.join(s) for s in original_strings[:to_print]],
+        #         self.model.text_watcher.placeholder2: [' '.join(s) for s in transferred_strings[:to_print]],
+        #     })
+        # else:
+        #     return None
 
     def do_before_train_loop(self, sess):
         sess.run(self.model.embedding_container.assign_embedding(), {

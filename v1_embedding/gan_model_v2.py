@@ -101,7 +101,7 @@ class GanModel:
         self.epoch, self.epoch_placeholder, self.assign_epoch = self._create_assignable_scalar(
             'epoch', tf.int32, init_value=0
         )
-        self.text_watcher = TextWatcher('original', 'transferred')
+        # self.text_watcher = TextWatcher('original', 'transferred')
         self.discriminator_step_summaries, self.generator_step_summaries = self._create_summaries()
 
     def _init_discriminator(self):
