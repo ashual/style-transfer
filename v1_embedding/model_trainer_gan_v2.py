@@ -73,7 +73,7 @@ class ModelTrainerGan(ModelTrainerBase):
             print('generator too good - training discriminator')
             print()
             # activate the saver
-            self.saver_wrapper.save_model(sess, global_step=global_step)
+            # self.saver_wrapper.save_model(sess, global_step=global_step)
             # the generator is no longer improving, will train discriminator next
             self.policy.do_train_switch(start_training_generator=False)
             return self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dictionary,
