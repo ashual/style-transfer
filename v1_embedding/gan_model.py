@@ -42,7 +42,9 @@ class GanModel:
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(),
                                         self.config['model']['decoder_hidden_states'],
                                         self.dropout_placeholder,
-                                        self.config['sentence']['max_length'])
+                                        # TODO: when add curriculum - change to max and make the transferred source be
+                                        # rolled out according to the curriculum sentence length
+                                        self.config['sentence']['min_length'])
         self.loss_handler = LossHandler(self.embedding_handler.get_vocabulary_length())
         self.discriminator = self._init_discriminator()
         # common steps:
