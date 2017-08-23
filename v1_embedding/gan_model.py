@@ -26,6 +26,7 @@ class GanModel:
         self.dropout_placeholder = tf.placeholder(tf.float32, shape=(), name='dropout_placeholder')
         self.discriminator_dropout_placeholder = tf.placeholder(tf.float32, shape=(),
                                                                 name='discriminator_dropout_placeholder')
+        self.use_discriminator_for_generator = tf.placeholder_with_default(True, shape=())
         # placeholder for source sentences (batch, time)=> index of word s.t the padding is on the right
         self.source_batch = tf.placeholder(tf.int64, shape=(None, None))
         # placeholder for target sentences (batch, time)=> index of word s.t the padding is on the right
@@ -72,12 +73,15 @@ class GanModel:
         # generator loss
         generator_loss = self.config['model']['reconstruction_coefficient'] * self.reconstruction_loss + \
                          self.config['model']['semantic_distance_coefficient'] * self.semantic_distance_loss
-        should_include_discriminator = tf.logical_and(
-            tf.greater(generator_loss, self.discriminator_loss),
-            tf.greater_equal(self.accuracy, self.config['model']['minimal_accuracy_for_discriminator'])
+        self._apply_discriminator_loss_for_generator = tf.logical_and(
+            self.use_discriminator_for_generator,
+            tf.logical_and(
+                tf.greater(self.config['model']['maximal_loss_for_discriminator'], self.discriminator_loss),
+                tf.greater_equal(self.accuracy, self.config['model']['minimal_accuracy_for_discriminator'])
+            )
         )
         self.generator_loss = generator_loss + tf.cond(
-            pred=should_include_discriminator,
+            pred=self._apply_discriminator_loss_for_generator,
             true_fn=lambda: -self.discriminator_loss,
             false_fn=lambda: 0.0
         )
@@ -223,6 +227,8 @@ class GanModel:
             tf.summary.scalar('reconstruction_loss_on_generator_step', self.reconstruction_loss),
             tf.summary.scalar('content_vector_loss_on_generator_step', self.semantic_distance_loss),
             tf.summary.scalar('generator_loss', self.generator_loss),
+            tf.summary.scalar('apply_discriminator_loss_for_generator', tf.cast(
+                self._apply_discriminator_loss_for_generator, tf.int8)),
         ])
         return discriminator_step_summaries, generator_step_summaries
 
