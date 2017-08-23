@@ -68,9 +68,17 @@ class GanModel:
         self.reconstruction_loss = self._get_reconstruction_loss()
 
         # generator loss
-        self.generator_loss = self.config['model']['reconstruction_coefficient'] * self.reconstruction_loss + \
-                              self.config['model']['semantic_distance_coefficient'] * self.semantic_distance_loss - \
-                              self.discriminator_loss
+        generator_loss = self.config['model']['reconstruction_coefficient'] * self.reconstruction_loss + \
+                         self.config['model']['semantic_distance_coefficient'] * self.semantic_distance_loss
+        should_include_discriminator = tf.logical_and(
+            tf.greater(generator_loss, self.discriminator_loss),
+            tf.greater_equal(self.accuracy, self.config['model']['minimal_accuracy_for_discriminator'])
+        )
+        self.generator_loss = generator_loss + tf.cond(
+            pred=should_include_discriminator,
+            true_fn=lambda: -self.discriminator_loss,
+            false_fn=lambda: 0.0
+        )
 
         # train steps
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
@@ -101,7 +109,7 @@ class GanModel:
         self.epoch, self.epoch_placeholder, self.assign_epoch = self._create_assignable_scalar(
             'epoch', tf.int32, init_value=0
         )
-        # self.text_watcher = TextWatcher('original', 'transferred')
+        self.text_watcher = TextWatcher('original', 'transferred')
         self.discriminator_step_summaries, self.generator_step_summaries = self._create_summaries()
 
     def _init_discriminator(self):
@@ -118,7 +126,7 @@ class GanModel:
     def _init_translator(self):
         if self.config['model']['loss_type'] == 'cross_entropy':
             return EmbeddingTranslator(self.embedding_handler,
-                                       self.config['model']['translation_hidden_size'],
+                                       self.config['cross_entropy_loss']['translation_hidden_size'],
                                        self.dropout_placeholder)
 
     def _encode(self, inputs, input_lengths):

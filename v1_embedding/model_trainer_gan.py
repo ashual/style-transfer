@@ -1,6 +1,7 @@
 import yaml
 from datasets.multi_batch_iterator import MultiBatchIterator
 from datasets.yelp_helpers import YelpSentences
+from v1_embedding.contant_iteration_policy import ConstantIterationPolicy
 from v1_embedding.convergence_policy import ConvergencePolicy
 from v1_embedding.gan_model import GanModel
 from v1_embedding.model_trainer_base import ModelTrainerBase
@@ -27,7 +28,7 @@ class ModelTrainerGan(ModelTrainerBase):
         self.batch_iterator = MultiBatchIterator(datasets,
                                                  self.embedding_handler,
                                                  self.config['sentence']['min_length'],
-                                                 self.config['model']['batch_size'])
+                                                 self.config['trainer']['batch_size'])
 
         # iterators
         self.batch_iterator_validation = MultiBatchIterator(datasets,
@@ -35,7 +36,9 @@ class ModelTrainerGan(ModelTrainerBase):
                                                             self.config['sentence']['min_length'],
                                                             2)
         # train loop parameters:
-        self.policy = ConvergencePolicy()
+        # self.policy = ConvergencePolicy()
+        self.policy = ConstantIterationPolicy(generator_steps=self.config['trainer']['min_generator_steps'],
+                                              discriminator_steps=self.config['trainer']['min_discriminator_steps'])
 
         # set the model
         self.model = GanModel(self.config, self.operational_config, self.embedding_handler)
@@ -46,7 +49,7 @@ class ModelTrainerGan(ModelTrainerBase):
 
     def do_generator_train(self, sess, global_step, epoch_num, batch_index, feed_dictionary, extract_summaries):
         print('started generator')
-        print('running loss: {}'.format(self.policy.running_loss))  # TODO: remove
+        # print('running loss: {}'.format(self.policy.running_loss))  # TODO: remove
         execution_list = [
             # self.model.prediction,
             self.model.discriminator_loss,
@@ -60,7 +63,7 @@ class ModelTrainerGan(ModelTrainerBase):
         # if self.policy.should_train_generator(global_step, epoch_num, batch_index, pred, loss, acc):
         if self.policy.should_train_generator(global_step, epoch_num, batch_index, None, loss, acc):
             # the generator is still improving
-            print('new running loss: {}'.format(self.policy.running_loss))  # TODO: remove
+            # print('new running loss: {}'.format(self.policy.running_loss))  # TODO: remove
             print()
             execution_list = [self.model.generator_train_step, self.model.generator_step_summaries]
             if extract_summaries:
@@ -81,7 +84,7 @@ class ModelTrainerGan(ModelTrainerBase):
 
     def do_discriminator_train(self, sess, global_step, epoch_num, batch_index, feed_dictionary, extract_summaries):
         print('started discriminator')
-        print('running loss: {}'.format(self.policy.running_loss))  # TODO: remove
+        # print('running loss: {}'.format(self.policy.running_loss))  # TODO: remove
         execution_list = [
             # self.model.prediction,
             self.model.discriminator_loss,
@@ -95,7 +98,7 @@ class ModelTrainerGan(ModelTrainerBase):
         # if self.policy.should_train_discriminator(global_step, epoch_num, batch_index, pred, loss, acc):
         if self.policy.should_train_discriminator(global_step, epoch_num, batch_index, None, loss, acc):
             # the discriminator is still improving
-            print('new running loss: {}'.format(self.policy.running_loss))  # TODO: remove
+            # print('new running loss: {}'.format(self.policy.running_loss))  # TODO: remove
             print()
             execution_list = [self.model.discriminator_train_step, self.model.discriminator_step_summaries]
             if extract_summaries:
@@ -138,15 +141,15 @@ class ModelTrainerGan(ModelTrainerBase):
             'transferred: ',
             self.embedding_handler
         )
-        # if return_result_as_summary:
-        #     # output validation summary for first 5 sentences
-        #     to_print = 5
-        #     return sess.run(self.model.text_watcher.summary, {
-        #         self.model.text_watcher.placeholder1: [' '.join(s) for s in original_strings[:to_print]],
-        #         self.model.text_watcher.placeholder2: [' '.join(s) for s in transferred_strings[:to_print]],
-        #     })
-        # else:
-        #     return None
+        if return_result_as_summary:
+            # output validation summary for first 5 sentences
+            to_print = 5
+            return sess.run(self.model.text_watcher.summary, {
+                self.model.text_watcher.placeholder1: [' '.join(s) for s in original_strings[:to_print]],
+                self.model.text_watcher.placeholder2: [' '.join(s) for s in transferred_strings[:to_print]],
+            })
+        else:
+            return None
 
     def do_before_train_loop(self, sess):
         sess.run(self.model.embedding_container.assign_embedding(), {

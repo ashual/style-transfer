@@ -1,9 +1,12 @@
-model:
+trainer:
   number_of_epochs: 5000
 #  number_of_epochs: 50
   batch_size: 100
 #  batch_size: 10
-#  translation_hidden_size: 1000
+  min_generator_steps: 100
+  min_discriminator_steps: 100
+
+model:
   encoder_hidden_states: [1500, 1000, 500]
   decoder_hidden_states: [1000, 1500]
 #  learn_rate: 0.0001
@@ -14,11 +17,15 @@ model:
 #  curriculum_training: True
   reconstruction_coefficient: 1.0
   semantic_distance_coefficient: 1.0
+  minimal_accuracy_for_discriminator: 0.2
 #  discriminator_type: 'embedding'
   discriminator_type: 'content'
 #  loss_type: 'cross_entropy'
 #  loss_type: 'margin1'
   loss_type: 'margin2'
+
+cross_entropy_loss:
+  translation_hidden_size: 1000
 
 margin_loss1:
   random_words_size: 5
@@ -44,7 +51,7 @@ embedding:
   should_train: False
 #  should_train: True
 
-#loss:
+#curriculum:
 #  upper_range: 5.0
 #  lower_range: 3.0
 

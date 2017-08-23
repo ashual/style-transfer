@@ -78,8 +78,8 @@ class ModelTrainerBase:
             self.do_before_train_loop(sess)
 
             global_step = 0
-            for epoch_num in range(self.config['model']['number_of_epochs']):
-                print('epoch {} of {}'.format(epoch_num+1, self.config['model']['number_of_epochs']))
+            for epoch_num in range(self.config['trainer']['number_of_epochs']):
+                print('epoch {} of {}'.format(epoch_num+1, self.config['trainer']['number_of_epochs']))
                 self.do_before_epoch(sess, global_step, epoch_num)
                 for batch_index, batch in enumerate(self.batch_iterator):
                     extract_summaries = use_tensorboard and \
