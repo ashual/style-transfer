@@ -106,7 +106,7 @@ class GanModel:
                     colocate_gradients_with_ops=True,
                     var_list=generator_var_list
                 )
-                with tf.control_dependencies(update_ops + [tf.assign(self._train_generator, 1)]):
+                with tf.control_dependencies(update_ops + [tf.assign(self. _train_generator, 1)]):
                     self.generator_train_step = generator_optimizer.apply_gradients(generator_grads_and_vars)
 
         # do transfer

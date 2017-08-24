@@ -167,14 +167,16 @@ class ModelTrainerGan(ModelTrainerBase):
             self.model.discriminator_dropout_placeholder: self.config['model']['discriminator_dropout'],
         }
         print('batch len: {}'.format(batch[0].get_len()))
-        if self.policy.train_generator:
-            # should train the generator
-            return self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dict,
+        return self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dict,
                                            extract_summaries=extract_summaries)
-        else:
-            # should train discriminator
-            return self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dict,
-                                               extract_summaries=extract_summaries)
+        # if self.policy.train_generator:
+        #     # should train the generator
+        #     return self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dict,
+        #                                    extract_summaries=extract_summaries)
+        # else:
+        #     # should train discriminator
+        #     return self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dict,
+        #                                        extract_summaries=extract_summaries)
 
     def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch):
         return self.transfer_batch(sess, batch, return_result_as_summary=True)
