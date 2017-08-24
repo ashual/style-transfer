@@ -115,6 +115,15 @@ class ModelTrainerGan(ModelTrainerBase):
             return self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dictionary,
                                            extract_summaries=extract_summaries)
 
+    def do_discriminator_train_temp(self, sess, global_step, epoch_num, batch_index, feed_dictionary, extract_summaries):
+        execution_list = [self.model.discriminator_train_step, self.model.discriminator_step_summaries]
+        if extract_summaries:
+            _, s = sess.run(execution_list, feed_dictionary)
+            return s
+        else:
+            sess.run(execution_list[:-1], feed_dictionary)
+            return None
+
     def transfer_batch(self, sess, batch, return_result_as_summary=True):
         feed_dict = {
             self.model.source_batch: batch[0].sentences,
@@ -167,8 +176,8 @@ class ModelTrainerGan(ModelTrainerBase):
             self.model.discriminator_dropout_placeholder: self.config['model']['discriminator_dropout'],
         }
         print('batch len: {}'.format(batch[0].get_len()))
-        return self.do_discriminator_train(sess, global_step, epoch_num, batch_index, feed_dict,
-                                           extract_summaries=extract_summaries)
+        return self.do_discriminator_train_temp(sess, global_step, epoch_num, batch_index, feed_dict,
+                                                extract_summaries=extract_summaries)
         # if self.policy.train_generator:
         #     # should train the generator
         #     return self.do_generator_train(sess, global_step, epoch_num, batch_index, feed_dict,
