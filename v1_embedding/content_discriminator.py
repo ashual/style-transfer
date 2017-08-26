@@ -22,7 +22,7 @@ class ContentDiscriminator(BaseModel):
             self.reuse_flag = True
             current = inputs
             for i in range(len(self.w)):
-                dropout = tf.nn.dropout(current, self.dropout_placeholder)
-                hidden = tf.nn.relu(tf.matmul(dropout, self.w[i]) + self.b[i])
-                current = tf.contrib.layers.batch_norm(hidden, center=True, scale=True, is_training=True)
-            return tf.nn.sigmoid(current)
+                pre_activation = tf.matmul(current, self.w[i]) + self.b[i]
+                offset = 0.5 * tf.ones_like(pre_activation) + pre_activation
+                current = tf.nn.sigmoid(offset)
+            return current
