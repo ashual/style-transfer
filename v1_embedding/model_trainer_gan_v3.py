@@ -109,6 +109,9 @@ class ModelTrainerGan(ModelTrainerBase):
         return summary
 
     def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch):
+        # activate the saver
+        self.saver_wrapper.save_model(sess, global_step=global_step)
+        # transfer
         return self.transfer_batch(sess, batch, return_result_as_summary=True)
 
     def do_after_train_loop(self, sess):
