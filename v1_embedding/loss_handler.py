@@ -7,7 +7,6 @@ class LossHandler(BaseModel):
     def __init__(self, vocabulary_length):
         BaseModel.__init__(self)
         self.vocabulary_length = vocabulary_length
-        self.epsilon = 0.001
 
     def get_context_vector_distance_loss(self, encoded_source, encoded_dest):
         with tf.variable_scope('ContextVectorDistanceLoss'):
@@ -76,19 +75,15 @@ class LossHandler(BaseModel):
             cross_entropy_sum = tf.reduce_sum(cross_entropy_no_padding)
             return tf.divide(cross_entropy_sum, tf.reduce_sum(casted_padding_mask))
 
-    def _stable_log(self, input):
-        with tf.variable_scope('StableLog'):
-            input = tf.maximum(input, self.epsilon)
-            input = tf.minimum(input, 1.0 - self.epsilon)
-            return tf.log(input)
-
     def get_discriminator_loss(self, prediction_transferred, prediction_target):
         with tf.variable_scope('DiscriminatorLoss'):
             transferred_accuracy = tf.reduce_mean(tf.cast(tf.less(prediction_transferred, 0.5), tf.float32))
-            transferred_loss = -tf.reduce_mean(self._stable_log(1.0 - prediction_transferred))
-
             target_accuracy = tf.reduce_mean(tf.cast(tf.greater_equal(prediction_target, 0.5), tf.float32))
-            target_loss = -tf.reduce_mean(self._stable_log(prediction_target))
+
+            target_loss = tf.reduce_mean(
+                tf.nn.sigmoid_cross_entropy_with_logits(logits=prediction_target, labels=tf.ones_like(prediction_target)))
+            transferred_loss = tf.reduce_mean(
+                tf.nn.sigmoid_cross_entropy_with_logits(logits=prediction_transferred, labels=tf.zeros_like(prediction_transferred)))
 
             # total loss is the sum of losses
             total_loss = transferred_loss + target_loss
