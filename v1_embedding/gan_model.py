@@ -150,8 +150,7 @@ class GanModel:
             prediction_input = tf.concat((self._source_encoded, self._target_encoded), axis=0)
         prediction = self.discriminator.predict(prediction_input)
         source_batch_size = tf.shape(self.source_batch)[0]
-        source_prediction = prediction[:source_batch_size, :]
-        target_prediction = prediction[source_batch_size:, :]
+        source_prediction, target_prediction = tf.split(prediction, [source_batch_size, source_batch_size], axis=0)
         return prediction, source_prediction, target_prediction
 
     def _transfer(self):
