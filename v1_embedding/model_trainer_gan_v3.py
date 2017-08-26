@@ -123,8 +123,9 @@ class ModelTrainerGan(ModelTrainerBase):
         sess.run(self.model.assign_epoch, {self.model.epoch_placeholder: epoch_num})
 
     def do_after_epoch(self, sess, global_step, epoch_num):
-        # activate the saver
-        self.saver_wrapper.save_model(sess, global_step=global_step)
+        if epoch_num % 10 == 0:
+            # activate the saver
+            self.saver_wrapper.save_model(sess, global_step=global_step)
 
 
 if __name__ == "__main__":
