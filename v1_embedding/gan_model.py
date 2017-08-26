@@ -7,6 +7,7 @@ from v1_embedding.embedding_decoder import EmbeddingDecoder
 from v1_embedding.embedding_discriminator import EmbeddingDiscriminator
 from v1_embedding.embedding_encoder import EmbeddingEncoder
 from v1_embedding.embedding_translator import EmbeddingTranslator
+from v1_embedding.iterative_policy import IterativePolicy
 from v1_embedding.loss_handler import LossHandler
 from v1_embedding.text_watcher import TextWatcher
 
@@ -26,11 +27,14 @@ class GanModel:
         self.dropout_placeholder = tf.placeholder(tf.float32, shape=(), name='dropout_placeholder')
         self.discriminator_dropout_placeholder = tf.placeholder(tf.float32, shape=(),
                                                                 name='discriminator_dropout_placeholder')
-        self.use_discriminator_for_generator = tf.placeholder_with_default(True, shape=())
         # placeholder for source sentences (batch, time)=> index of word s.t the padding is on the right
         self.source_batch = tf.placeholder(tf.int64, shape=(None, None))
         # placeholder for target sentences (batch, time)=> index of word s.t the padding is on the right
         self.target_batch = tf.placeholder(tf.int64, shape=(None, None))
+
+        self.epoch, self.epoch_placeholder, self.assign_epoch = self._create_assignable_scalar(
+            'epoch', tf.int32, init_value=0
+        )
 
         self.source_lengths = tf.placeholder(tf.int32, shape=(None))
         self.target_lengths = tf.placeholder(tf.int32, shape=(None))
@@ -48,17 +52,20 @@ class GanModel:
                                         self.config['sentence']['min_length'])
         self.loss_handler = LossHandler(self.embedding_handler.get_vocabulary_length())
         self.discriminator = self._init_discriminator()
+        self.policy = IterativePolicy(True)
+
         # common steps:
-        self._train_generator = tf.Variable(initial_value=0, trainable=False, dtype=tf.int32, expected_shape=())
         self._source_embedding, self._source_encoded = self._encode(self.source_batch, self.source_lengths)
         self._target_embedding, self._target_encoded = self._encode(self.target_batch, self.target_lengths)
         self._transferred_source = self.decoder.do_iterative_decoding(self._source_encoded)
         self._teacher_forced_target = self.decoder.do_teacher_forcing(
             self._target_encoded, self._target_embedding[:, :-1, :], self.target_lengths
         )
+
         # discriminator prediction
         self.prediction, _source_prediction, _target_prediction = self._predict()
-        # loss and accuracy
+
+        # discriminator loss and accuracy
         self.discriminator_loss, self.accuracy = self.loss_handler.get_discriminator_loss(_source_prediction,
                                                                                           _target_prediction)
         # content vector reconstruction loss
@@ -74,11 +81,8 @@ class GanModel:
         generator_loss = self.config['model']['reconstruction_coefficient'] * self.reconstruction_loss + \
                          self.config['model']['semantic_distance_coefficient'] * self.semantic_distance_loss
         self._apply_discriminator_loss_for_generator = tf.logical_and(
-            self.use_discriminator_for_generator,
-            tf.logical_and(
-                tf.greater(self.config['model']['maximal_loss_for_discriminator'], self.discriminator_loss),
-                tf.greater_equal(self.accuracy, self.config['model']['minimal_accuracy_for_discriminator'])
-            )
+            tf.greater(self.config['model']['maximal_loss_for_discriminator'], self.discriminator_loss),
+            tf.greater_equal(self.accuracy, self.config['model']['minimal_accuracy_for_discriminator'])
         )
         self.generator_loss = generator_loss + tf.cond(
             pred=self._apply_discriminator_loss_for_generator,
@@ -95,8 +99,8 @@ class GanModel:
                 discriminator_grads_and_vars = discriminator_optimizer.compute_gradients(
                     self.discriminator_loss, colocate_gradients_with_ops=True, var_list=discriminator_var_list
                 )
-                with tf.control_dependencies(update_ops + [tf.assign(self._train_generator, 0)]):
-                    self.discriminator_train_step = discriminator_optimizer.apply_gradients(
+                with tf.control_dependencies(update_ops):
+                    discriminator_train_step = discriminator_optimizer.apply_gradients(
                         discriminator_grads_and_vars)
             with tf.variable_scope('TrainGeneratorSteps'):
                 generator_optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
@@ -106,17 +110,36 @@ class GanModel:
                     colocate_gradients_with_ops=True,
                     var_list=generator_var_list
                 )
-                with tf.control_dependencies(update_ops + [tf.assign(self. _train_generator, 1)]):
-                    self.generator_train_step = generator_optimizer.apply_gradients(generator_grads_and_vars)
+                with tf.control_dependencies(update_ops):
+                    generator_train_step = generator_optimizer.apply_gradients(generator_grads_and_vars)
+
+            self.train_generator = self.policy.should_train_generator()
+
+            # controls which train step to take
+            policy_selected_train_step = tf.cond(
+                self.train_generator,
+                lambda: generator_train_step,
+                lambda: discriminator_train_step
+            )
+            # after appropriate train step is executed, we notify the policy
+            with tf.control_dependencies([policy_selected_train_step]):
+                # this is the master step to use to run a train step on the model
+                self.master_step = self.policy.notify()
+
+        # summaries
+        discriminator_step_summaries, generator_step_summaries = self._create_summaries()
+        # controls which summary step to take
+        self.summary_step = tf.cond(
+            self.train_generator,
+            lambda: generator_step_summaries,
+            lambda: discriminator_step_summaries
+        )
 
         # do transfer
         self.transferred_source_batch = self._transfer()
-        # summaries
-        self.epoch, self.epoch_placeholder, self.assign_epoch = self._create_assignable_scalar(
-            'epoch', tf.int32, init_value=0
-        )
+
+        # to generate text in tensorboard use:
         self.text_watcher = TextWatcher('original', 'transferred')
-        self.discriminator_step_summaries, self.generator_step_summaries = self._create_summaries()
 
     def _init_discriminator(self):
         if self.config['model']['discriminator_type'] == 'embedding':
@@ -209,7 +232,7 @@ class GanModel:
 
     def _create_summaries(self):
         epoch_summary = tf.summary.scalar('epoch', self.epoch)
-        train_generator_summary = tf.summary.scalar('train_generator', self._train_generator)
+        train_generator_summary = tf.summary.scalar('train_generator', tf.cast(self.train_generator, dtype=tf.int8)),
         accuracy_summary = tf.summary.scalar('accuracy', self.accuracy)
         discriminator_loss_summary = tf.summary.scalar('discriminator_loss', self.discriminator_loss)
         discriminator_step_summaries = tf.summary.merge([
