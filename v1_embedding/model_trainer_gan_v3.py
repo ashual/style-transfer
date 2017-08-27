@@ -43,11 +43,15 @@ class ModelTrainerGan(ModelTrainerBase):
     def transfer_batch(self, sess, batch, return_result_as_summary=True):
         feed_dict = {
             self.model.source_batch: batch[0].sentences,
+            self.model.target_batch: batch[1].sentences,
             self.model.source_lengths: batch[0].lengths,
+            self.model.target_lengths: batch[1].lengths,
             self.model.dropout_placeholder: 0.0,
             self.model.discriminator_dropout_placeholder: 0.0,
         }
-        transferred_result = sess.run(self.model.transferred_source_batch, feed_dict)
+        transferred_result, reconstruction_result = sess.run(
+            [self.model.transferred_source_batch, self.model.reconstructed_targets_batch], feed_dict
+        )
         end_of_sentence_index = self.embedding_handler.word_to_index[self.embedding_handler.end_of_sentence_token]
         # original without paddings:
         original = self.remove_by_length(batch[0].sentences, batch[0].lengths)
@@ -58,6 +62,20 @@ class ModelTrainerGan(ModelTrainerBase):
                 transferred.append(s[:s.tolist().index(end_of_sentence_index) + 1])
             else:
                 transferred.append(s)
+        reconstructed = []
+        for s in reconstruction_result:
+            if end_of_sentence_index in s:
+                reconstructed.append(s[:s.tolist().index(end_of_sentence_index) + 1])
+            else:
+                reconstructed.append(s)
+        # print the reconstruction
+        _, reconstructed_strings = self.print_side_by_side(
+            original,
+            reconstructed,
+            'original: ',
+            'reconstructed: ',
+            self.embedding_handler
+        )
         # print the transfer
         original_strings, transferred_strings = self.print_side_by_side(
             original,
@@ -70,8 +88,11 @@ class ModelTrainerGan(ModelTrainerBase):
             # output validation summary for first 5 sentences
             to_print = 5
             return sess.run(self.model.text_watcher.summary, {
-                self.model.text_watcher.placeholder1: [' '.join(s) for s in original_strings[:to_print]],
-                self.model.text_watcher.placeholder2: [' '.join(s) for s in transferred_strings[:to_print]],
+                self.model.text_watcher.placeholders['original']: [' '.join(s) for s in original_strings[:to_print]],
+                self.model.text_watcher.placeholders['transferred']: [' '.join(s) for s in
+                                                                      transferred_strings[:to_print]],
+                self.model.text_watcher.placeholders['reconstructed']: [' '.join(s) for s in
+                                                                        reconstructed_strings[:to_print]],
             })
         else:
             return None

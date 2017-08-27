@@ -69,8 +69,7 @@ class GanModel:
         self.discriminator_loss, self.accuracy = self.loss_handler.get_discriminator_loss(_source_prediction,
                                                                                           _target_prediction)
         # content vector reconstruction loss
-        transferred_source = self.decoder.do_iterative_decoding(self._source_encoded, domain_identifier=None)
-        encoded_again = self.encoder.encode_inputs_to_vector(transferred_source, None, domain_identifier=None)
+        encoded_again = self.encoder.encode_inputs_to_vector(self._transferred_source, None, domain_identifier=None)
         self.semantic_distance_loss = self.loss_handler.get_context_vector_distance_loss(self._source_encoded,
                                                                                          encoded_again)
 
@@ -136,10 +135,12 @@ class GanModel:
         )
 
         # do transfer
-        self.transferred_source_batch = self._transfer()
+        self.transferred_source_batch = self._translate_to_vocabulary(self._transferred_source)
+        # reconstruction
+        self.reconstructed_targets_batch = self._translate_to_vocabulary(self._teacher_forced_target)
 
         # to generate text in tensorboard use:
-        self.text_watcher = TextWatcher('original', 'transferred')
+        self.text_watcher = TextWatcher(['original', 'transferred', 'reconstructed'])
 
     def _init_discriminator(self):
         if self.config['model']['discriminator_type'] == 'embedding':
@@ -176,13 +177,13 @@ class GanModel:
         source_prediction, target_prediction = tf.split(prediction, [source_batch_size, source_batch_size], axis=0)
         return prediction, source_prediction, target_prediction
 
-    def _transfer(self):
+    def _translate_to_vocabulary(self, embeddings):
         if self.config['model']['loss_type'] == 'cross_entropy':
             transferred_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(
-                self._transferred_source)
+                embeddings)
             return self.embedding_translator.translate_logits_to_words(transferred_logits)
         if self.config['model']['loss_type'] == 'margin1' or self.config['model']['loss_type'] == 'margin2':
-            decoded_shape = tf.shape(self._transferred_source)
+            decoded_shape = tf.shape(embeddings)
 
             distance_tensors = []
             for vocab_word_index in range(self.embedding_handler.get_vocabulary_length()):
@@ -190,7 +191,7 @@ class GanModel:
                 expanded_w = tf.expand_dims(tf.expand_dims(relevant_w, axis=0), axis=0)
                 tiled_w = tf.tile(expanded_w, [decoded_shape[0], decoded_shape[1], 1])
 
-                square = tf.square(self._transferred_source - tiled_w)
+                square = tf.square(embeddings - tiled_w)
                 per_vocab_distance = tf.reduce_sum(square, axis=-1)
                 distance_tensors.append(per_vocab_distance)
 

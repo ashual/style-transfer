@@ -2,10 +2,14 @@ import tensorflow as tf
 
 
 class TextWatcher:
-    def __init__(self, first_group_name, second_group_name):
-        self.placeholder1, summary1 = self._create_assignable_scalar(first_group_name)
-        self.placeholder2, summary2 = self._create_assignable_scalar(second_group_name)
-        self.summary = tf.summary.merge([summary1, summary2])
+    def __init__(self, names):
+        self.placeholders = {}
+        summaries = []
+        for name in names:
+            placeholder, summary = self._create_assignable_scalar(name)
+            self.placeholders[name] = placeholder
+            summaries.append(summary)
+        self.summary = tf.summary.merge(summaries)
 
     @staticmethod
     def _create_assignable_scalar(name):
