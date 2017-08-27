@@ -66,8 +66,9 @@ class GanModel:
         self.prediction, _source_prediction, _target_prediction = self._predict()
 
         # discriminator loss and accuracy
-        self.discriminator_loss, self.accuracy = self.loss_handler.get_discriminator_loss(_source_prediction,
-                                                                                          _target_prediction)
+        self.discriminator_loss, self.accuracy = self.loss_handler.get_discriminator_loss_wasserstien(
+            _source_prediction, _target_prediction
+        )
         # content vector reconstruction loss
         encoded_again = self.encoder.encode_inputs_to_vector(self._transferred_source, None, domain_identifier=None)
         self.semantic_distance_loss = self.loss_handler.get_context_vector_distance_loss(self._source_encoded,
@@ -93,16 +94,19 @@ class GanModel:
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.variable_scope('TrainSteps'):
             with tf.variable_scope('TrainDiscriminatorSteps'):
-                discriminator_optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
+                discriminator_optimizer = tf.train.RMSPropOptimizer(self.config['model']['learn_rate'])
                 discriminator_var_list = self.discriminator.get_trainable_parameters()
+                clip_discriminator = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in discriminator_var_list]
                 discriminator_grads_and_vars = discriminator_optimizer.compute_gradients(
                     self.discriminator_loss, colocate_gradients_with_ops=True, var_list=discriminator_var_list
                 )
                 with tf.control_dependencies(update_ops):
                     discriminator_train_step = discriminator_optimizer.apply_gradients(
                         discriminator_grads_and_vars)
+                    with tf.control_dependencies([discriminator_train_step]):
+                        discriminator_train_step = tf.group(*clip_discriminator)
             with tf.variable_scope('TrainGeneratorSteps'):
-                generator_optimizer = tf.train.GradientDescentOptimizer(self.config['model']['learn_rate'])
+                generator_optimizer = tf.train.RMSPropOptimizer(self.config['model']['learn_rate'])
                 generator_var_list = self._get_generator_step_variables()
                 generator_grads_and_vars = generator_optimizer.compute_gradients(
                     self.generator_loss,
@@ -151,6 +155,7 @@ class GanModel:
         if self.config['model']['discriminator_type'] == 'content':
             return ContentDiscriminator(self.config['model']['encoder_hidden_states'][-1],
                                         self.config['discriminator_content']['hidden_states'],
+                                        True,
                                         self.discriminator_dropout_placeholder)
 
     def _init_translator(self):
