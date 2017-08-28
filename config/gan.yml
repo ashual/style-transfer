@@ -11,6 +11,9 @@ model:
   decoder_hidden_states: [1000, 1500]
 #  learn_rate: 0.0001
   learn_rate: 0.0035
+#  optimizer: 'gd'
+#  optimizer: 'adam'
+  optimizer: 'rmsp'
   dropout: 0.1
   discriminator_dropout: 0.1
   bidirectional_encoder: False
@@ -24,6 +27,8 @@ model:
 #  loss_type: 'cross_entropy'
 #  loss_type: 'margin1'
   loss_type: 'margin2'
+#  discriminator_loss_type: 'regular'
+  discriminator_loss_type: 'wasserstein'
 
 cross_entropy_loss:
   translation_hidden_size: 1000
@@ -43,6 +48,9 @@ discriminator_embedding:
 
 discriminator_content:
   hidden_states: [1000]
+
+wasserstein_loss:
+  clip_value: 1.01
 
 embedding:
   min_word_occurrences: 2

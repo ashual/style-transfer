@@ -63,12 +63,11 @@ class GanModel:
         )
 
         # discriminator prediction
-        self.prediction, _source_prediction, _target_prediction = self._predict()
+        self.prediction, self._source_prediction, self._target_prediction = self._predict()
 
         # discriminator loss and accuracy
-        self.discriminator_loss, self.accuracy = self.loss_handler.get_discriminator_loss_wasserstien(
-            _source_prediction, _target_prediction
-        )
+        self.discriminator_loss, self.accuracy = self._apply_discriminator_loss()
+
         # content vector reconstruction loss
         encoded_again = self.encoder.encode_inputs_to_vector(self._transferred_source, None, domain_identifier=None)
         self.semantic_distance_loss = self.loss_handler.get_context_vector_distance_loss(self._source_encoded,
@@ -91,38 +90,16 @@ class GanModel:
         )
 
         # train steps
-        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.variable_scope('TrainSteps'):
-            with tf.variable_scope('TrainDiscriminatorSteps'):
-                discriminator_optimizer = tf.train.RMSPropOptimizer(self.config['model']['learn_rate'])
-                discriminator_var_list = self.discriminator.get_trainable_parameters()
-                clip_discriminator = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in discriminator_var_list]
-                discriminator_grads_and_vars = discriminator_optimizer.compute_gradients(
-                    self.discriminator_loss, colocate_gradients_with_ops=True, var_list=discriminator_var_list
-                )
-                with tf.control_dependencies(update_ops):
-                    discriminator_train_step = discriminator_optimizer.apply_gradients(
-                        discriminator_grads_and_vars)
-                    with tf.control_dependencies([discriminator_train_step]):
-                        discriminator_train_step = tf.group(*clip_discriminator)
-            with tf.variable_scope('TrainGeneratorSteps'):
-                generator_optimizer = tf.train.RMSPropOptimizer(self.config['model']['learn_rate'])
-                generator_var_list = self._get_generator_step_variables()
-                generator_grads_and_vars = generator_optimizer.compute_gradients(
-                    self.generator_loss,
-                    colocate_gradients_with_ops=True,
-                    var_list=generator_var_list
-                )
-                with tf.control_dependencies(update_ops):
-                    generator_train_step = generator_optimizer.apply_gradients(generator_grads_and_vars)
-
+            self._discriminator_train_step = self._get_discriminator_train_step()
+            self._generator_train_step = self._get_generator_train_step()
             self.train_generator = self.policy.should_train_generator()
 
             # controls which train step to take
             policy_selected_train_step = tf.cond(
                 self.train_generator,
-                lambda: generator_train_step,
-                lambda: discriminator_train_step
+                lambda: self._generator_train_step,
+                lambda: self._discriminator_train_step
             )
             # after appropriate train step is executed, we notify the policy
             with tf.control_dependencies([policy_selected_train_step]):
@@ -164,6 +141,15 @@ class GanModel:
                                        self.config['cross_entropy_loss']['translation_hidden_size'],
                                        self.dropout_placeholder)
 
+    def _get_optimizer(self):
+        learn_rate = self.config['model']['learn_rate']
+        if self.config['model']['optimizer'] == 'gd':
+            return tf.train.GradientDescentOptimizer(learn_rate)
+        if self.config['model']['optimizer'] == 'adam':
+            return tf.train.AdamOptimizer(learn_rate)
+        if self.config['model']['optimizer'] == 'rmsp':
+            return tf.train.RMSPropOptimizer(learn_rate)
+
     def _encode(self, inputs, input_lengths):
         embedding = self.embedding_container.embed_inputs(inputs)
         encoded = self.encoder.encode_inputs_to_vector(embedding, input_lengths, domain_identifier=None)
@@ -181,6 +167,14 @@ class GanModel:
         source_batch_size = tf.shape(self.source_batch)[0]
         source_prediction, target_prediction = tf.split(prediction, [source_batch_size, source_batch_size], axis=0)
         return prediction, source_prediction, target_prediction
+
+    def _apply_discriminator_loss(self):
+        source_prediction = self._source_prediction
+        target_prediction = self._target_prediction
+        if self.config['model']['discriminator_loss_type'] == 'regular':
+            return self.loss_handler.get_discriminator_loss(source_prediction, target_prediction)
+        if self.config['model']['discriminator_loss_type'] == 'wasserstein':
+            return self.loss_handler.get_discriminator_loss_wasserstien(source_prediction, target_prediction)
 
     def _translate_to_vocabulary(self, embeddings):
         if self.config['model']['loss_type'] == 'cross_entropy':
@@ -235,6 +229,44 @@ class GanModel:
         if self.config['model']['loss_type'] == 'cross_entropy':
             result += self.embedding_translator.get_trainable_parameters()
         return result
+
+    def _get_discriminator_train_step(self):
+        # the embedding discriminator has batch norm that we need to update
+        update_ops = None
+        if self.config['model']['discriminator_type'] == 'embedding':
+            update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+
+        with tf.variable_scope('TrainDiscriminatorSteps'):
+            discriminator_optimizer = self._get_optimizer()
+            discriminator_var_list = self.discriminator.get_trainable_parameters()
+
+            discriminator_grads_and_vars = discriminator_optimizer.compute_gradients(
+                self.discriminator_loss, colocate_gradients_with_ops=True, var_list=discriminator_var_list
+            )
+            if update_ops is None:
+                discriminator_train_step = discriminator_optimizer.apply_gradients(discriminator_grads_and_vars)
+            else:
+                with tf.control_dependencies(update_ops):
+                    discriminator_train_step = discriminator_optimizer.apply_gradients(discriminator_grads_and_vars)
+            if self.config['model']['discriminator_loss_type'] == 'regular':
+                return discriminator_train_step
+            if self.config['model']['discriminator_loss_type'] == 'wasserstein':
+                clip_val = self.config['wasserstein_loss']['clip_value']
+                clip_discriminator = [p.assign(tf.clip_by_value(p, -clip_val, clip_val)) for p in discriminator_var_list]
+                with tf.control_dependencies([discriminator_train_step]):
+                    discriminator_train_step = tf.group(*clip_discriminator)
+                return discriminator_train_step
+
+    def _get_generator_train_step(self):
+        with tf.variable_scope('TrainGeneratorSteps'):
+            generator_optimizer = self._get_optimizer()
+            generator_var_list = self._get_generator_step_variables()
+            generator_grads_and_vars = generator_optimizer.compute_gradients(
+                self.generator_loss,
+                colocate_gradients_with_ops=True,
+                var_list=generator_var_list
+            )
+            return generator_optimizer.apply_gradients(generator_grads_and_vars)
 
     def _create_summaries(self):
         epoch_summary = tf.summary.scalar('epoch', self.epoch)

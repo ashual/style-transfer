@@ -100,7 +100,7 @@ class LossHandler(BaseModel):
             transferred_loss = tf.reduce_mean(prediction_transferred)
 
             # total loss is the sum of losses
-            total_loss = target_loss - transferred_loss
+            total_loss = - target_loss + transferred_loss
             # total accuracy is the avg of accuracies
             total_accuracy = 0.5 * (transferred_accuracy + target_accuracy)
             return total_loss, total_accuracy
