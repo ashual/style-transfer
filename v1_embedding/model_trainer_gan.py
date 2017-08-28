@@ -1,4 +1,5 @@
 import yaml
+import numpy as np
 from datasets.multi_batch_iterator import MultiBatchIterator
 from datasets.yelp_helpers import YelpSentences
 from v1_embedding.contant_iteration_policy import ConstantIterationPolicy
@@ -116,13 +117,17 @@ class ModelTrainerGan(ModelTrainerBase):
                                            extract_summaries=extract_summaries)
 
     def do_discriminator_train_temp(self, sess, global_step, epoch_num, batch_index, feed_dictionary, extract_summaries):
-        execution_list = [self.model.discriminator_train_step, self.model.discriminator_step_summaries]
-        if extract_summaries:
-            _, s = sess.run(execution_list, feed_dictionary)
-            return s
-        else:
-            sess.run(execution_list[:-1], feed_dictionary)
-            return None
+        execution_list = [
+            self.model._discriminator_train_step,
+            self.model.accuracy,
+            self.model.discriminator_loss,
+            self.model.prediction
+        ]
+        _, accuracy, loss, prediction = sess.run(execution_list, feed_dictionary)
+        print('accuracy: {}'.format(accuracy))
+        print('loss: {}'.format(loss))
+        print('pred min: {} mean: {} max: {}'.format(np.min(prediction), np.mean(prediction), np.max(prediction)))
+        print()
 
     def transfer_batch(self, sess, batch, return_result_as_summary=True):
         feed_dict = {
@@ -188,7 +193,8 @@ class ModelTrainerGan(ModelTrainerBase):
         #                                        extract_summaries=extract_summaries)
 
     def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch):
-        return self.transfer_batch(sess, batch, return_result_as_summary=True)
+        # return self.transfer_batch(sess, batch, return_result_as_summary=True)
+        pass
 
     def do_after_train_loop(self, sess):
         # make sure the model is correct:
