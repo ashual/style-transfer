@@ -52,7 +52,8 @@ class GanModel:
                                         self.config['sentence']['min_length'])
         self.loss_handler = LossHandler(self.embedding_handler.get_vocabulary_length())
         self.discriminator = self._init_discriminator()
-        self.policy = IterativePolicy(True)
+        self.policy = IterativePolicy(True, generator_steps=self.config['trainer']['min_generator_steps'],
+                                      discriminator_steps=self.config['trainer']['min_discriminator_steps'])
 
         # common steps:
         self._source_embedding, self._source_encoded = self._encode(self.source_batch, self.source_lengths)
