@@ -16,7 +16,7 @@ class IterativePolicy:
         switch_generator = tf.logical_and(self.train_generator, tf.equal(self.counter, self.generator_steps))
         # if we are training the discriminator and there are no steps left
         switch_discriminator = tf.logical_and(tf.logical_not(self.train_generator), tf.equal(self.counter,
-                                                                                             self.generator_steps))
+                                                                                             self.discriminator_steps))
         switch_component = tf.logical_or(switch_generator, switch_discriminator)
         return tf.cond(
             switch_component,
