@@ -5,7 +5,6 @@ from v1_embedding.base_model import BaseModel
 class ContentDiscriminator(BaseModel):
     def __init__(self, content_vector_size, dense_hidden_sizes, is_w_loss, dropout_placeholder, name=None):
         BaseModel.__init__(self, name)
-        # discriminator - model
         self.sizes = [content_vector_size] + dense_hidden_sizes + [1]
         self.is_w_loss = is_w_loss
         self.dropout_placeholder = dropout_placeholder
@@ -23,6 +22,7 @@ class ContentDiscriminator(BaseModel):
             self.reuse_flag = True
             current = inputs
             for i in range(len(self.w)):
+                current = tf.nn.dropout(current, 1.0 - self.dropout_placeholder)
                 # if w loss use relu
                 if self.is_w_loss:
                     current = tf.matmul(current, self.w[i]) + self.b[i]
