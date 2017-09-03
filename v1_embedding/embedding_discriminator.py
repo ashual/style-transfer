@@ -4,28 +4,37 @@ from v1_embedding.embedding_encoder import EmbeddingEncoder
 
 
 class EmbeddingDiscriminator(BaseModel):
-    def __init__(self, hidden_states, dense_hidden_size, dropout_placeholder, bidirectional, name=None):
+    def __init__(self, encoder_hidden_states, dense_hidden_states, is_w_loss, dropout_placeholder, bidirectional, name=None):
         BaseModel.__init__(self, name)
-        self.encoder = EmbeddingEncoder(hidden_states, dropout_placeholder, bidirectional, name=self.name)
-        # discriminator - model
-        self.dense_hidden_size = dense_hidden_size
+        self.encoder = EmbeddingEncoder(encoder_hidden_states, dropout_placeholder, bidirectional, name=self.name)
+        self.sizes = [encoder_hidden_states[-1]] + dense_hidden_states + [1]
+        self.is_w_loss = is_w_loss
+        self.dropout_placeholder = dropout_placeholder
+        self.w = []
+        self.b = []
         with tf.variable_scope('{}/parameters'.format(self.name)):
-            if dense_hidden_size > 0:
-                self.w1, self.b1 = BaseModel.create_input_parameters(hidden_states[-1], dense_hidden_size)
-                self.w2, self.b2 = BaseModel.create_input_parameters(dense_hidden_size, 1)
-            else:
-                self.w1, self.b1 = None, None
-                self.w2, self.b2 = BaseModel.create_input_parameters(hidden_states[-1], 1)
+            for i in range(len(self.sizes)-1):
+                w, b = BaseModel.create_input_parameters(self.sizes[i], self.sizes[i+1])
+                self.w.append(w)
+                self.b.append(b)
         self.reuse_flag = False
 
     def predict(self, inputs):
         with tf.variable_scope('{}/run'.format(self.name), reuse=self.reuse_flag):
             self.reuse_flag = True
             rnn_res = self.encoder.encode_inputs_to_vector(inputs, None)
-            if self.dense_hidden_size > 0:
-                hidden = tf.nn.relu(tf.matmul(rnn_res, self.w1) + self.b1)
-            else:
-                hidden = rnn_res
-            batch_norm_activations = tf.contrib.layers.batch_norm(tf.matmul(hidden, self.w2) + self.b2,
-                                                                  center=True, scale=True, is_training=True)
-            return tf.nn.sigmoid(batch_norm_activations)
+            current = rnn_res
+            for i in range(len(self.w)):
+                current = tf.nn.dropout(current, 1.0 - self.dropout_placeholder)
+                # if w loss use relu
+                if self.is_w_loss:
+                    current = tf.matmul(current, self.w[i]) + self.b[i]
+                    if i < len(self.w) - 1:
+                        current = tf.nn.relu(current)
+                # else chain sigmoids
+                else:
+                    pre_activation = tf.matmul(current, self.w[i]) + self.b[i]
+                    offset = 0.5 * tf.ones_like(pre_activation) + pre_activation
+                    current = tf.nn.sigmoid(offset)
+            return current
+

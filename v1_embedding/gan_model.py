@@ -125,15 +125,17 @@ class GanModel:
         self.text_watcher = TextWatcher(['original', 'transferred', 'reconstructed'])
 
     def _init_discriminator(self):
+        is_w_loss = self.config['model']['discriminator_loss_type'] == 'wasserstein'
         if self.config['model']['discriminator_type'] == 'embedding':
-            return EmbeddingDiscriminator(self.config['discriminator_embedding']['hidden_states'],
-                                          self.config['discriminator_embedding']['dense_hidden_size'],
+            return EmbeddingDiscriminator(self.config['discriminator_embedding']['encoder_hidden_states'],
+                                          self.config['discriminator_embedding']['hidden_states'],
+                                          is_w_loss,
                                           self.discriminator_dropout_placeholder,
                                           self.config['discriminator_embedding']['bidirectional'])
         if self.config['model']['discriminator_type'] == 'content':
             return ContentDiscriminator(self.config['model']['encoder_hidden_states'][-1],
                                         self.config['discriminator_content']['hidden_states'],
-                                        True,
+                                        is_w_loss,
                                         self.discriminator_dropout_placeholder)
 
     def _init_translator(self):
