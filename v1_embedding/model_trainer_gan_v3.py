@@ -2,6 +2,7 @@ import yaml
 from datasets.multi_batch_iterator import MultiBatchIterator
 from datasets.yelp_helpers import YelpSentences
 from v1_embedding.gan_model import GanModel
+from v1_embedding.logger import init_logger
 from v1_embedding.model_trainer_base import ModelTrainerBase
 from v1_embedding.word_indexing_embedding_handler import WordIndexingEmbeddingHandler
 
@@ -154,5 +155,9 @@ if __name__ == "__main__":
         config = yaml.load(ymlfile)
     with open("config/operational.yml", 'r') as ymlfile:
         operational_config = yaml.load(ymlfile)
-
+    init_logger()
+    print('------------ Config ------------')
+    print(yaml.dump(config))
+    print('------------ Operational Config ------------')
+    print(yaml.dump(operational_config))
     ModelTrainerGan(config, operational_config).do_train_loop()
