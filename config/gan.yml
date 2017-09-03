@@ -42,7 +42,7 @@ margin_loss2:
   margin: 1.0
 
 discriminator_embedding:
-  encoder_hidden_states: : [1000]
+  encoder_hidden_states: [1000]
   hidden_states: [500]
   bidirectional: False
 
