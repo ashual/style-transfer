@@ -86,7 +86,7 @@ class GanModel:
         )
         self.generator_loss = generator_loss + tf.cond(
             pred=self._apply_discriminator_loss_for_generator,
-            true_fn=lambda: -self.discriminator_loss,
+            true_fn=lambda: -self.config['model']['discriminator_coefficient'] * self.discriminator_loss,
             false_fn=lambda: 0.0
         )
 

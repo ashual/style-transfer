@@ -20,6 +20,7 @@ model:
 #  curriculum_training: True
   reconstruction_coefficient: 1.0
   semantic_distance_coefficient: 1.0
+  discriminator_coefficient: 1.0
   minimal_accuracy_for_discriminator: 0.2
   maximal_loss_for_discriminator: 1.5
 #  discriminator_type: 'embedding'
