@@ -23,8 +23,8 @@ class MyLogger:
 def init_logger():
     if not os.path.exists('logs'):
         os.makedirs('logs')
-    now = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-    log_file_name = 'logs/{}.log'.format(now)
+    now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    log_file_name = os.path.join('logs', '{}.log'.format(now))
     writer = MyLogger(sys.stdout, log_file_name)
     sys.stdout = writer
     sys.stderr = writer
