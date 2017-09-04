@@ -122,7 +122,7 @@ class GanModel:
         self.reconstructed_targets_batch = self._translate_to_vocabulary(self._teacher_forced_target)
 
         # to generate text in tensorboard use:
-        self.text_watcher = TextWatcher(['original', 'transferred', 'reconstructed'])
+        self.text_watcher = TextWatcher(['original_source', 'original_target', 'transferred', 'reconstructed'])
 
     def _init_discriminator(self):
         is_w_loss = self.config['model']['discriminator_loss_type'] == 'wasserstein'

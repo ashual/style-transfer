@@ -54,8 +54,10 @@ class ModelTrainerGan(ModelTrainerBase):
             [self.model.transferred_source_batch, self.model.reconstructed_targets_batch], feed_dict
         )
         end_of_sentence_index = self.embedding_handler.word_to_index[self.embedding_handler.end_of_sentence_token]
-        # original without paddings:
-        original = self.remove_by_length(batch[0].sentences, batch[0].lengths)
+        # original source without paddings:
+        original_source = self.remove_by_length(batch[0].sentences, batch[0].lengths)
+        # original target without paddings:
+        original_target = self.remove_by_length(batch[1].sentences, batch[1].lengths)
         # only take the prefix before EOS:
         transferred = []
         for s in transferred_result:
@@ -70,30 +72,27 @@ class ModelTrainerGan(ModelTrainerBase):
             else:
                 reconstructed.append(s)
         # print the reconstruction
-        _, reconstructed_strings = self.print_side_by_side(
-            original,
+        original_target_strings, reconstructed_strings = self.print_side_by_side(
+            original_target,
             reconstructed,
-            'original: ',
+            'original_target: ',
             'reconstructed: ',
             self.embedding_handler
         )
         # print the transfer
-        original_strings, transferred_strings = self.print_side_by_side(
-            original,
+        original_source_strings, transferred_strings = self.print_side_by_side(
+            original_source,
             transferred,
-            'original: ',
+            'original_source: ',
             'transferred: ',
             self.embedding_handler
         )
         if return_result_as_summary:
-            # output validation summary for first 5 sentences
-            to_print = 5
             return sess.run(self.model.text_watcher.summary, {
-                self.model.text_watcher.placeholders['original']: [' '.join(s) for s in original_strings[:to_print]],
-                self.model.text_watcher.placeholders['transferred']: [' '.join(s) for s in
-                                                                      transferred_strings[:to_print]],
-                self.model.text_watcher.placeholders['reconstructed']: [' '.join(s) for s in
-                                                                        reconstructed_strings[:to_print]],
+                self.model.text_watcher.placeholders['original_source']: [' '.join(s) for s in original_source_strings],
+                self.model.text_watcher.placeholders['original_target']: [' '.join(s) for s in original_target_strings],
+                self.model.text_watcher.placeholders['transferred']: [' '.join(s) for s in transferred_strings],
+                self.model.text_watcher.placeholders['reconstructed']: [' '.join(s) for s in reconstructed_strings],
             })
         else:
             return None
