@@ -10,7 +10,6 @@ class MultiBatchIterator:
         self.embedding_handler = embedding_handler
         self.sentence_len = sentence_len
         self.batch_size = batch_size
-        self.batch_iterators = None
 
     def get_iterator(self, dataset):
         content = dataset.get_content()
@@ -23,12 +22,5 @@ class MultiBatchIterator:
         return batch_iterator
 
     def __iter__(self):
-        self.batch_iterators = [self.get_iterator(d).__iter__() for d in self.datasets]
-        return self
-
-    def __next__(self):
-        next_batches = [b.__next__() for b in self.batch_iterators]
-        # since all the datasets have matching number of sentences, all will reach the end of the batch at the same time
-        if next_batches[0].get_len() == 0:
-            raise StopIteration
-        return next_batches
+        for res in zip(*[self.get_iterator(d) for d in self.datasets]):
+            yield res

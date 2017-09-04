@@ -10,25 +10,20 @@ class BatchIterator:
         self.embedding_handler = embedding_handler
         self.sentence_len = sentence_len
         self.batch_size = batch_size
-        self.text_iterator = None
 
     def __iter__(self):
         content = self.dataset.get_content()
         shuffle(content)
-        self.text_iterator = iter(content)
-        return self
-
-    def __next__(self):
         res = Batch()
-        for sentence in self.text_iterator:
+        for sentence in content:
             if res.get_len() >= self.batch_size:
-                break
-            else:
-                sentences, lengths = self.normalized_sentence(sentence)
-                res.add(sentences, lengths)
-        if res.get_len() == 0:
-            raise StopIteration
-        return res
+                yield res
+                res = Batch()
+            # append the current sentence
+            sentences, lengths = self.normalized_sentence(sentence)
+            res.add(sentences, lengths)
+        if res.get_len() > 0:
+            yield res
 
     def normalized_sentence(self, sentence):
         # get the words in lower case + and end tokens
