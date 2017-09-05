@@ -3,28 +3,28 @@ trainer:
 #  number_of_epochs: 50
   batch_size: 100
 #  batch_size: 10
-  min_generator_steps: 100
-  min_discriminator_steps: 100
+  min_generator_steps: 1
+  min_discriminator_steps: 1
 
 model:
-  encoder_hidden_states: [1500, 1000, 500]
-  decoder_hidden_states: [1000, 1500]
+  encoder_hidden_states: [1500]
+  decoder_hidden_states: [1500]
 #  learn_rate: 0.0001
   learn_rate: 0.0035
 #  optimizer: 'gd'
 #  optimizer: 'adam'
   optimizer: 'rmsp'
-  dropout: 0.1
-  discriminator_dropout: 0.1
+  dropout: 0.3
+  discriminator_dropout: 0.3
   bidirectional_encoder: False
 #  curriculum_training: True
-  reconstruction_coefficient: 1.0
-  semantic_distance_coefficient: 1.0
-  discriminator_coefficient: 1.0
-  minimal_accuracy_for_discriminator: 0.2
-  maximal_loss_for_discriminator: 1.5
-#  discriminator_type: 'embedding'
-  discriminator_type: 'content'
+  reconstruction_coefficient: 0.1
+  semantic_distance_coefficient: 100000.0
+  discriminator_coefficient: 0.0001
+  minimal_accuracy_for_discriminator: 0.55
+  maximal_loss_for_discriminator: 99999999.9
+  discriminator_type: 'embedding'
+#  discriminator_type: 'content'
 #  loss_type: 'cross_entropy'
 #  loss_type: 'margin1'
   loss_type: 'margin2'
@@ -43,12 +43,12 @@ margin_loss2:
   margin: 1.0
 
 discriminator_embedding:
-  encoder_hidden_states: [1000]
-  hidden_states: [500]
+  encoder_hidden_states: [1500]
+  hidden_states: [1500]
   bidirectional: False
 
 discriminator_content:
-  hidden_states: [1000]
+  hidden_states: [1500]
 
 wasserstein_loss:
   clip_value: 1.01
@@ -66,8 +66,8 @@ embedding:
 #  lower_range: 3.0
 
 sentence:
-#  limit: 300000
-  limit: 150
-  min_length: 6
+  limit: 300000
+#  limit: 150
 #  min_length: 3
+  min_length: 6
   max_length: 15

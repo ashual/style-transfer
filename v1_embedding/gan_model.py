@@ -67,26 +67,27 @@ class GanModel:
         self.prediction, self._source_prediction, self._target_prediction = self._predict()
 
         # discriminator loss and accuracy
-        self.discriminator_loss, self.accuracy = self._apply_discriminator_loss()
+        discriminator_loss, self.accuracy = self._apply_discriminator_loss()
+        self.discriminator_loss = self.config['model']['discriminator_coefficient'] * discriminator_loss
 
         # content vector reconstruction loss
         encoded_again = self.encoder.encode_inputs_to_vector(self._transferred_source, None, domain_identifier=None)
-        self.semantic_distance_loss = self.loss_handler.get_context_vector_distance_loss(self._source_encoded,
+        self.semantic_distance_loss = self.config['model']['semantic_distance_coefficient'] * \
+                                      self.loss_handler.get_context_vector_distance_loss(self._source_encoded,
                                                                                          encoded_again)
 
         # target reconstruction loss
-        self.reconstruction_loss = self._get_reconstruction_loss()
+        self.reconstruction_loss = self.config['model']['reconstruction_coefficient'] * self._get_reconstruction_loss()
 
         # generator loss
-        generator_loss = self.config['model']['reconstruction_coefficient'] * self.reconstruction_loss + \
-                         self.config['model']['semantic_distance_coefficient'] * self.semantic_distance_loss
+        generator_loss = self.reconstruction_loss + self.semantic_distance_loss
         self._apply_discriminator_loss_for_generator = tf.logical_and(
             tf.greater(self.config['model']['maximal_loss_for_discriminator'], self.discriminator_loss),
             tf.greater_equal(self.accuracy, self.config['model']['minimal_accuracy_for_discriminator'])
         )
         self.generator_loss = generator_loss + tf.cond(
             pred=self._apply_discriminator_loss_for_generator,
-            true_fn=lambda: -self.config['model']['discriminator_coefficient'] * self.discriminator_loss,
+            true_fn=lambda: -self.discriminator_loss,
             false_fn=lambda: 0.0
         )
 
