@@ -1,7 +1,23 @@
+# You need to install scikit-learn:
+# sudo pip install scikit-learn
+#
+# Dataset: Polarity dataset v2.0
+# http://www.cs.cornell.edu/people/pabo/movie-review-data/
+#
+# Full discussion:
+# https://marcobonzanini.wordpress.com/2015/01/19/sentiment-analysis-with-python-and-scikit-learn
+
+import time
 import json
 import pickle
-from textblob import TextBlob
-from textblob.classifiers import NaiveBayesClassifier
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn import svm
+from sklearn.metrics import classification_report
+
+TRAIN_SIZE = 300000
+TEST_SIZE = 3000
+
 
 def extract_non_indifferent_sentences(max_sentences=10, max_words=15):
     '''
@@ -59,6 +75,7 @@ def get_positive_sentences():
         content = yelp.readlines()
     return content
 
+
 def get_negative_sentences():
     '''
     After calling this function, one should iterate the content and for each line
@@ -70,64 +87,122 @@ def get_negative_sentences():
         content = yelp.readlines()
     return content
 
-def classify_sentence(sentence, cl):
-    blob = TextBlob(sentence, classifier=cl)
-    for s in blob.sentences:
-        print(s)
-        print(s.classify())
+
+def classify(data):
+    with open('classifier.obj', 'rb') as f:
+        classifier = pickle.load(f)
+    with open('vectorizer.obj', 'rb') as f:
+        vectorizer = pickle.load(f)
+    vectors = vectorizer.transform(data)
+    return classifier.predict(vectors)
 
 
-TRAIN_SIZE = 500000
-TEST_SIZE = 10000
+if __name__ == '__main__':
+    classes = ['pos', 'neg']
 
+    # Read the data
+    train_data = []
+    train_labels = []
+    test_data = []
+    test_labels = []
+    # for curr_class in classes:
+    #     dirname = os.path.join(data_dir, curr_class)
+    #     for fname in os.listdir(dirname):
+    #         with open(os.path.join(dirname, fname), 'r') as f:
+    #             content = f.read()
+    #             if fname.startswith('cv9'):
+    #                 test_data.append(content)
+    #                 test_labels.append(curr_class)
+    #             else:
+    #                 train_data.append(content)
+    #                 train_labels.append(curr_class)
 
-def train_and_test():
-    train = []
-    test = []
     counter = 0
-    for sen in get_negative_sentences():
-        a = json.loads(sen)
-        sample = (a['text'], 'neg')
+    print('loading data')
+    negative_len = len(get_negative_sentences())
+    positive_len = len(get_positive_sentences())
+    negative_train_size = positive_train_size = int(min(negative_len, positive_len) * 0.9)
+    negative_test_size = positive_test_size = int(min(negative_len, positive_len) * 0.1)
+    # negative_train_size = int(negative_len * 0.9)
+    # negative_test_size = negative_len - negative_train_size
+    # positive_train_size = int(positive_len * 0.9)
+    # positive_test_size = positive_len - positive_train_size
+    print(negative_train_size, negative_test_size)
+    print(positive_train_size, positive_test_size)
 
-        if counter < TRAIN_SIZE:
-            train.append(sample)
-        elif counter < TRAIN_SIZE + TEST_SIZE:
-            test.append(sample)
+    for sen in get_negative_sentences():
+        sen_json = json.loads(sen)
+
+        if counter < negative_train_size:
+            train_data.append(sen_json['text'])
+            train_labels.append('neg')
+        elif counter < negative_train_size + negative_test_size:
+            test_data.append(sen_json['text'])
+            test_labels.append('neg')
         else:
             break
         counter += 1
 
     counter = 0
     for sen in get_positive_sentences():
-        a = json.loads(sen)
-        sample = (a['text'], 'pos')
-        if counter < TRAIN_SIZE:
-            train.append(sample)
-        elif counter < TRAIN_SIZE + TEST_SIZE:
-            test.append(sample)
+        sen_json = json.loads(sen)
+        if counter < positive_train_size:
+            train_data.append(sen_json['text'])
+            train_labels.append('pos')
+        elif counter < positive_train_size + positive_test_size:
+            test_data.append(sen_json['text'])
+            test_labels.append('pos')
         else:
             break
         counter += 1
-    print('training')
-    cl = NaiveBayesClassifier(train)
-    print(cl.accuracy(test))
+    print('finish loading data {} {}'.format(len(train_data), len(test_data)))
+    # Create feature vectors
+    vectorizer = TfidfVectorizer(min_df=5, max_df=0.8, sublinear_tf=True, use_idf=True)
+    train_vectors = vectorizer.fit_transform(train_data)
+    with open('vectorizer.obj', 'wb') as file:
+        pickle.dump(vectorizer, file)
+    test_vectors = vectorizer.transform(test_data)
+
+    # Perform classification with SVM, kernel=rbf
+    # classifier_rbf = svm.SVC()
+    # t0 = time.time()
+    # classifier_rbf.fit(train_vectors, train_labels)
+    # t1 = time.time()
+    # prediction_rbf = classifier_rbf.predict(test_vectors)
+    # t2 = time.time()
+    # time_rbf_train = t1-t0
+    # time_rbf_predict = t2-t1
+
+    # Perform classification with SVM, kernel=linear
+    # classifier_linear = svm.SVC(kernel='linear')
+    # t0 = time.time()
+    # classifier_linear.fit(train_vectors, train_labels)
+    # t1 = time.time()
+    # prediction_linear = classifier_linear.predict(test_vectors)
+    # t2 = time.time()
+    # time_linear_train = t1-t0
+    # time_linear_predict = t2-t1
+
+    # Perform classification with SVM, kernel=linear
+    classifier_liblinear = svm.LinearSVC()
+    t0 = time.time()
+    classifier_liblinear.fit(train_vectors, train_labels)
+    t1 = time.time()
+    prediction_liblinear = classifier_liblinear.predict(test_vectors)
+    t2 = time.time()
+    time_liblinear_train = t1 - t0
+    time_liblinear_predict = t2 - t1
+
     with open('classifier.obj', 'wb') as file:
-        pickle.dump(cl, file)
+        pickle.dump(classifier_liblinear, file)
 
-def format_json():
-    train = []
-    counter = 0
-    with open('negative.json', 'w') as negative:
-        for sen in get_negative_sentences():
-            sen = json.loads(sen)
-            obj = {'text': sen['text'], 'label': 'neg'}
-            train.append(obj)
-            if counter > 1000:
-                break
-        json.dump(train, negative, indent=True)
-
-#format_json()
-# with open('negative.json', 'r') as fp:
-#     cl = NaiveBayesClassifier(fp, format='json')
-
-#train_and_test()
+    # Print results in a nice table
+    # print("Results for SVC(kernel=rbf)")
+    # print("Training time: %fs; Prediction time: %fs" % (time_rbf_train, time_rbf_predict))
+    # print(classification_report(test_labels, prediction_rbf))
+    # print("Results for SVC(kernel=linear)")
+    # print("Training time: %fs; Prediction time: %fs" % (time_linear_train, time_linear_predict))
+    # print(classification_report(test_labels, prediction_linear))
+    print("Results for LinearSVC()")
+    print("Training time: %fs; Prediction time: %fs" % (time_liblinear_train, time_liblinear_predict))
+    print(classification_report(test_labels, prediction_liblinear))
