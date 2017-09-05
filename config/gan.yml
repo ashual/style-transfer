@@ -7,6 +7,7 @@ trainer:
   min_discriminator_steps: 1
 
 model:
+  initial_generator_epochs: 50
   encoder_hidden_states: [1500]
   decoder_hidden_states: [1500]
 #  learn_rate: 0.0001

@@ -80,10 +80,23 @@ class GanModel:
         self.reconstruction_loss = self.config['model']['reconstruction_coefficient'] * self._get_reconstruction_loss()
 
         # generator loss
-        generator_loss = self.reconstruction_loss + self.semantic_distance_loss
+        generator_loss = self.reconstruction_loss
+        # flag indicating if we are starting with just generator training
+        is_initial_generator_epochs = tf.less(self.epoch, self.config['model']['initial_generator_epochs'])
+        # if we are in the initial epochs just do reconstruction loss
+        generator_loss = generator_loss + tf.cond(
+            pred=is_initial_generator_epochs,
+            true_fn=lambda: 0.0,
+            false_fn=lambda: self.semantic_distance_loss,
+        )
         self._apply_discriminator_loss_for_generator = tf.logical_and(
-            tf.greater(self.config['model']['maximal_loss_for_discriminator'], self.discriminator_loss),
-            tf.greater_equal(self.accuracy, self.config['model']['minimal_accuracy_for_discriminator'])
+            # is discriminator well behaved
+            tf.logical_and(
+                tf.greater(self.config['model']['maximal_loss_for_discriminator'], self.discriminator_loss),
+                tf.greater_equal(self.accuracy, self.config['model']['minimal_accuracy_for_discriminator'])
+            ),
+            # we are not in initial epochs
+            tf.logical_not(is_initial_generator_epochs)
         )
         self.generator_loss = generator_loss + tf.cond(
             pred=self._apply_discriminator_loss_for_generator,
@@ -95,7 +108,7 @@ class GanModel:
         with tf.variable_scope('TrainSteps'):
             self._discriminator_train_step = self._get_discriminator_train_step()
             self._generator_train_step = self._get_generator_train_step()
-            self.train_generator = self.policy.should_train_generator()
+            self.train_generator = tf.logical_or(self.policy.should_train_generator(), is_initial_generator_epochs)
 
             # controls which train step to take
             policy_selected_train_step = tf.cond(
@@ -106,7 +119,12 @@ class GanModel:
             # after appropriate train step is executed, we notify the policy
             with tf.control_dependencies([policy_selected_train_step]):
                 # this is the master step to use to run a train step on the model
-                self.master_step = self.policy.notify()
+                self.master_step = tf.cond(
+                    # notify the policy only if we are not in the initial steps
+                    pred=is_initial_generator_epochs,
+                    true_fn=lambda: tf.no_op(),
+                    false_fn=lambda: self.policy.notify(),
+                )
 
         # summaries
         discriminator_step_summaries, generator_step_summaries = self._create_summaries()
