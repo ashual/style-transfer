@@ -8,6 +8,7 @@ class GloveEmbeddingHandler(EmbeddingHandler):
     def __init__(self, save_dir, pretrained_glove_file=None, dataset=None):
         EmbeddingHandler.__init__(self, save_dir)
         if not self.initialized_from_cache:
+            # self.pretrained_glove_file = "embeddings-489625-128.txt"
             if pretrained_glove_file is None:
                 self.pretrained_glove_file = join(getcwd(), "data", "glove.6B", "glove.6B.50d.txt")
             else:

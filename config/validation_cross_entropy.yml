@@ -1,5 +1,7 @@
-model:
+trainer:
   number_of_epochs: 5000
+
+model:
   batch_size: 10
   translation_hidden_size: 1000
   encoder_hidden_states: [1500, 1000, 500]
@@ -11,7 +13,7 @@ model:
 
 embedding:
   min_word_occurrences: 2
-  word_size: 50
+  word_size: 128
   should_train: False
 
 loss:

@@ -12,6 +12,8 @@ from v1_embedding.embedding_encoder import EmbeddingEncoder
 from v1_embedding.embedding_decoder import EmbeddingDecoder
 from v1_embedding.model_trainer_base import ModelTrainerBase
 
+# from v1_embedding.glove_embedding_handler import GloveEmbeddingHandler
+
 
 class ModelTrainerValidation(ModelTrainerBase):
     def __init__(self, config_file, operational_config_file):
@@ -33,6 +35,10 @@ class ModelTrainerValidation(ModelTrainerBase):
             self.config['embedding']['word_size'],
             self.config['embedding']['min_word_occurrences']
         )
+        # self.embedding_handler = GloveEmbeddingHandler(
+        #     self.get_embedding_dir(), None,
+        #     [self.dataset]
+        # )
         self.embedding_container = EmbeddingContainer(self.embedding_handler, self.config['embedding']['should_train'])
         self.embedding_translator = EmbeddingTranslator(self.embedding_handler,
                                                         self.config['model']['translation_hidden_size'],
