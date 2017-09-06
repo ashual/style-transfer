@@ -8,6 +8,7 @@ trainer:
 
 model:
   initial_generator_epochs: 50
+#  initial_generator_epochs: 2
   encoder_hidden_states: [1500]
   decoder_hidden_states: [1500]
 #  learn_rate: 0.0001
@@ -19,9 +20,9 @@ model:
   discriminator_dropout: 0.3
   bidirectional_encoder: False
 #  curriculum_training: True
-  reconstruction_coefficient: 0.1
-  semantic_distance_coefficient: 100000.0
-  discriminator_coefficient: 0.0001
+  reconstruction_coefficient: 10.0
+  semantic_distance_coefficient: 1000000.0
+  discriminator_coefficient: 0.00001
   minimal_accuracy_for_discriminator: 0.55
   maximal_loss_for_discriminator: 99999999.9
   discriminator_type: 'embedding'
