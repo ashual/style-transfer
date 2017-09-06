@@ -247,12 +247,12 @@ with tf.Session(graph=graph) as session:
         _, loss_val = session.run([optimizer, loss], feed_dict=feed_dict)
         average_loss += loss_val
 
-        if step % 2000 == 0:
+        if step % 200000 == 0:
             if step > 0:
                 average_loss /= 200000
-            # The average loss is an estimate of the loss over the last 2000 batches.
+            # The average loss is an estimate of the loss over the last --- batches.
             print('Average loss at step ', step, ': ', average_loss)
-            save_embeddings(step, False)
+            # save_embeddings(step, False)
             average_loss = 0
 
         # # Note that this is expensive (~20% slowdown if computed every 500 steps)
