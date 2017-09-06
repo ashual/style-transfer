@@ -208,13 +208,17 @@ with graph.as_default():
 
 # Step 5: Begin training.
 
-def save_embeddings(step):
+def save_embeddings(step, final):
+    if final:
+        embeddings_source = final_embeddings
+    else:
+        embeddings_source = normalized_embeddings.eval()
     filename = "embeddings-"+str(count[0][1])+"-"+str(embedding_size)+ "-" + str(datetime.datetime.now().strftime('%d-%m-%Y_%H-%M-%S')) + str(step) + ".txt"
     file = open(filename, "w")
     for i in range(vocabulary_size):
         emb = ""
         for j in range(embedding_size):
-            emb += str(final_embeddings[i][j]) + " "
+            emb += str(embeddings_source[i][j]) + " "
         s = str(count[i][0]) + " " + emb + "\n"
         file.write(s)
     file.close()
@@ -243,7 +247,7 @@ with tf.Session(graph=graph) as session:
                 average_loss /= 200000
             # The average loss is an estimate of the loss over the last 2000 batches.
             print('Average loss at step ', step, ': ', average_loss)
-            save_embeddings(step)
+            save_embeddings(step, False)
             average_loss = 0
 
         # # Note that this is expensive (~20% slowdown if computed every 500 steps)
@@ -261,7 +265,7 @@ with tf.Session(graph=graph) as session:
     final_embeddings = normalized_embeddings.eval()
 
 
-save_embeddings(0)
+save_embeddings(0, True)
 
     # # Step 6: Visualize the embeddings.
 #
