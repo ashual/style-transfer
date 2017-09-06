@@ -9,7 +9,7 @@ class WordIndexingEmbeddingHandler(EmbeddingHandler):
         EmbeddingHandler.__init__(self, save_dir)
         if not self.initialized_from_cache:
             print('creating embedding...')
-            vocab = self.build_dataset(WordIndexingEmbeddingHandler.read_data(datasets), n, truncate_by_cutoff)
+            vocab = self.build_dataset(datasets, n, truncate_by_cutoff)
             # init mappings
             self.vocabulary_to_internals(vocab)
             # init embeddings
@@ -18,20 +18,3 @@ class WordIndexingEmbeddingHandler(EmbeddingHandler):
         print('using {} unique words with embedding size of {} '.format(
             self.embedding_np.shape[0],
             self.embedding_np.shape[1]))
-
-    @staticmethod
-    def read_data(datasets):
-        data = []
-        for dataset in datasets:
-            for sentence in dataset.get_content():
-                data.extend(word_tokenize(sentence))
-        return data
-
-    def build_dataset(self, words, n, truncate_by_cutoff):
-        """Process raw inputs into a dataset."""
-        vocab = [self.end_of_sentence_token, self.unknown_token]
-        if truncate_by_cutoff:
-            vocab += [w for w, c in collections.Counter(words).most_common() if c >= n]
-        else:
-            vocab += [w for w, _ in collections.Counter(words).most_common(n - 1)]
-        return vocab

@@ -55,7 +55,7 @@ wasserstein_loss:
 embedding:
   min_word_occurrences: 2
 #  min_word_occurrences: 0
-  word_size: 200
+  word_size: 128
 #  word_size: 50
   should_train: False
 #  should_train: True

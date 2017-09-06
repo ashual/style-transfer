@@ -57,6 +57,7 @@ def read_data(filenames):
                 parsed_line = json.loads(line)
                 sentence = parsed_line["text"].lower()
                 words = word_tokenize(sentence)
+                words += ["END"]
                 data.extend(words)
     return data
 
@@ -214,7 +215,9 @@ def save_embeddings(step, final):
         embeddings_source = final_embeddings
     else:
         embeddings_source = normalized_embeddings.eval()
-    filename = "embeddings-"+str(count[0][1])+"-"+str(embedding_size)+ "-" + str(datetime.datetime.now().strftime('%d-%m-%Y_%H-%M-%S')) + str(step) + ".txt"
+    print(len(embeddings_source[0]) == embedding_size)
+
+    filename = "embeddings-"+str(count[0][1])+"-"+str(embedding_size) + "-" + str(threshold) + "-" + str(datetime.datetime.now().strftime('%d-%m-%Y_%H-%M-%S')) + str(step) + ".txt"
     file = open(filename, "w")
     for i in range(vocabulary_size):
         emb = ""
@@ -223,6 +226,7 @@ def save_embeddings(step, final):
         s = str(count[i][0]) + " " + emb + "\n"
         file.write(s)
     file.close()
+    print(len(embeddings_source[0]) == embedding_size)
 
 
 num_steps = 150000001
@@ -243,7 +247,7 @@ with tf.Session(graph=graph) as session:
         _, loss_val = session.run([optimizer, loss], feed_dict=feed_dict)
         average_loss += loss_val
 
-        if step % 200000 == 0:
+        if step % 2000 == 0:
             if step > 0:
                 average_loss /= 200000
             # The average loss is an estimate of the loss over the last 2000 batches.

@@ -1,7 +1,8 @@
 import os
 import pickle
 import numpy as np
-
+import collections
+from nltk import word_tokenize
 
 class EmbeddingHandler:
     def __init__(self, save_directory):
@@ -79,3 +80,21 @@ class EmbeddingHandler:
 
     def get_embedding_array(self):
         return self.embedding_np
+
+    @staticmethod
+    def read_data(datasets):
+        data = []
+        for dataset in datasets:
+            for sentence in dataset.get_content():
+                data.extend(word_tokenize(sentence))
+        return data
+
+    def build_dataset(self, datasets, n, truncate_by_cutoff):
+        """Process raw inputs into a dataset."""
+        words = EmbeddingHandler.read_data(datasets)
+        vocab = [self.end_of_sentence_token, self.unknown_token]
+        if truncate_by_cutoff:
+            vocab += [w for w, c in collections.Counter(words).most_common() if c >= n]
+        else:
+            vocab += [w for w, _ in collections.Counter(words).most_common(n - 1)]
+        return vocab
