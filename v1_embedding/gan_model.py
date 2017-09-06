@@ -35,6 +35,9 @@ class GanModel:
         self.epoch, self.epoch_placeholder, self.assign_epoch = self._create_assignable_scalar(
             'epoch', tf.int32, init_value=0
         )
+        self._apply_discriminator_loss_for_generator_counter = tf.Variable(0.0, trainable=False, dtype=tf.float32)
+        self._generator_steps_counter = tf.Variable(0.0, trainable=False, dtype=tf.float32)
+        self._total_steps_counter = tf.Variable(0.0, trainable=False, dtype=tf.float32)
 
         self.source_lengths = tf.placeholder(tf.int32, shape=(None))
         self.target_lengths = tf.placeholder(tf.int32, shape=(None))
@@ -116,8 +119,16 @@ class GanModel:
                 lambda: self._generator_train_step,
                 lambda: self._discriminator_train_step
             )
-            # after appropriate train step is executed, we notify the policy
-            with tf.control_dependencies([policy_selected_train_step]):
+            # steps to increase counters
+            counter_steps = tf.group(
+                self._increase_if(self._generator_steps_counter, self.train_generator),
+                self._increase_if(self._apply_discriminator_loss_for_generator_counter,
+                                  tf.logical_and(self.train_generator, self._apply_discriminator_loss_for_generator)),
+                tf.assign_add(self._total_steps_counter, 1.0)
+            )
+
+            # after appropriate train step is executed, we notify the policy and count for tensorboard
+            with tf.control_dependencies([policy_selected_train_step, counter_steps]):
                 # this is the master step to use to run a train step on the model
                 self.master_step = tf.cond(
                     # notify the policy only if we are not in the initial steps
@@ -142,6 +153,16 @@ class GanModel:
 
         # to generate text in tensorboard use:
         self.text_watcher = TextWatcher(['original_source', 'original_target', 'transferred', 'reconstructed'])
+
+    def _increase_if(self, variable, condition):
+        return tf.assign_add(
+            variable,
+            tf.cond(
+                pred=condition,
+                true_fn=lambda: 1.0,
+                false_fn=lambda: 0.0,
+            )
+        )
 
     def _init_discriminator(self):
         is_w_loss = self.config['model']['discriminator_loss_type'] == 'wasserstein'
@@ -290,9 +311,20 @@ class GanModel:
             )
             return generator_optimizer.apply_gradients(generator_grads_and_vars)
 
+    def _create_ratio_summary(self, nominator, denominator):
+        return tf.cond(
+            pred=tf.greater(denominator, 0.0),
+            true_fn=lambda: nominator / denominator,
+            false_fn=lambda: 0.0
+        )
+
     def _create_summaries(self):
         epoch_summary = tf.summary.scalar('epoch', self.epoch)
-        train_generator_summary = tf.summary.scalar('train_generator', tf.cast(self.train_generator, dtype=tf.int8)),
+        # train_generator_summary = tf.summary.scalar('train_generator', tf.cast(self.train_generator, dtype=tf.int8)),
+        train_generator_summary = tf.summary.scalar(
+            'train_generator',
+            self._create_ratio_summary(self._generator_steps_counter, self._total_steps_counter)
+        )
         accuracy_summary = tf.summary.scalar('accuracy', self.accuracy)
         discriminator_loss_summary = tf.summary.scalar('discriminator_loss', self.discriminator_loss)
         discriminator_step_summaries = tf.summary.merge([
@@ -309,8 +341,13 @@ class GanModel:
             tf.summary.scalar('reconstruction_loss_on_generator_step', self.reconstruction_loss),
             tf.summary.scalar('content_vector_loss_on_generator_step', self.semantic_distance_loss),
             tf.summary.scalar('generator_loss', self.generator_loss),
-            tf.summary.scalar('apply_discriminator_loss_for_generator', tf.cast(
-                self._apply_discriminator_loss_for_generator, tf.int8)),
+            # tf.summary.scalar('apply_discriminator_loss_for_generator', tf.cast(
+            #     self._apply_discriminator_loss_for_generator, tf.int8)),
+            tf.summary.scalar(
+                'apply_discriminator_loss_for_generator',
+                self._create_ratio_summary(self._apply_discriminator_loss_for_generator_counter,
+                                           self._generator_steps_counter)
+            )
         ])
         return discriminator_step_summaries, generator_step_summaries
 
