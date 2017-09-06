@@ -208,6 +208,7 @@ with graph.as_default():
 
 # Step 5: Begin training.
 
+
 def save_embeddings(step, final):
     if final:
         embeddings_source = final_embeddings
