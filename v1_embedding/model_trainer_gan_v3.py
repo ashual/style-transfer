@@ -1,11 +1,12 @@
 import yaml
+import os
 from datasets.multi_batch_iterator import MultiBatchIterator
 from datasets.yelp_helpers import YelpSentences
 from v1_embedding.gan_model import GanModel
 from v1_embedding.logger import init_logger
 from v1_embedding.model_trainer_base import ModelTrainerBase
 from v1_embedding.word_indexing_embedding_handler import WordIndexingEmbeddingHandler
-
+from v1_embedding.glove_embedding_handler import GloveEmbeddingHandler
 
 class ModelTrainerGan(ModelTrainerBase):
     def __init__(self, config_file, operational_config_file):
@@ -16,9 +17,10 @@ class ModelTrainerGan(ModelTrainerBase):
         self.dataset_pos = YelpSentences(positive=True, limit_sentences=self.config['sentence']['limit'],
                                          dataset_cache_dir=self.get_dataset_cache_dir(), dataset_name='pos')
         datasets = [self.dataset_neg, self.dataset_pos]
-        self.embedding_handler = WordIndexingEmbeddingHandler(
+        self.embedding_handler = GloveEmbeddingHandler(
             self.get_embedding_dir(),
             datasets,
+            os.path.join(os.getcwd(), self.config['embedding']['filename']),
             self.config['embedding']['word_size'],
             self.config['embedding']['min_word_occurrences']
         )

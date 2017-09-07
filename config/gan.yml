@@ -3,11 +3,11 @@ trainer:
 #  number_of_epochs: 50
   batch_size: 100
 #  batch_size: 10
-  min_generator_steps: 1
+  min_generator_steps: 3
   min_discriminator_steps: 1
 
 model:
-  initial_generator_epochs: 50
+  initial_generator_epochs: 30
 #  initial_generator_epochs: 2
   encoder_hidden_states: [1500]
   decoder_hidden_states: [1500]
@@ -57,18 +57,16 @@ wasserstein_loss:
 
 embedding:
   min_word_occurrences: 2
-#  min_word_occurrences: 0
-  word_size: 200
-#  word_size: 50
+  word_size: 100
   should_train: False
-#  should_train: True
+  filename: 'embeddings-130441-100-2-06-09-2017_15-52-41246000.txt'
 
 #curriculum:
 #  upper_range: 5.0
 #  lower_range: 3.0
 
 sentence:
-  limit: 300000
+  limit: 30000
 #  limit: 150
 #  min_length: 3
   min_length: 6
