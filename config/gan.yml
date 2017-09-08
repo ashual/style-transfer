@@ -9,8 +9,8 @@ trainer:
 model:
   initial_generator_epochs: 30
 #  initial_generator_epochs: 2
-  encoder_hidden_states: [1500]
-  decoder_hidden_states: [1500]
+  encoder_hidden_states: [1500, 1000, 500]
+  decoder_hidden_states: [1000, 1500]
 #  learn_rate: 0.0001
   learn_rate: 0.0035
 #  optimizer: 'gd'
@@ -45,6 +45,7 @@ margin_loss2:
   margin: 1.0
 
 discriminator_embedding:
+  include_content_vector: True
   encoder_hidden_states: [1500]
   hidden_states: [1500]
   bidirectional: False
