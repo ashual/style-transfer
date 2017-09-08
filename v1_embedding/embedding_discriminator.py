@@ -6,7 +6,7 @@ from v1_embedding.embedding_encoder import EmbeddingEncoder
 class EmbeddingDiscriminator(BaseModel):
     def __init__(self, encoder_hidden_states, dense_inputs, dense_hidden_states, is_w_loss, dropout_placeholder, bidirectional, name=None):
         BaseModel.__init__(self, name)
-        self.encoder = EmbeddingEncoder(encoder_hidden_states, dropout_placeholder, bidirectional, name=self.name)
+        self.encoder = EmbeddingEncoder(0, False, encoder_hidden_states, dropout_placeholder, bidirectional, name=self.name)
         self.sizes = [dense_inputs] + dense_hidden_states + [1]
         self.is_w_loss = is_w_loss
         self.dropout_placeholder = dropout_placeholder

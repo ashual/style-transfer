@@ -9,8 +9,11 @@ trainer:
 model:
   initial_generator_epochs: 30
 #  initial_generator_epochs: 2
+  include_domain_in_encoder: True
   encoder_hidden_states: [1500, 1000, 500]
+#  encoder_hidden_states: [100]
   decoder_hidden_states: [1000, 1500]
+#  decoder_hidden_states: [50]
 #  learn_rate: 0.0001
   learn_rate: 0.0035
 #  optimizer: 'gd'
@@ -47,7 +50,9 @@ margin_loss2:
 discriminator_embedding:
   include_content_vector: True
   encoder_hidden_states: [1500]
+#  encoder_hidden_states: [100]
   hidden_states: [1500]
+#  hidden_states: [50]
   bidirectional: False
 
 discriminator_content:
@@ -59,6 +64,7 @@ wasserstein_loss:
 embedding:
   min_word_occurrences: 2
   word_size: 200
+#  word_size: 10
   should_train: False
   filename: 'embeddings-130441-100-2-06-09-2017_15-52-41246000.txt'
 

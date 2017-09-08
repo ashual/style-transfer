@@ -44,9 +44,13 @@ class GanModel:
 
         self.embedding_container = EmbeddingContainer(self.embedding_handler, self.config['embedding']['should_train'])
         self.embedding_translator = self._init_translator()
-        self.encoder = EmbeddingEncoder(self.config['model']['encoder_hidden_states'],
-                                        self.dropout_placeholder,
-                                        self.config['model']['bidirectional_encoder'])
+        self.encoder = EmbeddingEncoder(
+            self.config['embedding']['word_size'],
+            self.config['model']['include_domain_in_encoder'],
+            self.config['model']['encoder_hidden_states'],
+            self.dropout_placeholder,
+            self.config['model']['bidirectional_encoder']
+        )
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(),
                                         self.config['model']['decoder_hidden_states'],
                                         self.dropout_placeholder,
@@ -59,8 +63,12 @@ class GanModel:
                                       discriminator_steps=self.config['trainer']['min_discriminator_steps'])
 
         # common steps:
-        self._source_embedding, self._source_encoded = self._encode(self.source_batch, self.source_lengths)
-        self._target_embedding, self._target_encoded = self._encode(self.target_batch, self.target_lengths)
+        self._source_embedding, self._source_encoded = self._encode(
+            self.source_batch, self.source_lengths, tf.ones((1, 1), dtype=tf.float32)
+        )
+        self._target_embedding, self._target_encoded = self._encode(
+            self.target_batch, self.target_lengths, -1.0 * tf.ones((1, 1), dtype=tf.float32)
+        )
         self._transferred_source = self.decoder.do_iterative_decoding(self._source_encoded)
         self._teacher_forced_target = self.decoder.do_teacher_forcing(
             self._target_encoded, self._target_embedding[:, :-1, :], self.target_lengths
@@ -74,7 +82,7 @@ class GanModel:
         self.discriminator_loss = self.config['model']['discriminator_coefficient'] * discriminator_loss
 
         # content vector reconstruction loss
-        encoded_again = self.encoder.encode_inputs_to_vector(self._transferred_source, None, domain_identifier=None)
+        encoded_again = self.encoder.encode_inputs_to_vector(self._transferred_source, None, -1.0 * tf.ones((1, 1), dtype=tf.float32))
         self.semantic_distance_loss = self.config['model']['semantic_distance_coefficient'] * \
                                       self.loss_handler.get_context_vector_distance_loss(self._source_encoded,
                                                                                          encoded_again)
@@ -197,9 +205,11 @@ class GanModel:
         if self.config['model']['optimizer'] == 'rmsp':
             return tf.train.RMSPropOptimizer(learn_rate)
 
-    def _encode(self, inputs, input_lengths):
+    def _encode(self, inputs, input_lengths, domain_identifier):
         embedding = self.embedding_container.embed_inputs(inputs)
-        encoded = self.encoder.encode_inputs_to_vector(embedding, input_lengths, domain_identifier=None)
+        if not self.config['model']['include_domain_in_encoder']:
+            domain_identifier = None
+        encoded = self.encoder.encode_inputs_to_vector(embedding, input_lengths, domain_identifier)
         return embedding, encoded
 
     def _predict(self):

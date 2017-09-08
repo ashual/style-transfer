@@ -3,11 +3,13 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingEncoder(BaseModel):
-    def __init__(self, hidden_states, dropout_placeholder, bidirectional, name=None):
+    def __init__(self, embedding_size, use_domain, hidden_states, dropout_placeholder, bidirectional, name=None):
         BaseModel.__init__(self, name)
         self.bidirectional = bidirectional
         # encoder - model
         with tf.variable_scope('{}/cells'.format(self.name)):
+            if use_domain:
+                self.w, self.b = BaseModel.create_input_parameters(1, embedding_size)
             if bidirectional:
                 self.multilayer_encoder_fw = tf.contrib.rnn.MultiRNNCell(self.generate_cells(hidden_states,
                                                                                              dropout_placeholder))
@@ -29,7 +31,8 @@ class EmbeddingEncoder(BaseModel):
 
     def encode_inputs_to_vector(self, inputs, input_lengths, domain_identifier=None):
         with tf.variable_scope('{}/preprocessing'.format(self.name)):
-            encoder_inputs = self.concat_identifier(inputs, domain_identifier)
+            projected_domain = tf.matmul(domain_identifier, self.w) + self.b if domain_identifier is not None else None
+            encoder_inputs = self.concat_identifier(inputs, projected_domain)
 
         # run the encoder
         with tf.variable_scope('{}/run'.format(self.name), reuse=self.reuse_flag):
