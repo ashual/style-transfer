@@ -167,7 +167,11 @@ class GanModel:
     def _init_discriminator(self):
         is_w_loss = self.config['model']['discriminator_loss_type'] == 'wasserstein'
         if self.config['model']['discriminator_type'] == 'embedding':
+            dense_inputs = self.config['discriminator_embedding']['encoder_hidden_states'][-1]
+            if self.config['discriminator_embedding']['include_content_vector']:
+                dense_inputs += self.config['model']['encoder_hidden_states'][-1]
             return EmbeddingDiscriminator(self.config['discriminator_embedding']['encoder_hidden_states'],
+                                          dense_inputs,
                                           self.config['discriminator_embedding']['hidden_states'],
                                           is_w_loss,
                                           self.discriminator_dropout_placeholder,
@@ -199,14 +203,18 @@ class GanModel:
         return embedding, encoded
 
     def _predict(self):
-        prediction_input = None
         if self.config['model']['discriminator_type'] == 'embedding':
             sentence_length = tf.shape(self._teacher_forced_target)[1]
             transferred_source_normalized = self._transferred_source[:, :sentence_length, :]
             prediction_input = tf.concat((transferred_source_normalized, self._teacher_forced_target), axis=0)
+            if self.config['discriminator_embedding']['include_content_vector']:
+                encoded = tf.concat((self._source_encoded, self._target_encoded), axis=0)
+            else:
+                encoded = None
+            prediction = self.discriminator.predict(prediction_input, encoded)
         if self.config['model']['discriminator_type'] == 'content':
             prediction_input = tf.concat((self._source_encoded, self._target_encoded), axis=0)
-        prediction = self.discriminator.predict(prediction_input)
+            prediction = self.discriminator.predict(prediction_input)
         source_batch_size = tf.shape(self.source_batch)[0]
         source_prediction, target_prediction = tf.split(prediction, [source_batch_size, source_batch_size], axis=0)
         return prediction, source_prediction, target_prediction
