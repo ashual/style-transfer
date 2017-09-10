@@ -35,7 +35,7 @@ class ModelTrainerGan(ModelTrainerBase):
         self.batch_iterator_validation = MultiBatchIterator(datasets,
                                                             self.embedding_handler,
                                                             self.config['sentence']['min_length'],
-                                                            2)
+                                                            10)
         # set the model
         self.model = GanModel(self.config, self.operational_config, self.embedding_handler)
 
