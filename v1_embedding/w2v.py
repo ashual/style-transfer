@@ -36,7 +36,7 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 
 
-filenames = ["datasets/yelp/negative_reviews.json", "datasets/yelp/positive_reviews.json"]
+filenames = ["datasets/yelp/neg.txt", "datasets/yelp/pos.txt"]
 with open("config/gan.yml", 'r') as ymlfile:
     config = yaml.load(ymlfile)
 embedding_size = config['embedding']['word_size'] # Dimension of the embedding vector.
@@ -47,9 +47,7 @@ def read_data(filenames):
     data = []
     for filename in filenames:
         with open(filename) as f:
-            for line in f:
-                parsed_line = json.loads(line)
-                sentence = parsed_line["text"].lower()
+            for sentence in f:
                 words = word_tokenize(sentence)
                 words += ["END"]
                 data.extend(words)
