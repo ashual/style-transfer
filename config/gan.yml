@@ -60,7 +60,6 @@ embedding:
   min_word_occurrences: 2
   word_size: 200
   should_train: False
-  filename: 'embeddings-130441-100-2-06-09-2017_15-52-41246000.txt'
 
 #curriculum:
 #  upper_range: 5.0

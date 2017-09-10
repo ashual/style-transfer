@@ -4,18 +4,15 @@ from os import getcwd
 from os.path import join
 
 
-class GloveEmbeddingHandler(EmbeddingHandler):
-    def __init__(self, save_dir, datasets, pretrained_embedding_file, embedding_size=200, n=2,
-                 truncate_by_cutoff=True):
+class PreTrainedEmbeddingHandler(EmbeddingHandler):
+    def __init__(self, save_dir, datasets, embedding_size=200, n=2, truncate_by_cutoff=True):
         EmbeddingHandler.__init__(self, save_dir)
         if not self.initialized_from_cache:
-            if pretrained_embedding_file is None:
-                self.pretrained_embedding_file = join(getcwd(), "data", "glove.6B", "glove.6B.50d.txt")
+            if embedding_size == 100 or embedding_size == 200:
+                self.pretrained_embedding_file = \
+                    join(getcwd(), 'data', "embeddings-130441-{}-2.txt".format(embedding_size))
             else:
-                if embedding_size == 100 or embedding_size == 200:
-                    self.pretrained_embedding_file = pretrained_embedding_file
-                else:
-                     raise Exception('We should train different embedding file')
+                raise Exception('We should train different embedding file')
             print('counting words in pretrained embedding file')
             word_set = self.build_dataset(datasets, n, truncate_by_cutoff)
             print('word_set', len(word_set))
@@ -45,4 +42,3 @@ class GloveEmbeddingHandler(EmbeddingHandler):
         if self.end_of_sentence_token not in vocab or self.unknown_token not in vocab:
             raise Exception("end or unknown token does not exist")
         return vocab, embedding
-

@@ -1,4 +1,3 @@
-import json
 from datasets.dataset import Dataset
 
 
@@ -10,10 +9,9 @@ class YelpSentences(Dataset):
 
     def get_content_actual(self):
         if self.positive:
-            with open('datasets/yelp/positive_reviews.json') as yelp:
+            with open('datasets/yelp/pos.txt') as yelp:
                 content = yelp.readlines()
         else:
-            with open('datasets/yelp/negative_reviews.json') as yelp:
+            with open('datasets/yelp/neg.txt') as yelp:
                 content = yelp.readlines()
-        content = [json.loads(s)['text'].lower() for s in content]
         return content

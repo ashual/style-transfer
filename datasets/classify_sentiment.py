@@ -11,6 +11,7 @@ import time
 import json
 import pickle
 
+from nltk import word_tokenize
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn import svm
 from sklearn.metrics import classification_report
@@ -94,10 +95,34 @@ def classify(data):
     with open('vectorizer.obj', 'rb') as f:
         vectorizer = pickle.load(f)
     vectors = vectorizer.transform(data)
-    return classifier.predict(vectors)
+    return classifier.predict(vectors), classifier.decision_function(vectors)
 
 
-if __name__ == '__main__':
+def filter_sentences(is_positive, content):
+    prediction, confidence = classify(content)
+    filtered_content = []
+    if is_positive:
+        pred_should_be = 'pos'
+    else:
+        pred_should_be = 'neg'
+    for i, sentence in enumerate(content):
+        if prediction[i] == pred_should_be and abs(confidence[i]) >= .8 and len(word_tokenize(sentence)) >= 3:
+            filtered_content.append(sentence)
+    return filtered_content
+
+
+def create_filtered_files():
+    positive_content = [json.loads(s)['text'].lower() for s in get_positive_sentences()]
+    negative_content = [json.loads(s)['text'].lower() for s in get_negative_sentences()]
+    positive_content = filter_sentences(True, positive_content)
+    negative_content = filter_sentences(False, negative_content)
+    with open('pos.txt', 'w') as f:
+        f.writelines("%s\n" % l for l in positive_content)
+    with open('neg.txt', 'w') as f:
+        f.writelines("%s\n" % l for l in negative_content)
+
+
+def create_classifier():
     classes = ['pos', 'neg']
 
     # Read the data
@@ -206,3 +231,6 @@ if __name__ == '__main__':
     print("Results for LinearSVC()")
     print("Training time: %fs; Prediction time: %fs" % (time_liblinear_train, time_liblinear_predict))
     print(classification_report(test_labels, prediction_liblinear))
+
+if __name__ == '__main__':
+    pass

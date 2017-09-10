@@ -2,4 +2,6 @@
 /encdec/bin
 /encdec/lib
 /data/glove.6B
+/logs/
+/models/
 *.pyc
