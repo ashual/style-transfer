@@ -1,0 +1,50 @@
+Backend Qt5Agg is interactive backend. Turning interactive mode on.
+Saving logs both to stdout and logs/2017-09-06_16-53-26.log
+------------ Config ------------
+cross_entropy_loss: {translation_hidden_size: 1000}
+discriminator_content:
+  hidden_states: [1500]
+discriminator_embedding:
+  bidirectional: false
+  encoder_hidden_states: [1500]
+  hidden_states: [1500]
+embedding: {min_word_occurrences: 2, should_train: false, word_size: 200}
+margin_loss1: {margin_coefficient: 1.0, random_words_size: 5}
+margin_loss2: {margin: 1.0, random_words_size: 5}
+model:
+  bidirectional_encoder: false
+  decoder_hidden_states: [1500]
+  discriminator_coefficient: 0.0001
+  discriminator_dropout: 0.3
+  discriminator_loss_type: wasserstein
+  discriminator_type: embedding
+  dropout: 0.3
+  encoder_hidden_states: [1500]
+  initial_generator_epochs: 50
+  learn_rate: 0.0035
+  loss_type: margin2
+  maximal_loss_for_discriminator: 99999999.9
+  minimal_accuracy_for_discriminator: 0.55
+  optimizer: rmsp
+  reconstruction_coefficient: 0.1
+  semantic_distance_coefficient: 100000.0
+sentence: {limit: 300000, max_length: 15, min_length: 6}
+trainer: {batch_size: 100, min_discriminator_steps: 1, min_generator_steps: 1, number_of_epochs: 5000}
+wasserstein_loss: {clip_value: 1.01}
+
+------------ Operational Config ------------
+{load_model: true, print_device: false, run_optimizer: true, tensorboard_frequency: 100,
+  validation_batch_frequency: 100}
+
+Traceback (most recent call last):
+  File "/usr/local/src/pycharm-community-2017.1.3/helpers/pydev/pydevd.py", line 1596, in <module>
+    globals = debugger.run(setup['file'], None, None, is_module)
+  File "/usr/local/src/pycharm-community-2017.1.3/helpers/pydev/pydevd.py", line 1023, in run
+    pydev_imports.execfile(file, globals, locals)  # execute the script
+  File "/usr/local/src/pycharm-community-2017.1.3/helpers/pydev/_pydev_imps/_pydev_execfile.py", line 18, in execfile
+    exec(compile(contents+"\n", file, 'exec'), glob, loc)
+  File "/home/oron/tau/style-transfer/v1_embedding/model_trainer_gan_v3.py", line 165, in <module>
+    ModelTrainerGan(config, operational_config).do_train_loop()
+  File "/home/oron/tau/style-transfer/v1_embedding/model_trainer_gan_v3.py", line 26, in __init__
+    self.config['embedding']['min_word_occurrences']
+TypeError: __init__() should return None, not 'generator'
