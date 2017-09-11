@@ -2,3 +2,5 @@ data/embeddings-130441-* filter=lfs diff=lfs merge=lfs -text
 *.obj filter=lfs diff=lfs merge=lfs -text
 *.json filter=lfs diff=lfs merge=lfs -text
 *.txt filter=lfs diff=lfs merge=lfs -text
+data/embeddings-* filter=lfs diff=lfs merge=lfs -text
+data/embeddings-53708-* filter=lfs diff=lfs merge=lfs -text
