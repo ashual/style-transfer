@@ -35,9 +35,11 @@ import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 
+import csv
 
-filenames = ["datasets/yoda/plain_full_length.text"]
-dataset_name = "yoda" # for embeddings filename
+
+filenames = ["datasets/bible-corpus/t_kjv.csv", "datasets/bible-corpus/t_asv.csv"]
+dataset_name = "bibleASVandKJV" # for embeddings filename
 with open("config/gan.yml", 'r') as ymlfile:
     config = yaml.load(ymlfile)
 embedding_size = config['embedding']['word_size'] # Dimension of the embedding vector.
@@ -48,7 +50,10 @@ def read_data(filenames):
     data = []
     for filename in filenames:
         with open(filename) as f:
-            for sentence in f:
+            incsv = csv.reader(f)
+            next(incsv)
+            for line in incsv:
+                sentence = line[4]
                 words = word_tokenize(sentence.lower())
                 words += ["END"]
                 data.extend(words)

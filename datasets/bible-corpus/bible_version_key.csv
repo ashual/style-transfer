@@ -5,4 +5,4 @@ id,table,abbreviation,language,version,info_text,info_url,publisher,copyright,co
 4,t_kjv,KJV,english,King James Version,,http://en.wikipedia.org/wiki/King_James_Version,,Public Domain,
 5,t_wbt,WBT,english,Webster's Bible,,http://en.wikipedia.org/wiki/Webster%27s_Revision,,Public Domain,
 6,t_web,WEB,english,World English Bible,,http://en.wikipedia.org/wiki/World_English_Bible,,Public Domain,
-7,t_ylt,YLT,english,Young's Literal Translation,,http://en.wikipedia.org/wiki/Young%27s_Literal_Translation,,Public Domain,
+7,t_ylt,YLT,english,Young's Literal Tanslation,,http://en.wikipedia.org/wiki/Young%27s_Literal_Translation,,Public Domain,
