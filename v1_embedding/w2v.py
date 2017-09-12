@@ -36,7 +36,8 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 
 
-filenames = ["datasets/yelp/neg.txt", "datasets/yelp/pos.txt"]
+filenames = ["datasets/yoda/plain_full_length.text"]
+dataset_name = "yoda" # for embeddings filename
 with open("config/gan.yml", 'r') as ymlfile:
     config = yaml.load(ymlfile)
 embedding_size = config['embedding']['word_size'] # Dimension of the embedding vector.
@@ -48,15 +49,17 @@ def read_data(filenames):
     for filename in filenames:
         with open(filename) as f:
             for sentence in f:
-                words = word_tokenize(sentence)
+                words = word_tokenize(sentence.lower())
                 words += ["END"]
                 data.extend(words)
     return data
+
 
 vocabulary = read_data(filenames)
 print('Data size', len(vocabulary))
 
 # Step 2: Build the dictionary and replace rare words with UNK token.
+
 
 def build_dataset(words):
     """Process raw inputs into a dataset."""
@@ -190,7 +193,7 @@ def save_embeddings(step, final):
         embeddings_source = normalized_embeddings.eval()
     print(len(embeddings_source[0]) == embedding_size)
 
-    filename = "embeddings-"+str(count[0][1])+"-"+str(embedding_size) + "-" + str(threshold) + "-" + str(datetime.datetime.now().strftime('%d-%m-%Y_%H-%M-%S')) + str(step) + ".txt"
+    filename = "embeddings-"+ dataset_name + "-" + str(count[0][1])+"-"+str(embedding_size) + "-" + str(threshold) + "-" + str(datetime.datetime.now().strftime('%d-%m-%Y_%H-%M-%S')) + str(step) + ".txt"
     file = open(filename, "w")
     for i in range(vocabulary_size):
         emb = ""
