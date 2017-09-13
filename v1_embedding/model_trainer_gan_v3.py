@@ -2,9 +2,11 @@ import yaml
 from datasets.multi_batch_iterator import MultiBatchIterator
 from datasets.yelp_helpers import YelpSentences
 from v1_embedding.gan_model import GanModel
+from collections import Counter
 from v1_embedding.logger import init_logger
 from v1_embedding.model_trainer_base import ModelTrainerBase
 from v1_embedding.pre_trained_embedding_handler import PreTrainedEmbeddingHandler
+from datasets.classify_sentiment import classify
 
 
 class ModelTrainerGan(ModelTrainerBase):
@@ -33,7 +35,7 @@ class ModelTrainerGan(ModelTrainerBase):
         self.batch_iterator_validation = MultiBatchIterator(datasets,
                                                             self.embedding_handler,
                                                             self.config['sentence']['min_length'],
-                                                            10)
+                                                            self.config['trainer']['batch_size'])
         # set the model
         self.model = GanModel(self.config, self.operational_config, self.embedding_handler)
 
@@ -148,6 +150,14 @@ class ModelTrainerGan(ModelTrainerBase):
             # activate the saver
             self.saver_wrapper.save_model(sess, global_step=global_step)
 
+
+def classify_transferred(transferred_strings):
+    # evaluate the transfer
+    analyzed_sentiments, analyzed_security = classify([' '.join(s) for s in transferred_strings])
+    analyzed_dict = Counter(analyzed_sentiments)
+    analyzed_accuracy = analyzed_dict['pos'] / len(analyzed_sentiments)
+    analyzed_average = sum(analyzed_security) / float(len(analyzed_security))
+    print('Transferred acc: {} with average of: {}'.format(analyzed_accuracy, analyzed_average))
 
 if __name__ == "__main__":
     with open("config/gan.yml", 'r') as ymlfile:

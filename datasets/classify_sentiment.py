@@ -10,6 +10,7 @@
 import time
 import json
 import pickle
+import os
 
 from nltk import word_tokenize
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -90,9 +91,9 @@ def get_negative_sentences():
 
 
 def classify(data):
-    with open('classifier.obj', 'rb') as f:
+    with open(os.path.join(os.getcwd(), 'datasets', 'classifier.obj'), 'rb') as f:
         classifier = pickle.load(f)
-    with open('vectorizer.obj', 'rb') as f:
+    with open(os.path.join(os.getcwd(), 'datasets', 'vectorizer.obj'), 'rb') as f:
         vectorizer = pickle.load(f)
     vectors = vectorizer.transform(data)
     return classifier.predict(vectors), classifier.decision_function(vectors)

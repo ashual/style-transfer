@@ -3,11 +3,11 @@ trainer:
 #  number_of_epochs: 50
   batch_size: 100
 #  batch_size: 10
-  min_generator_steps: 3
+  min_generator_steps: 10
   min_discriminator_steps: 1
 
 model:
-  initial_generator_epochs: 30
+  initial_generator_epochs: 10
 #  initial_generator_epochs: 2
   encoder_hidden_states: [1500, 1000, 500]
   decoder_hidden_states: [1000, 1500]
