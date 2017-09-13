@@ -46,13 +46,15 @@ class GanModel:
         self.embedding_translator = self._init_translator()
         self.encoder = EmbeddingEncoder(self.config['model']['encoder_hidden_states'],
                                         self.dropout_placeholder,
-                                        self.config['model']['bidirectional_encoder'])
+                                        self.config['model']['bidirectional_encoder'],
+                                        self.config['model']['cell_type'])
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(),
                                         self.config['model']['decoder_hidden_states'],
                                         self.dropout_placeholder,
                                         # TODO: when add curriculum - change to max and make the transferred source be
                                         # rolled out according to the curriculum sentence length
-                                        self.config['sentence']['min_length'])
+                                        self.config['sentence']['min_length'],
+                                        self.config['model']['cell_type'])
         self.loss_handler = LossHandler(self.embedding_handler.get_vocabulary_length())
         self.discriminator = self._init_discriminator()
         self.policy = IterativePolicy(True, generator_steps=self.config['trainer']['min_generator_steps'],
@@ -175,7 +177,8 @@ class GanModel:
                                           self.config['discriminator_embedding']['hidden_states'],
                                           is_w_loss,
                                           self.discriminator_dropout_placeholder,
-                                          self.config['discriminator_embedding']['bidirectional'])
+                                          self.config['discriminator_embedding']['bidirectional'],
+                                          self.config['model']['cell_type'])
         if self.config['model']['discriminator_type'] == 'content':
             return ContentDiscriminator(self.config['model']['encoder_hidden_states'][-1],
                                         self.config['discriminator_content']['hidden_states'],

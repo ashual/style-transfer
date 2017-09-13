@@ -39,11 +39,13 @@ class ModelTrainerValidation(ModelTrainerBase):
                                                         self.dropout_placeholder)
         self.encoder = EmbeddingEncoder(self.config['model']['encoder_hidden_states'],
                                         self.dropout_placeholder,
-                                        self.config['model']['bidirectional_encoder'])
+                                        self.config['model']['bidirectional_encoder'],
+                                        self.config['model']['cell_type'])
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(),
                                         self.config['model']['decoder_hidden_states'],
                                         self.dropout_placeholder,
-                                        self.config['sentence']['max_length'])
+                                        self.config['sentence']['max_length'],
+                                        self.config['model']['cell_type'])
 
         self.loss_handler = LossHandler(self.embedding_handler.get_vocabulary_length())
 

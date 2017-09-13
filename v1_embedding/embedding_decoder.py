@@ -3,18 +3,23 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingDecoder(BaseModel):
-    def __init__(self, embedding_size, hidden_states, dropout_placeholder, maximal_decoding,
-                 name=None):
+    def __init__(self, embedding_size, hidden_states, dropout_placeholder, maximal_decoding, cell_type, name=None):
         BaseModel.__init__(self, name)
         self.maximal_decoding = maximal_decoding
         # decoder - model
         with tf.variable_scope('{}/cells'.format(self.name)):
             decoder_cells = []
             for hidden_size in hidden_states:
-                cell = tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True)
+                if cell_type == 'GRU':
+                    cell = tf.contrib.rnn.GRUCell(hidden_size)
+                else:
+                    cell = tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True)
                 cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout_placeholder)
                 decoder_cells.append(cell)
-            cell = tf.contrib.rnn.BasicLSTMCell(embedding_size, state_is_tuple=True)
+            if cell_type == 'GRU':
+                cell = tf.contrib.rnn.GRUCell(embedding_size)
+            else:
+                cell = tf.contrib.rnn.BasicLSTMCell(embedding_size, state_is_tuple=True)
             cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout_placeholder)
             decoder_cells.append(cell)
             self.multilayer_decoder = tf.contrib.rnn.MultiRNNCell(decoder_cells)
