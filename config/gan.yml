@@ -71,3 +71,4 @@ sentence:
 #  min_length: 3
   min_length: 6
   max_length: 15
+  no_of_sentences: 10
