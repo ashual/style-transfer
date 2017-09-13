@@ -2,7 +2,7 @@ import yaml
 from datasets.multi_batch_iterator import MultiBatchIterator
 from datasets.yelp_helpers import YelpSentences
 from v1_embedding.gan_model import GanModel
-from v1_embedding.logger import init_logger
+from collections import Counter
 from v1_embedding.logger import init_logger
 from v1_embedding.model_trainer_base import ModelTrainerBase
 from v1_embedding.pre_trained_embedding_handler import PreTrainedEmbeddingHandler
@@ -90,13 +90,11 @@ class ModelTrainerGan(ModelTrainerBase):
             self.embedding_handler
         )
         #evaluate the transfer
-        analyzed_sentiments,_ = classify(transferred)
-        negative_count = 0
-        for i in analyzed_sentiments:
-            if i == 'neg':
-                negative_count += 1
-        transferred_sentiment_accuracy = negative_count / 10
-        print(transferred_sentiment_accuracy)
+        analyzed_sentiments, analyzed_security = classify([' '.join(s) for s in transferred_strings])
+        analyzed_dict = Counter(analyzed_sentiments)
+        analyzed_accuracy = analyzed_dict['pos'] / len(analyzed_sentiments)
+        analyzed_average = sum(analyzed_security) / float(len(analyzed_security))
+        print('Transferred acc: {} with average of: {}'.format(analyzed_accuracy, analyzed_average))
 
         if return_result_as_summary:
             return sess.run(self.model.text_watcher.summary, {

@@ -12,14 +12,18 @@ class EmbeddingDecoder(BaseModel):
             for hidden_size in hidden_states:
                 if cell_type == 'GRU':
                     cell = tf.contrib.rnn.GRUCell(hidden_size)
-                else:
+                elif cell_type == 'LSTM':
                     cell = tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True)
+                else:
+                    raise Exception('No cell type exists')
                 cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout_placeholder)
                 decoder_cells.append(cell)
             if cell_type == 'GRU':
                 cell = tf.contrib.rnn.GRUCell(embedding_size)
-            else:
+            elif cell_type == 'LSTM':
                 cell = tf.contrib.rnn.BasicLSTMCell(embedding_size, state_is_tuple=True)
+            else:
+                raise Exception('No cell type exists')
             cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout_placeholder)
             decoder_cells.append(cell)
             self.multilayer_decoder = tf.contrib.rnn.MultiRNNCell(decoder_cells)

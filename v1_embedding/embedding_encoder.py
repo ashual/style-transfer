@@ -3,7 +3,7 @@ from v1_embedding.base_model import BaseModel
 
 
 class EmbeddingEncoder(BaseModel):
-    def __init__(self, hidden_states, dropout_placeholder, bidirectional, cell_type='LSTM', name=None):
+    def __init__(self, hidden_states, dropout_placeholder, bidirectional, cell_type, name=None):
         BaseModel.__init__(self, name)
         self.bidirectional = bidirectional
         self.cell_type = cell_type
@@ -28,8 +28,10 @@ class EmbeddingEncoder(BaseModel):
         for hidden_size in hidden_states:
             if cell_type == 'GRU':
                 cell = tf.contrib.rnn.GRUCell(hidden_size)
-            else:
+            elif cell_type == 'LSTM':
                 cell = tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True)
+            else:
+                raise Exception('No cell type exists')
             cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=1.0 - dropout_placeholder)
             encoder_cells.append(cell)
         return encoder_cells
@@ -58,7 +60,9 @@ class EmbeddingEncoder(BaseModel):
                                                    time_major=False, sequence_length=input_lengths)
                 if self.cell_type == 'GRU':
                     res = final_state[-1]
-                else:
+                elif self.cell_type == 'LSTM':
                     res = final_state[-1].h
+                else:
+                    raise Exception('No cell type exists')
             return res
 
