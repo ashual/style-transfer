@@ -2,8 +2,8 @@ trainer:
   number_of_epochs: 5000
 #  number_of_epochs: 50
   batch_size: 100
+  #  batch_size: 10
   validation_batch_size: 10
-#  batch_size: 10
   min_generator_steps: 10
   min_discriminator_steps: 1
 
@@ -33,8 +33,8 @@ model:
   loss_type: 'margin2'
 #  discriminator_loss_type: 'regular'
   discriminator_loss_type: 'wasserstein'
-  #cell_type: 'LSTM'
-  cell_type: 'GRU'
+  cell_type: 'LSTM'
+  #cell_type: 'GRU'
 
 cross_entropy_loss:
   translation_hidden_size: 1000
@@ -70,8 +70,8 @@ embedding:
 
 sentence:
   limit: 300000
-  validation_limit: 10
 #  limit: 150
+  validation_limit: 29000
 #  min_length: 3
   min_length: 6
   max_length: 15
