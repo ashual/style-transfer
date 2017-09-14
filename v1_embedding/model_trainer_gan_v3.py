@@ -97,18 +97,21 @@ class ModelTrainerGan(ModelTrainerBase):
             self.embedding_handler
         )
         #evaluate the transfer
-        analyzed_sentiments, analyzed_security = classify([' '.join(s) for s in transferred_strings])
-        analyzed_dict = Counter(analyzed_sentiments)
-        analyzed_accuracy = analyzed_dict['pos'] / len(analyzed_sentiments)
-        analyzed_average = sum(analyzed_security) / float(len(analyzed_security))
-        print('Transferred acc: {} with average of: {}'.format(analyzed_accuracy, analyzed_average))
+        evaluation_prediction, evaluation_confidence = classify([' '.join(s) for s in transferred_strings])
+        evaluation_accuracy = Counter(evaluation_prediction)['pos'] / float(len(evaluation_prediction))
+        average_evaluation_confidence = sum(evaluation_confidence) / float(len(evaluation_confidence))
+        print('Transferred evaluation acc: {} with average confidence of: {}'.format(
+            evaluation_accuracy, average_evaluation_confidence)
+        )
 
         if return_result_as_summary:
-            return sess.run(self.model.text_watcher.summary, {
+            return sess.run(self.model.evaluation_summary, {
                 self.model.text_watcher.placeholders['original_source']: [' '.join(s) for s in original_source_strings],
                 self.model.text_watcher.placeholders['original_target']: [' '.join(s) for s in original_target_strings],
                 self.model.text_watcher.placeholders['transferred']: [' '.join(s) for s in transferred_strings],
                 self.model.text_watcher.placeholders['reconstructed']: [' '.join(s) for s in reconstructed_strings],
+                self.model.custom_metric_1_placeholder: evaluation_accuracy,
+                self.model.custom_metric_2_placeholder: average_evaluation_confidence,
             })
         else:
             return None

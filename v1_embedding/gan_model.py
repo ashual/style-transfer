@@ -31,10 +31,15 @@ class GanModel:
         self.source_batch = tf.placeholder(tf.int64, shape=(None, None))
         # placeholder for target sentences (batch, time)=> index of word s.t the padding is on the right
         self.target_batch = tf.placeholder(tf.int64, shape=(None, None))
-
+        # variable to store epoch
         self.epoch, self.epoch_placeholder, self.assign_epoch = self._create_assignable_scalar(
             'epoch', tf.int32, init_value=0
         )
+        # variable to store evaluation metrices
+        self.custom_metric_1, self.custom_metric_1_placeholder, self.assign_custom_metric_1 = \
+            self._create_assignable_scalar('custom_metric_1', tf.float32, init_value=0.0)
+        self.custom_metric_2, self.custom_metric_2_placeholder, self.assign_custom_metric_2 = \
+            self._create_assignable_scalar('custom_metric_2', tf.float32, init_value=0.0)
         self._apply_discriminator_loss_for_generator_counter = tf.Variable(0.0, trainable=False, dtype=tf.float32)
         self._generator_steps_counter = tf.Variable(0.0, trainable=False, dtype=tf.float32)
         self._total_steps_counter = tf.Variable(0.0, trainable=False, dtype=tf.float32)
@@ -147,14 +152,18 @@ class GanModel:
             lambda: generator_step_summaries,
             lambda: discriminator_step_summaries
         )
+        # to generate text in tensorboard use:
+        self.text_watcher = TextWatcher(['original_source', 'original_target', 'transferred', 'reconstructed'])
+        self.evaluation_summary = tf.summary.merge([
+            self.text_watcher.summary,
+            tf.summary.scalar('custom_metric_1', self.custom_metric_1),
+            tf.summary.scalar('custom_metric_2', self.custom_metric_2)
+        ])
 
         # do transfer
         self.transferred_source_batch = self._translate_to_vocabulary(self._transferred_source)
         # reconstruction
         self.reconstructed_targets_batch = self._translate_to_vocabulary(self._teacher_forced_target)
-
-        # to generate text in tensorboard use:
-        self.text_watcher = TextWatcher(['original_source', 'original_target', 'transferred', 'reconstructed'])
 
     def _increase_if(self, variable, condition):
         return tf.assign_add(
