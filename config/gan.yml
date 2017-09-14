@@ -11,8 +11,9 @@ model:
   initial_generator_epochs: 10
 #  initial_generator_epochs: 2
   encoder_hidden_states: [1500, 1000, 500]
+  #encoder_hidden_states: [100]
   decoder_hidden_states: [1000, 1500]
-#  learn_rate: 0.0001
+  # decoder_hidden_states: [50]
   learn_rate: 0.0035
 #  optimizer: 'gd'
 #  optimizer: 'adam'
@@ -22,7 +23,7 @@ model:
   bidirectional_encoder: False
 #  curriculum_training: True
   reconstruction_coefficient: 10.0
-  semantic_distance_coefficient: 0.0001
+  semantic_distance_coefficient: 0.000001
   discriminator_coefficient: 0.00001
   minimal_accuracy_for_discriminator: 0.55
   maximal_loss_for_discriminator: 99999999.9
@@ -50,14 +51,17 @@ margin_loss2:
 discriminator_embedding:
   include_content_vector: True
   encoder_hidden_states: [1500]
+  # encoder_hidden_states: [100]
   hidden_states: [1500]
+  #hidden_states: [50]
   bidirectional: False
 
 discriminator_content:
   hidden_states: [1500]
 
 wasserstein_loss:
-  clip_value: 0.25
+  clip_value: 0.51
+  #clip_value: 0.25
 
 embedding:
   min_word_occurrences: 2
@@ -70,9 +74,9 @@ embedding:
 
 sentence:
   limit: 300000
+  #limit: 30000
 #  limit: 150
-  validation_limit: 29000
+  validation_limit: 1000
 #  min_length: 3
   min_length: 6
   max_length: 15
-  no_of_sentences: 10
