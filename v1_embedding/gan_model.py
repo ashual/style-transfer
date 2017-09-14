@@ -65,7 +65,7 @@ class GanModel:
         # common steps:
         self._source_embedding, self._source_encoded = self._encode(self.source_batch, self.source_lengths)
         self._target_embedding, self._target_encoded = self._encode(self.target_batch, self.target_lengths)
-        self._transferred_source = self.decoder.do_iterative_decoding(self._source_encoded)
+        self._transferred_source = self.decoder.do_iterative_decoding(self._source_encoded)[:, :self.sentence_length, :]
         self._teacher_forced_target = self.decoder.do_teacher_forcing(
             self._target_encoded, self._target_embedding[:, :-1, :], self.target_lengths
         )
@@ -209,9 +209,7 @@ class GanModel:
 
     def _predict(self):
         if self.config['model']['discriminator_type'] == 'embedding':
-            sentence_length = tf.shape(self._teacher_forced_target)[1]
-            transferred_source_normalized = self._transferred_source[:, :sentence_length, :]
-            prediction_input = tf.concat((transferred_source_normalized, self._teacher_forced_target), axis=0)
+            prediction_input = tf.concat((self._teacher_forced_target, self._teacher_forced_target), axis=0)
             if self.config['discriminator_embedding']['include_content_vector']:
                 encoded = tf.concat((self._source_encoded, self._target_encoded), axis=0)
             else:

@@ -173,9 +173,9 @@ class ModelTrainerGan(ModelTrainerBase):
         current_reconstruction_loss = self.current_reconstruction_loss / self.generator_steps_counter
         self.current_reconstruction_loss = 0.0
         self.generator_steps_counter = 0
+        enlarge = False
         # The loss is ok, but keep decreasing
-        if config['loss']['upper_range'] >= current_reconstruction_loss > config['loss']['lower_range'] and \
-                        current_reconstruction_loss >= self.best_reconstruction_loss:
+        if config['curriculum']['upper_range'] >= current_reconstruction_loss > config['curriculum']['lower_range'] and current_reconstruction_loss >= self.best_reconstruction_loss:
             enlarge = True
             message = "loss is in range {}>={}>{} and doesn't decrease - best:{}, current: {}".format(
                 config['loss']['upper_range'],
@@ -184,7 +184,7 @@ class ModelTrainerGan(ModelTrainerBase):
                 self.best_reconstruction_loss,
                 current_reconstruction_loss
             )
-        elif config['loss']['lower_range'] >= current_reconstruction_loss:
+        elif config['curriculum']['lower_range'] >= current_reconstruction_loss:
             enlarge = True
             message = "loss ({}) is smaller than lower_range: {}".format(current_reconstruction_loss,
                                                                          config['loss']['lower_range'])
