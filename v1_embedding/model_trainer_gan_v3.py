@@ -13,10 +13,16 @@ class ModelTrainerGan(ModelTrainerBase):
     def __init__(self, config_file, operational_config_file):
         ModelTrainerBase.__init__(self, config_file=config_file, operational_config_file=operational_config_file)
 
-        self.dataset_neg = YelpSentences(positive=False, limit_sentences=self.config['sentence']['limit'],
-                                         dataset_cache_dir=self.get_dataset_cache_dir(), dataset_name='neg')
-        self.dataset_pos = YelpSentences(positive=True, limit_sentences=self.config['sentence']['limit'],
-                                         dataset_cache_dir=self.get_dataset_cache_dir(), dataset_name='pos')
+        self.dataset_neg = YelpSentences(positive=False,
+                                         limit_sentences=self.config['sentence']['limit'],
+                                         validation_limit_sentences=self.config['sentence']['validation_limit'],
+                                         dataset_cache_dir=self.get_dataset_cache_dir(),
+                                         dataset_name='neg')
+        self.dataset_pos = YelpSentences(positive=True,
+                                         limit_sentences=self.config['sentence']['limit'],
+                                         validation_limit_sentences=self.config['sentence']['validation_limit'],
+                                         dataset_cache_dir=self.get_dataset_cache_dir(),
+                                         dataset_name='pos')
         datasets = [self.dataset_neg, self.dataset_pos]
         self.embedding_handler = PreTrainedEmbeddingHandler(
             self.get_embedding_dir(),
@@ -25,17 +31,18 @@ class ModelTrainerGan(ModelTrainerBase):
             self.config['embedding']['min_word_occurrences']
         )
 
+        contents, validation_contents = MultiBatchIterator.preprocess(datasets)
         # iterators
-        self.batch_iterator = MultiBatchIterator(datasets,
+        self.batch_iterator = MultiBatchIterator(contents,
                                                  self.embedding_handler,
                                                  self.config['sentence']['min_length'],
                                                  self.config['trainer']['batch_size'])
 
         # iterators
-        self.batch_iterator_validation = MultiBatchIterator(datasets,
+        self.batch_iterator_validation = MultiBatchIterator(validation_contents,
                                                             self.embedding_handler,
                                                             self.config['sentence']['min_length'],
-                                                            self.config['sentence']['no_of_sentences'])
+                                                            self.config['trainer']['validation_batch_size'])
         # set the model
         self.model = GanModel(self.config, self.operational_config, self.embedding_handler)
 

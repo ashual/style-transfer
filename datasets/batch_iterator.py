@@ -5,17 +5,16 @@ from datasets.batch import Batch
 
 
 class BatchIterator:
-    def __init__(self, dataset, embedding_handler, sentence_len, batch_size):
-        self.dataset = dataset
+    def __init__(self, content, embedding_handler, sentence_len, batch_size):
+        self.content = content
         self.embedding_handler = embedding_handler
         self.sentence_len = sentence_len
         self.batch_size = batch_size
 
     def __iter__(self):
-        content = self.dataset.get_content()
-        shuffle(content)
+        shuffle(self.content)
         res = Batch()
-        for sentence in content:
+        for sentence in self.content:
             if res.get_len() >= self.batch_size:
                 yield res
                 res = Batch()
