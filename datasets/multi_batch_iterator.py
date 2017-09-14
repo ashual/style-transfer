@@ -19,7 +19,7 @@ class MultiBatchIterator:
         return batch_iterator
 
     def __iter__(self):
-        for res in zip(*[self.get_iterator(d) for d in self.datasets]):
+        for res in zip(*[self.get_iterator(d) for d in self.contents]):
             yield res
 
     @staticmethod

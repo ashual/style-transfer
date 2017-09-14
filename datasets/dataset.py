@@ -21,7 +21,7 @@ class Dataset:
                                                               'validation_dataset.txt' if dataset_name is None else
                                                               'validation_' + dataset_name + '.txt')
 
-    def -get_content(self):
+    def get_content(self):
         if self.content is None:
             if self.dataset_cache_file is not None and os.path.exists(self.dataset_cache_file):
                 with open(self.dataset_cache_file) as f:
@@ -38,10 +38,10 @@ class Dataset:
                                           self.limit_sentences:self.limit_sentences + self.validation_limit_sentences]
                 if self.dataset_cache_file is not None:
                     with open(self.dataset_cache_file, 'w') as f:
-                        f.writelines("%s\n" % l for l in self.content)
+                        f.writelines("%s" % l for l in self.content)
                 if self.validation_dataset_cache_file is not None:
                     with open(self.validation_dataset_cache_file, 'w') as f:
-                        f.writelines("%s\n" % l for l in self.validation_content)
+                        f.writelines("%s" % l for l in self.validation_content)
         return self.content, self.validation_content
 
     def get_content_actual(self):
@@ -50,12 +50,7 @@ class Dataset:
     def get_word_dictionary(self):
         content, validation_content = self.get_content()
         word_dict = dict()
-        for sentence in content:
-            for word in word_tokenize(sentence):
-                word_lower = word.lower()
-                if word_lower not in word_dict:
-                    word_dict[word_lower] = True
-        for sentence in validation_content:
+        for sentence in content + validation_content:
             for word in word_tokenize(sentence):
                 word_lower = word.lower()
                 if word_lower not in word_dict:
