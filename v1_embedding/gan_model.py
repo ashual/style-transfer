@@ -35,6 +35,10 @@ class GanModel:
         self.epoch, self.epoch_placeholder, self.assign_epoch = self._create_assignable_scalar(
             'epoch', tf.int32, init_value=0
         )
+        self.sentence_length, self.sentence_length_placeholder, self.assign_sentence_length = \
+            self._create_assignable_scalar(
+                'sentence_length', tf.int32, init_value=self.config['sentence']['min_length']
+            )
         self._apply_discriminator_loss_for_generator_counter = tf.Variable(0.0, trainable=False, dtype=tf.float32)
         self._generator_steps_counter = tf.Variable(0.0, trainable=False, dtype=tf.float32)
         self._total_steps_counter = tf.Variable(0.0, trainable=False, dtype=tf.float32)
@@ -51,9 +55,7 @@ class GanModel:
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(),
                                         self.config['model']['decoder_hidden_states'],
                                         self.dropout_placeholder,
-                                        # TODO: when add curriculum - change to max and make the transferred source be
-                                        # rolled out according to the curriculum sentence length
-                                        self.config['sentence']['min_length'],
+                                        self.config['sentence']['max_length'],
                                         self.config['model']['cell_type'])
         self.loss_handler = LossHandler(self.embedding_handler.get_vocabulary_length())
         self.discriminator = self._init_discriminator()
@@ -331,6 +333,7 @@ class GanModel:
 
     def _create_summaries(self):
         epoch_summary = tf.summary.scalar('epoch', self.epoch)
+        sentence_length_summary = tf.summary.scalar('sentence_length', self.sentence_length)
         # train_generator_summary = tf.summary.scalar('train_generator', tf.cast(self.train_generator, dtype=tf.int8)),
         train_generator_summary = tf.summary.scalar(
             'train_generator',
@@ -340,12 +343,14 @@ class GanModel:
         discriminator_loss_summary = tf.summary.scalar('discriminator_loss', self.discriminator_loss)
         discriminator_step_summaries = tf.summary.merge([
             epoch_summary,
+            sentence_length_summary,
             train_generator_summary,
             accuracy_summary,
             discriminator_loss_summary,
         ])
         generator_step_summaries = tf.summary.merge([
             epoch_summary,
+            sentence_length_summary,
             train_generator_summary,
             accuracy_summary,
             discriminator_loss_summary,
