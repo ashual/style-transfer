@@ -1,4 +1,6 @@
 import yaml
+import datetime
+import os
 from datasets.multi_batch_iterator import MultiBatchIterator
 from datasets.yelp_helpers import YelpSentences
 from v1_embedding.gan_model import GanModel
@@ -43,6 +45,10 @@ class ModelTrainerGan(ModelTrainerBase):
                                                             self.embedding_handler,
                                                             self.config['sentence']['min_length'],
                                                             self.config['trainer']['validation_batch_size'])
+        self.batch_iterator_validation_all = MultiBatchIterator(validation_contents,
+                                                            self.embedding_handler,
+                                                            self.config['sentence']['min_length'],
+                                                            self.config['sentence']['validation_limit'])
         # set the model
         self.model = GanModel(self.config, self.operational_config, self.embedding_handler)
 
@@ -50,7 +56,7 @@ class ModelTrainerGan(ModelTrainerBase):
         return '{}_{}_{}'.format(self.__class__.__name__, self.config['model']['discriminator_type'],
                                  self.config['model']['loss_type'])
 
-    def transfer_batch(self, sess, batch, return_result_as_summary=True):
+    def transfer_batch(self, sess, batch, epoch_num, return_result_as_summary=True, print_to_file=False):
         feed_dict = {
             self.model.source_batch: batch[0].sentences,
             self.model.target_batch: batch[1].sentences,
@@ -80,29 +86,44 @@ class ModelTrainerGan(ModelTrainerBase):
                 reconstructed.append(s[:s.tolist().index(end_of_sentence_index) + 1])
             else:
                 reconstructed.append(s)
-        # print the reconstruction
-        original_target_strings, reconstructed_strings = self.print_side_by_side(
-            original_target,
-            reconstructed,
-            'original_target: ',
-            'reconstructed: ',
-            self.embedding_handler
-        )
-        # print the transfer
-        original_source_strings, transferred_strings = self.print_side_by_side(
-            original_source,
-            transferred,
-            'original_source: ',
-            'transferred: ',
-            self.embedding_handler
-        )
+        if print_to_file:
+            now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            log_file_name = os.path.join('logs', '{}-epoch-{}.log'.format(now, epoch_num))
+            original_source_strings, transferred_strings = self.print_to_file(
+                original_source,
+                transferred,
+                self.embedding_handler,
+                log_file_name
+            )
+        else:
+            # print the reconstruction
+            original_target_strings, reconstructed_strings = self.print_side_by_side(
+                original_target,
+                reconstructed,
+                'original_target: ',
+                'reconstructed: ',
+                self.embedding_handler
+            )
+            # print the transfer
+            original_source_strings, transferred_strings = self.print_side_by_side(
+                original_source,
+                transferred,
+                'original_source: ',
+                'transferred: ',
+                self.embedding_handler
+            )
         #evaluate the transfer
         evaluation_prediction, evaluation_confidence = classify([' '.join(s) for s in transferred_strings])
         evaluation_accuracy = Counter(evaluation_prediction)['pos'] / float(len(evaluation_prediction))
         average_evaluation_confidence = sum(evaluation_confidence) / float(len(evaluation_confidence))
-        print('Transferred evaluation acc: {} with average confidence of: {}'.format(
-            evaluation_accuracy, average_evaluation_confidence)
-        )
+        if print_to_file:
+            with open('logs/accuracy.log', 'w') as f:
+                f.write('Date: {}, Epoch: {}, Acc: {}, Confidence: {}'.format(now, epoch_num, evaluation_accuracy
+                                                                              , average_evaluation_confidence))
+        else:
+            print('Transferred evaluation acc: {} with average confidence of: {}'.format(
+                evaluation_accuracy, average_evaluation_confidence)
+            )
 
         if return_result_as_summary:
             return sess.run([
@@ -155,15 +176,16 @@ class ModelTrainerGan(ModelTrainerBase):
         print('training generator? {}'.format(train_generator_flag))
         return summary
 
-    def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch):
-        return self.transfer_batch(sess, batch, return_result_as_summary=True)
+    def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch, print_to_file):
+        return self.transfer_batch(sess, batch, epoch_num, return_result_as_summary=not print_to_file,
+                                   print_to_file=print_to_file)
 
     def do_after_train_loop(self, sess):
         # make sure the model is correct:
         self.saver_wrapper.load_model(sess)
         print('model loaded, sample sentences:')
         for batch in self.batch_iterator_validation:
-            self.transfer_batch(sess, batch, return_result_as_summary=False)
+            self.transfer_batch(sess, batch, 0, return_result_as_summary=False, print_to_file=False)
             break
 
     def do_before_epoch(self, sess, global_step, epoch_num):

@@ -18,6 +18,7 @@ class ModelTrainerBase:
         # implementations should start the iterators
         self.batch_iterator = None
         self.batch_iterator_validation = None
+        self.batch_iterator_validation_all = None
 
     def get_work_dir(self):
         if self.work_dir is None:
@@ -52,6 +53,15 @@ class ModelTrainerBase:
             print(translated_batch2[i])
         return translated_batch1, translated_batch2
 
+    def print_to_file(self, batch1, batch2, embedding_handler, file_name):
+        translated_batch1 = embedding_handler.get_index_to_word(batch1)
+        translated_batch2 = embedding_handler.get_index_to_word(batch2)
+        with open(file_name, 'w') as f:
+            for i in range(len(translated_batch1)):
+                f.write('O: {}\n'.format(' '.join(translated_batch1[i])))
+                f.write('T: {}\n\n'.format(' '.join(translated_batch2[i])))
+        return translated_batch1, translated_batch2
+
     @staticmethod
     def remove_by_length(sentences, lengths):
         return [[
@@ -68,7 +78,8 @@ class ModelTrainerBase:
         with tf.Session(config=session_config) as sess:
             use_tensorboard = self.operational_config['tensorboard_frequency'] > 0
             if use_tensorboard:
-                summary_writer_train = tf.summary.FileWriter(os.path.join(self.get_summaries_dir(), 'train'), sess.graph)
+                summary_writer_train = tf.summary.FileWriter(os.path.join(self.get_summaries_dir(), 'train'),
+                                                             sess.graph)
                 summary_writer_validation = tf.summary.FileWriter(os.path.join(self.get_summaries_dir(), 'validation'))
 
             sess.run(tf.global_variables_initializer())
@@ -79,7 +90,7 @@ class ModelTrainerBase:
 
             global_step = 0
             for epoch_num in range(self.config['trainer']['number_of_epochs']):
-                print('epoch {} of {}'.format(epoch_num+1, self.config['trainer']['number_of_epochs']))
+                print('epoch {} of {}'.format(epoch_num + 1, self.config['trainer']['number_of_epochs']))
                 self.do_before_epoch(sess, global_step, epoch_num)
                 for batch_index, batch in enumerate(self.batch_iterator):
                     extract_summaries = use_tensorboard and \
@@ -88,13 +99,17 @@ class ModelTrainerBase:
                                                           extract_summaries=extract_summaries)
                     if train_summaries and extract_summaries:
                         summary_writer_train.add_summary(train_summaries, global_step=global_step)
-                    if (global_step % self.operational_config['validation_batch_frequency']) == 0:
+                    if (global_step % self.operational_config['validation_batch_frequency']) == 1:
                         for validation_batch in self.batch_iterator_validation:
                             validation_summaries = self.do_validation_batch(sess, global_step, epoch_num, batch_index,
-                                                                            validation_batch)
+                                                                            validation_batch, print_to_file=False)
                             if validation_summaries and use_tensorboard:
                                 summary_writer_validation.add_summary(validation_summaries, global_step=global_step)
                             break
+                    if epoch_num % self.operational_config['print_validation_full_batch_epoch_frequency'] == 1:
+                        for validation_batch in self.batch_iterator_validation_all:
+                            self.do_validation_batch(sess, global_step, epoch_num, 0, validation_batch,
+                                                     print_to_file=True)
                     global_step += 1
                 self.do_after_epoch(sess, global_step, epoch_num)
             self.do_after_train_loop(sess)
@@ -105,7 +120,7 @@ class ModelTrainerBase:
     def do_train_batch(self, sess, global_step, epoch_num, batch_index, batch, extract_summaries=False):
         pass
 
-    def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch):
+    def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch, print_to_file):
         pass
 
     def do_after_train_loop(self, sess):

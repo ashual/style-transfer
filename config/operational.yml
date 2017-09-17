@@ -3,3 +3,4 @@ print_device: False
 run_optimizer: True
 tensorboard_frequency: 100
 validation_batch_frequency: 100
+print_validation_full_batch_epoch_frequency: 10
