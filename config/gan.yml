@@ -21,7 +21,7 @@ model:
   dropout: 0.3
   discriminator_dropout: 0.3
   bidirectional_encoder: False
-#  curriculum_training: True
+  curriculum_training: True
   reconstruction_coefficient: 10.0
   semantic_distance_coefficient: 0.000001
   discriminator_coefficient: 0.00001
@@ -67,9 +67,9 @@ embedding:
   word_size: 100
   should_train: False
 
-#curriculum:
-#  upper_range: 5.0
-#  lower_range: 3.0
+curriculum:
+  upper_range: 5.0
+  lower_range: 3.0
 
 sentence:
   limit: 300000

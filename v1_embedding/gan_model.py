@@ -40,6 +40,11 @@ class GanModel:
             self._create_assignable_scalar('custom_metric_1', tf.float32, init_value=0.0)
         self.custom_metric_2, self.custom_metric_2_placeholder, self.assign_custom_metric_2 = \
             self._create_assignable_scalar('custom_metric_2', tf.float32, init_value=0.0)
+        # variable to show the sentence length
+        self.sentence_length, self.sentence_length_placeholder, self.assign_sentence_length = \
+            self._create_assignable_scalar(
+                'sentence_length', tf.int32, init_value=self.config['sentence']['min_length']
+            )
         self._apply_discriminator_loss_for_generator_counter = tf.Variable(0.0, trainable=False, dtype=tf.float32)
         self._generator_steps_counter = tf.Variable(0.0, trainable=False, dtype=tf.float32)
         self._total_steps_counter = tf.Variable(0.0, trainable=False, dtype=tf.float32)
@@ -56,9 +61,7 @@ class GanModel:
         self.decoder = EmbeddingDecoder(self.embedding_handler.get_embedding_size(),
                                         self.config['model']['decoder_hidden_states'],
                                         self.dropout_placeholder,
-                                        # TODO: when add curriculum - change to max and make the transferred source be
-                                        # rolled out according to the curriculum sentence length
-                                        self.config['sentence']['min_length'],
+                                        self.config['sentence']['max_length'],
                                         self.config['model']['cell_type'])
         self.loss_handler = LossHandler(self.embedding_handler.get_vocabulary_length())
         self.discriminator = self._init_discriminator()
@@ -68,7 +71,7 @@ class GanModel:
         # common steps:
         self._source_embedding, self._source_encoded = self._encode(self.source_batch, self.source_lengths)
         self._target_embedding, self._target_encoded = self._encode(self.target_batch, self.target_lengths)
-        self._transferred_source = self.decoder.do_iterative_decoding(self._source_encoded)
+        self._transferred_source = self.decoder.do_iterative_decoding(self._source_encoded)[:, :self.sentence_length, :]
         self._teacher_forced_target = self.decoder.do_teacher_forcing(
             self._target_encoded, self._target_embedding[:, :-1, :], self.target_lengths
         )
@@ -216,9 +219,7 @@ class GanModel:
 
     def _predict(self):
         if self.config['model']['discriminator_type'] == 'embedding':
-            sentence_length = tf.shape(self._teacher_forced_target)[1]
-            transferred_source_normalized = self._transferred_source[:, :sentence_length, :]
-            prediction_input = tf.concat((transferred_source_normalized, self._teacher_forced_target), axis=0)
+            prediction_input = tf.concat((self._teacher_forced_target, self._teacher_forced_target), axis=0)
             if self.config['discriminator_embedding']['include_content_vector']:
                 encoded = tf.concat((self._source_encoded, self._target_encoded), axis=0)
             else:
@@ -340,6 +341,7 @@ class GanModel:
 
     def _create_summaries(self):
         epoch_summary = tf.summary.scalar('epoch', self.epoch)
+        sentence_length_summary = tf.summary.scalar('sentence_length', self.sentence_length)
         # train_generator_summary = tf.summary.scalar('train_generator', tf.cast(self.train_generator, dtype=tf.int8)),
         train_generator_summary = tf.summary.scalar(
             'train_generator',
@@ -349,12 +351,14 @@ class GanModel:
         discriminator_loss_summary = tf.summary.scalar('discriminator_loss', self.discriminator_loss)
         discriminator_step_summaries = tf.summary.merge([
             epoch_summary,
+            sentence_length_summary,
             train_generator_summary,
             accuracy_summary,
             discriminator_loss_summary,
         ])
         generator_step_summaries = tf.summary.merge([
             epoch_summary,
+            sentence_length_summary,
             train_generator_summary,
             accuracy_summary,
             discriminator_loss_summary,

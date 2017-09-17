@@ -52,6 +52,14 @@ class ModelTrainerGan(ModelTrainerBase):
         # set the model
         self.model = GanModel(self.config, self.operational_config, self.embedding_handler)
 
+        # variables for curriculum:
+        self.sentence_length = self.config['sentence']['min_length']
+        self.best_reconstruction_loss = float('inf')
+        self.current_reconstruction_loss = 0.0
+        self.generator_steps_counter = 0
+        self.lower_reconstruction_range = self.config['curriculum']['lower_range']
+        self.upper_reconstruction_range = self.config['curriculum']['upper_range']
+
     def get_trainer_name(self):
         return '{}_{}_{}'.format(self.__class__.__name__, self.config['model']['discriminator_type'],
                                  self.config['model']['loss_type'])
@@ -164,16 +172,22 @@ class ModelTrainerGan(ModelTrainerBase):
             self.model.discriminator_loss,
             self.model.accuracy,
             self.model.train_generator,
+            self.model.reconstruction_loss,
             self.model.summary_step
         ]
         if extract_summaries:
-            _, discriminator_loss, accuracy, train_generator_flag, summary = sess.run(execution_list, feed_dict)
+            _, discriminator_loss, accuracy, train_generator_flag, reconstruction_loss, summary = sess.run(
+                execution_list, feed_dict)
         else:
-            _, discriminator_loss, accuracy, train_generator_flag = sess.run(execution_list[:-1], feed_dict)
+            _, discriminator_loss, accuracy, train_generator_flag, reconstruction_loss = sess.run(execution_list[:-1],
+                                                                                                  feed_dict)
             summary = None
         print('accuracy: {}'.format(accuracy))
         print('discriminator_loss: {}'.format(discriminator_loss))
         print('training generator? {}'.format(train_generator_flag))
+        if train_generator_flag:
+            self.generator_steps_counter += 1
+            self.current_reconstruction_loss += reconstruction_loss
         return summary
 
     def do_validation_batch(self, sess, global_step, epoch_num, batch_index, batch, print_to_file):
@@ -190,6 +204,41 @@ class ModelTrainerGan(ModelTrainerBase):
 
     def do_before_epoch(self, sess, global_step, epoch_num):
         sess.run(self.model.assign_epoch, {self.model.epoch_placeholder: epoch_num})
+        # see if we need to change the sentence length
+        if not self.config['model']['curriculum_training'] or self.batch_iterator.sentence_len >= self.config['sentence']['max_length']:
+            return
+        if self.generator_steps_counter == 0:
+            return
+        current_reconstruction_loss = self.current_reconstruction_loss / self.generator_steps_counter
+        self.current_reconstruction_loss = 0.0
+        self.generator_steps_counter = 0
+        enlarge = False
+        # The loss is ok, but keep decreasing
+        if self.upper_reconstruction_range >= current_reconstruction_loss > self.lower_reconstruction_range and current_reconstruction_loss >= self.best_reconstruction_loss:
+            enlarge = True
+            message = "loss is in range {}>={}>{} and doesn't decrease - best:{}, current: {}".format(
+                self.upper_reconstruction_range,
+                current_reconstruction_loss,
+                self.lower_reconstruction_range,
+                self.best_reconstruction_loss,
+                current_reconstruction_loss
+            )
+        elif self.lower_reconstruction_range >= current_reconstruction_loss:
+            enlarge = True
+            message = "loss ({}) is smaller than lower_range: {}".format(current_reconstruction_loss,
+                                                                         self.lower_reconstruction_range)
+
+        if enlarge:
+            num_of_words = self.batch_iterator.sentence_len + 1
+            sess.run(self.model.assign_sentence_length, {
+                self.model.sentence_length_placeholder: num_of_words
+            })
+            print('Moving from {} to {} words because {}'.format(num_of_words - 1, num_of_words, message))
+            self.batch_iterator.sentence_len = num_of_words
+            self.batch_iterator_validation.sentence_len = num_of_words
+            self.best_reconstruction_loss = self.best_reconstruction_loss
+        else:
+            self.best_reconstruction_loss = min(self.best_reconstruction_loss, current_reconstruction_loss)
 
     def do_after_epoch(self, sess, global_step, epoch_num):
         if epoch_num % 10 == 0:
