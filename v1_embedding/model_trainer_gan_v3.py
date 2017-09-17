@@ -105,14 +105,21 @@ class ModelTrainerGan(ModelTrainerBase):
         )
 
         if return_result_as_summary:
-            return sess.run(self.model.evaluation_summary, {
-                self.model.text_watcher.placeholders['original_source']: [' '.join(s) for s in original_source_strings],
-                self.model.text_watcher.placeholders['original_target']: [' '.join(s) for s in original_target_strings],
-                self.model.text_watcher.placeholders['transferred']: [' '.join(s) for s in transferred_strings],
-                self.model.text_watcher.placeholders['reconstructed']: [' '.join(s) for s in reconstructed_strings],
-                self.model.custom_metric_1_placeholder: evaluation_accuracy,
-                self.model.custom_metric_2_placeholder: average_evaluation_confidence,
-            })
+            return sess.run([
+                self.model.evaluation_summary,
+                self.model.assign_custom_metric_1,
+                self.model.assign_custom_metric_2
+            ],
+                {
+                    self.model.text_watcher.placeholders['original_source']: [' '.join(s) for s in
+                                                                              original_source_strings],
+                    self.model.text_watcher.placeholders['original_target']: [' '.join(s) for s in
+                                                                              original_target_strings],
+                    self.model.text_watcher.placeholders['transferred']: [' '.join(s) for s in transferred_strings],
+                    self.model.text_watcher.placeholders['reconstructed']: [' '.join(s) for s in reconstructed_strings],
+                    self.model.custom_metric_1_placeholder: evaluation_accuracy,
+                    self.model.custom_metric_2_placeholder: average_evaluation_confidence,
+                })[0]
         else:
             return None
 
