@@ -60,11 +60,11 @@ discriminator_content:
   hidden_states: [1500]
 
 wasserstein_loss:
-  clip_value: 0.25
+  clip_value: 0.125
 
 embedding:
   min_word_occurrences: 2
-  word_size: 200
+  word_size: 100
   should_train: False
 
 #curriculum:
