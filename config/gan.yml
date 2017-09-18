@@ -1,7 +1,7 @@
 trainer:
   number_of_epochs: 100
 #  number_of_epochs: 30
-  batch_size: 100
+  batch_size: 10
 #  batch_size: 10
   validation_batch_size: 10
   min_generator_steps: 10
@@ -64,7 +64,7 @@ wasserstein_loss:
 
 embedding:
   min_word_occurrences: 2
-  word_size: 100
+  word_size: 200
   should_train: False
 
 #curriculum:
