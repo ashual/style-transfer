@@ -117,9 +117,9 @@ class ModelTrainerGan(ModelTrainerBase):
         evaluation_accuracy = Counter(evaluation_prediction)['pos'] / float(len(evaluation_prediction))
         average_evaluation_confidence = sum(evaluation_confidence) / float(len(evaluation_confidence))
         if print_to_file:
-            with open('logs/accuracy.log', 'w') as f:
-                f.write('Date: {}, Epoch: {}, Acc: {}, Confidence: {}'.format(now, epoch_num, evaluation_accuracy
-                                                                              , average_evaluation_confidence))
+            with open(os.path.join('logs', 'accuracy.log'), 'a+') as f:
+                f.write('Date: {}, Epoch: {}, Acc: {}, Confidence: {}\n'.format(now, epoch_num, evaluation_accuracy,
+                                                                                average_evaluation_confidence))
         else:
             print('Transferred evaluation acc: {} with average confidence of: {}'.format(
                 evaluation_accuracy, average_evaluation_confidence)

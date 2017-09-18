@@ -46,11 +46,11 @@ class ModelTrainerBase:
     def print_side_by_side(self, batch1, batch2, message1, message2, embedding_handler):
         translated_batch1 = embedding_handler.get_index_to_word(batch1)
         translated_batch2 = embedding_handler.get_index_to_word(batch2)
-        for i in range(len(translated_batch1)):
-            print(message1)
-            print(translated_batch1[i])
-            print(message2)
-            print(translated_batch2[i])
+        # for i in range(len(translated_batch1)):
+        #     print(message1)
+        #     print(translated_batch1[i])
+        #     print(message2)
+        #     print(translated_batch2[i])
         return translated_batch1, translated_batch2
 
     def print_to_file(self, batch1, batch2, embedding_handler, file_name):
@@ -106,11 +106,11 @@ class ModelTrainerBase:
                             if validation_summaries and use_tensorboard:
                                 summary_writer_validation.add_summary(validation_summaries, global_step=global_step)
                             break
-                    if epoch_num % self.operational_config['print_validation_full_batch_epoch_frequency'] == 1:
-                        for validation_batch in self.batch_iterator_validation_all:
-                            self.do_validation_batch(sess, global_step, epoch_num, 0, validation_batch,
-                                                     print_to_file=True)
                     global_step += 1
+                # write sample sentences
+                if epoch_num % self.operational_config['print_validation_full_batch_epoch_frequency'] == 1:
+                    for validation_batch in self.batch_iterator_validation_all:
+                        self.do_validation_batch(sess, global_step, epoch_num, 0, validation_batch, print_to_file=True)
                 self.do_after_epoch(sess, global_step, epoch_num)
             self.do_after_train_loop(sess)
 
