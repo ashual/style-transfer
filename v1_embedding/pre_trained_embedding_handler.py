@@ -5,12 +5,15 @@ from os.path import join
 
 
 class PreTrainedEmbeddingHandler(EmbeddingHandler):
-    def __init__(self, save_dir, datasets, embedding_size=200, n=2, truncate_by_cutoff=True):
+    def __init__(self, save_dir, datasets, type, embedding_size=200, n=2, truncate_by_cutoff=True):
         EmbeddingHandler.__init__(self, save_dir)
         if not self.initialized_from_cache:
             if embedding_size == 100 or embedding_size == 200:
-                self.pretrained_embedding_file = \
-                    join(getcwd(), 'data', "embeddings-53708-{}-2.txt".format(embedding_size))
+                if type == 'BIBLE':
+                    self.pretrained_embedding_file = join(getcwd(), 'data', 'embeddings-bibleASVandKJV-3114-{}-2.txt'.format(embedding_size))
+                else:
+                    self.pretrained_embedding_file = \
+                        join(getcwd(), 'data', "embeddings-53708-{}-2.txt".format(embedding_size))
             else:
                 raise Exception('We should train different embedding file')
             print('counting words in pretrained embedding file')
