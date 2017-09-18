@@ -3,6 +3,8 @@ import datetime
 import os
 from datasets.multi_batch_iterator import MultiBatchIterator
 from datasets.yelp_helpers import YelpSentences
+from datasets.bible_helpers import Bibles
+from datasets.scramble_helpers import Scramble
 from v1_embedding.gan_model import GanModel
 from collections import Counter
 from v1_embedding.logger import init_logger
@@ -15,20 +17,46 @@ class ModelTrainerGan(ModelTrainerBase):
     def __init__(self, config_file, operational_config_file):
         ModelTrainerBase.__init__(self, config_file=config_file, operational_config_file=operational_config_file)
 
-        self.dataset_neg = YelpSentences(positive=False,
-                                         limit_sentences=self.config['sentence']['limit'],
-                                         validation_limit_sentences=self.config['sentence']['validation_limit'],
-                                         dataset_cache_dir=self.get_dataset_cache_dir(),
-                                         dataset_name='neg')
-        self.dataset_pos = YelpSentences(positive=True,
-                                         limit_sentences=self.config['sentence']['limit'],
-                                         validation_limit_sentences=self.config['sentence']['validation_limit'],
-                                         dataset_cache_dir=self.get_dataset_cache_dir(),
-                                         dataset_name='pos')
-        datasets = [self.dataset_neg, self.dataset_pos]
+        if self.config['dataset']['type'] == 'YELP':
+            dataset_source = YelpSentences(positive=False,
+                                           limit_sentences=self.config['sentence']['limit'],
+                                           validation_limit_sentences=self.config['sentence']['validation_limit'],
+                                           dataset_cache_dir=self.get_dataset_cache_dir(),
+                                           dataset_name='neg')
+            dataset_target = YelpSentences(positive=True,
+                                           limit_sentences=self.config['sentence']['limit'],
+                                           validation_limit_sentences=self.config['sentence']['validation_limit'],
+                                           dataset_cache_dir=self.get_dataset_cache_dir(),
+                                           dataset_name='pos')
+        elif self.config['dataset']['type'] == 'SCRAMBLE':
+            dataset_source = Scramble(is_scramble=True,
+                                      limit_sentences=self.config['sentence']['limit'],
+                                      validation_limit_sentences=self.config['sentence']['validation_limit'],
+                                      dataset_cache_dir=self.get_dataset_cache_dir(),
+                                      dataset_name='scramble')
+            dataset_target = Scramble(is_scramble=False,
+                                      limit_sentences=self.config['sentence']['limit'],
+                                      validation_limit_sentences=self.config['sentence']['validation_limit'],
+                                      dataset_cache_dir=self.get_dataset_cache_dir(),
+                                      dataset_name='non_scramble')
+        elif self.config['dataset']['type'] == 'BIBLE':
+            dataset_source = Bibles('t_asv',
+                                    limit_sentences=self.config['sentence']['limit'],
+                                    validation_limit_sentences=self.config['sentence']['validation_limit'],
+                                    dataset_cache_dir=self.get_dataset_cache_dir(),
+                                    dataset_name='asv')
+            dataset_target = Bibles('t_kjv',
+                                    limit_sentences=self.config['sentence']['limit'],
+                                    validation_limit_sentences=self.config['sentence']['validation_limit'],
+                                    dataset_cache_dir=self.get_dataset_cache_dir(),
+                                    dataset_name='kjv')
+        else:
+            raise Exception('Please choose dataset')
+        datasets = [dataset_source, dataset_target]
         self.embedding_handler = PreTrainedEmbeddingHandler(
             self.get_embedding_dir(),
             datasets,
+            self.config['dataset']['type'],
             self.config['embedding']['word_size'],
             self.config['embedding']['min_word_occurrences']
         )

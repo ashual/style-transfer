@@ -37,6 +37,11 @@ model:
   cell_type: 'LSTM'
 #  cell_type: 'GRU'
 
+dataset:
+  type: 'YELP'
+  #type: 'BIBLE'
+  #type: 'SCRAMBLE'
+
 cross_entropy_loss:
   translation_hidden_size: 1000
 
@@ -74,7 +79,7 @@ embedding:
 sentence:
   limit: 300000
 #  limit: 150
-  validation_limit: 1000
+  validation_limit: 100
 #  validation_limit: 20
   min_length: 6
 #  min_length: 3

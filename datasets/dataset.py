@@ -38,10 +38,16 @@ class Dataset:
                                           self.limit_sentences:self.limit_sentences + self.validation_limit_sentences]
                 if self.dataset_cache_file is not None:
                     with open(self.dataset_cache_file, 'w') as f:
-                        f.writelines("%s" % l for l in self.content)
+                        if self.content[0][-1] == '\n':
+                            f.writelines("%s" % l for l in self.content)
+                        else:
+                            f.writelines("%s\n" % l for l in self.content)
                 if self.validation_dataset_cache_file is not None:
                     with open(self.validation_dataset_cache_file, 'w') as f:
-                        f.writelines("%s" % l for l in self.validation_content)
+                        if self.validation_content[0][-1] == '\n':
+                            f.writelines("%s" % l for l in self.validation_content)
+                        else:
+                            f.writelines("%s\n" % l for l in self.validation_content)
         return self.content, self.validation_content
 
     def get_content_actual(self):
