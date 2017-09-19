@@ -1,9 +1,9 @@
 trainer:
   number_of_epochs: 100
 #  number_of_epochs: 30
-  batch_size: 10
+  batch_size: 100
 #  batch_size: 10
-  validation_batch_size: 10
+  validation_batch_size: 100
   min_generator_steps: 10
   min_discriminator_steps: 1
 
@@ -74,7 +74,7 @@ embedding:
 sentence:
   limit: 300000
 #  limit: 150
-  validation_limit: 1000
+  validation_limit: 100
 #  validation_limit: 20
   min_length: 6
 #  min_length: 3

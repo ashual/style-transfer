@@ -18,7 +18,6 @@ class ModelTrainerBase:
         # implementations should start the iterators
         self.batch_iterator = None
         self.batch_iterator_validation = None
-        self.batch_iterator_validation_all = None
 
     def get_work_dir(self):
         if self.work_dir is None:
@@ -107,10 +106,6 @@ class ModelTrainerBase:
                                 summary_writer_validation.add_summary(validation_summaries, global_step=global_step)
                             break
                     global_step += 1
-                # write sample sentences
-                if epoch_num % self.operational_config['print_validation_full_batch_epoch_frequency'] == 1:
-                    for validation_batch in self.batch_iterator_validation_all:
-                        self.do_validation_batch(sess, global_step, epoch_num, 0, validation_batch, print_to_file=True)
                 self.do_after_epoch(sess, global_step, epoch_num)
             self.do_after_train_loop(sess)
 

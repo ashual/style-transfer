@@ -45,10 +45,6 @@ class ModelTrainerGan(ModelTrainerBase):
                                                             self.embedding_handler,
                                                             self.config['sentence']['min_length'],
                                                             self.config['trainer']['validation_batch_size'])
-        self.batch_iterator_validation_all = MultiBatchIterator(validation_contents,
-                                                            self.embedding_handler,
-                                                            self.config['sentence']['min_length'],
-                                                            self.config['trainer']['validation_batch_size'])
         # set the model
         self.model = GanModel(self.config, self.operational_config, self.embedding_handler)
 
