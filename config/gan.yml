@@ -1,5 +1,5 @@
 trainer:
-  number_of_epochs: 5000
+  number_of_epochs: 100
 #  number_of_epochs: 50
   batch_size: 100
 #  batch_size: 10
@@ -7,6 +7,7 @@ trainer:
   min_discriminator_steps: 1
 
 model:
+  test_mode: True
   initial_generator_epochs: 10
 #  initial_generator_epochs: 2
   encoder_hidden_states: [1500, 1000, 500]
@@ -54,7 +55,7 @@ discriminator_content:
   hidden_states: [1500]
 
 wasserstein_loss:
-  clip_value: 1.01
+  clip_value: 0.25
 
 embedding:
   min_word_occurrences: 2
@@ -66,8 +67,9 @@ embedding:
 #  lower_range: 3.0
 
 sentence:
-  limit: 30000
+  limit: 300000
 #  limit: 150
 #  min_length: 3
   min_length: 6
   max_length: 15
+  test_limit: 1000

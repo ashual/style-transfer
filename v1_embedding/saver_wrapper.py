@@ -19,8 +19,11 @@ class SaverWrapper:
         if checkpoint_path is not None:
             self.saver.restore(sess, checkpoint_path.model_checkpoint_path)
             print('Model restored from file: {}\n'.format(checkpoint_path.model_checkpoint_path))
+            return True
         else:
             print('Model not found in: {}\n'.format(self.saver_dir))
+            sess.run(tf.global_variables_initializer())
+            return False
 
     def save_model(self, sess, save_retries=3, global_step=None):
         for i in range(save_retries):
