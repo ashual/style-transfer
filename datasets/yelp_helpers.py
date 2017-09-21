@@ -1,4 +1,5 @@
 from datasets.dataset import Dataset
+from nltk import word_tokenize
 
 
 class YelpSentences(Dataset):
@@ -15,3 +16,14 @@ class YelpSentences(Dataset):
             with open('datasets/yelp/neg.txt') as yelp:
                 content = yelp.readlines()
         return content
+
+
+def shuffle_sentence(sent):
+    tokenize = word_tokenize(sent)
+    return ' '.join(tokenize[:6])
+
+if __name__ == "__main__":
+    with open('datasets/yelp/pos.txt') as yelp:
+        content = yelp.readlines()
+    with open('datasets/yelp/pos_6.txt', 'w') as f:
+        f.writelines("%s\n" % shuffle_sentence(l) for l in content)
