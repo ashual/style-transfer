@@ -71,7 +71,6 @@ class ModelTrainerBase:
                 summary_writer_train = tf.summary.FileWriter(os.path.join(self.get_summaries_dir(), 'train'), sess.graph)
                 summary_writer_validation = tf.summary.FileWriter(os.path.join(self.get_summaries_dir(), 'validation'))
 
-            sess.run(tf.global_variables_initializer())
             if self.operational_config['load_model']:
                 self.saver_wrapper.load_model(sess)
 
@@ -99,7 +98,31 @@ class ModelTrainerBase:
                 self.do_after_epoch(sess, global_step, epoch_num)
             self.do_after_train_loop(sess)
 
+    def do_test_loop(self):
+        self.saver_wrapper = SaverWrapper(self.get_work_dir(), self.get_trainer_name())
+        session_config = tf.ConfigProto(log_device_placement=self.operational_config['print_device'],
+                                        allow_soft_placement=True)
+        session_config.gpu_options.per_process_gpu_memory_fraction = 0.9
+        if self.operational_config['run_optimizer']:
+            session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+        with tf.Session(config=session_config) as sess:
+            if not self.saver_wrapper.load_model(sess):
+                exit(1)
+
+            self.do_before_train_loop(sess)
+
+            global_step = 0
+            limit = self.config['sentence']['test_limit']
+            for batch_index, batch in enumerate(self.batch_iterator_validation):
+                self.do_test_batch(sess, batch_index, batch)
+                global_step += 1
+                if batch_index * self.batch_iterator.batch_size >= limit:
+                    break
+
     def do_before_train_loop(self, sess):
+        pass
+
+    def do_test_batch(self,  sess, batch_index, batch):
         pass
 
     def do_train_batch(self, sess, global_step, epoch_num, batch_index, batch, extract_summaries=False):

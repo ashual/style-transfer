@@ -1,12 +1,13 @@
 trainer:
-  number_of_epochs: 500
+  number_of_epochs: 100
 #  number_of_epochs: 50
   batch_size: 100
 #  batch_size: 10
-  min_generator_steps: 3
+  min_generator_steps: 10
   min_discriminator_steps: 1
 
 model:
+  test_mode: True
   initial_generator_epochs: 10
 #  initial_generator_epochs: 2
   encoder_hidden_states: [1500, 1000, 500]
@@ -34,9 +35,9 @@ model:
   discriminator_loss_type: 'wasserstein'
 
 dataset:
-  type: 'YELP'
+  #type: 'YELP'
   #type: 'BIBLE'
-  #type: 'SCRAMBLE'
+  type: 'SCRAMBLE'
 
 cross_entropy_loss:
   translation_hidden_size: 1000
@@ -76,3 +77,4 @@ sentence:
 #  min_length: 3
   min_length: 6
   max_length: 15
+  test_limit: 1000

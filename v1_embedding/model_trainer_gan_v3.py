@@ -176,6 +176,54 @@ class ModelTrainerGan(ModelTrainerBase):
             # activate the saver
             self.saver_wrapper.save_model(sess, global_step=global_step)
 
+    def do_test_batch(self, sess, batch_index, batch):
+        feed_dict = {
+            self.model.source_batch: batch[0].sentences,
+            self.model.target_batch: batch[0].sentences,
+            self.model.source_lengths: batch[0].lengths,
+            self.model.target_lengths: batch[0].lengths,
+            self.model.dropout_placeholder: 0.0,
+            self.model.discriminator_dropout_placeholder: 0.0,
+        }
+        transferred_result, reconstruction_result = sess.run(
+            [self.model.transferred_source_batch, self.model.reconstructed_targets_batch], feed_dict
+        )
+        end_of_sentence_index = self.embedding_handler.word_to_index[self.embedding_handler.end_of_sentence_token]
+        # original source without paddings:
+        original_source = self.remove_by_length(batch[0].sentences, batch[0].lengths)
+
+        # only take the prefix before EOS:
+        transferred = []
+        for s in transferred_result:
+            if end_of_sentence_index in s:
+                transferred.append(s[:s.tolist().index(end_of_sentence_index) + 1])
+            else:
+                transferred.append(s)
+        reconstructed = []
+        for s in reconstruction_result:
+            if end_of_sentence_index in s:
+                reconstructed.append(s[:s.tolist().index(end_of_sentence_index) + 1])
+            else:
+                reconstructed.append(s)
+        # print the reconstruction
+        original_source_strings = self.embedding_handler.get_index_to_word(original_source)
+        reconstructed_strings = self.embedding_handler.get_index_to_word(reconstructed)
+        transferred_strings = self.embedding_handler.get_index_to_word(transferred)
+
+        with open('logs/test_results.txt', 'w') as f:
+            for i in range(len(original_source_strings)):
+                f.write('O: ' + ' '.join(original_source_strings[i]) + '\n')
+                f.write('T: ' + ' '.join(transferred_strings[i]) + '\n')
+                f.write('R: ' + ' '.join(reconstructed_strings[i]) + '\n')
+
+        with open('logs/test_results_transferred.txt', 'w') as f:
+            for i in range(len(transferred_strings)):
+                f.write(' '.join(transferred_strings[i]) + '\n')
+
+        with open('logs/test_results_original.txt', 'w') as f:
+            for i in range(len(transferred_strings)):
+                f.write(' '.join(original_source_strings[i]) + '\n')
+
 
 if __name__ == "__main__":
     with open("config/gan.yml", 'r') as ymlfile:
@@ -187,4 +235,7 @@ if __name__ == "__main__":
     print(yaml.dump(config))
     print('------------ Operational Config ------------')
     print(yaml.dump(operational_config))
-    ModelTrainerGan(config, operational_config).do_train_loop()
+    if config['model']['test_mode']:
+        ModelTrainerGan(config, operational_config).do_test_loop()
+    else:
+        ModelTrainerGan(config, operational_config).do_train_loop()
