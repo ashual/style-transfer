@@ -27,7 +27,10 @@ class Dataset:
                     self.content = self.content[:self.limit_sentences]
                 if self.dataset_cache_file is not None:
                     with open(self.dataset_cache_file, 'w') as f:
-                        f.writelines("%s\n" % l for l in self.content)
+                        if self.content[0][-1] == '\n':
+                            f.writelines("%s" % l for l in self.content)
+                        else:
+                            f.writelines("%s\n" % l for l in self.content)
         return self.content
 
     def get_content_actual(self):
