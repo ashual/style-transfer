@@ -4,6 +4,7 @@ trainer:
   batch_size: 100
 #  batch_size: 10
   validation_batch_size: 100
+#  validation_batch_size: 5
   min_generator_steps: 10
   min_discriminator_steps: 1
 
@@ -29,20 +30,11 @@ model:
   maximal_loss_for_discriminator: 99999999.9
   discriminator_type: 'embedding'
 #  discriminator_type: 'content'
-#  loss_type: 'cross_entropy'
-#  loss_type: 'margin1'
   loss_type: 'margin2'
 #  discriminator_loss_type: 'regular'
   discriminator_loss_type: 'wasserstein'
   cell_type: 'LSTM'
 #  cell_type: 'GRU'
-
-cross_entropy_loss:
-  translation_hidden_size: 1000
-
-margin_loss1:
-  random_words_size: 5
-  margin_coefficient: 1.0
 
 margin_loss2:
   random_words_size: 5
