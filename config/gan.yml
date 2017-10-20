@@ -24,7 +24,6 @@ model:
   bidirectional_encoder: False
 #  curriculum_training: True
   reconstruction_coefficient: 10.0
-  semantic_distance_coefficient: 0.000001
   discriminator_coefficient: 0.00001
   minimal_accuracy_for_discriminator: 0.55
   maximal_loss_for_discriminator: 99999999.9
