@@ -1,12 +1,10 @@
 import tensorflow as tf
-import numpy as np
 
 from v1_embedding.content_discriminator import ContentDiscriminator
 from v1_embedding.embedding_container import EmbeddingContainer
 from v1_embedding.embedding_decoder import EmbeddingDecoder
 from v1_embedding.embedding_discriminator import EmbeddingDiscriminator
 from v1_embedding.embedding_encoder import EmbeddingEncoder
-from v1_embedding.embedding_translator import EmbeddingTranslator
 from v1_embedding.iterative_policy import IterativePolicy
 from v1_embedding.loss_handler import LossHandler
 from v1_embedding.text_watcher import TextWatcher
@@ -48,7 +46,6 @@ class GanModel:
         self.target_lengths = tf.placeholder(tf.int32, shape=(None))
 
         self.embedding_container = EmbeddingContainer(self.embedding_handler, self.config['embedding']['should_train'])
-        self.embedding_translator = self._init_translator()
         self.encoder = EmbeddingEncoder(self.config['model']['encoder_hidden_states'],
                                         self.dropout_placeholder,
                                         self.config['model']['bidirectional_encoder'],
@@ -194,12 +191,6 @@ class GanModel:
                                         is_w_loss,
                                         self.discriminator_dropout_placeholder)
 
-    def _init_translator(self):
-        if self.config['model']['loss_type'] == 'cross_entropy':
-            return EmbeddingTranslator(self.embedding_handler,
-                                       self.config['cross_entropy_loss']['translation_hidden_size'],
-                                       self.dropout_placeholder)
-
     def _get_optimizer(self):
         learn_rate = self.config['model']['learn_rate']
         if self.config['model']['optimizer'] == 'gd':
@@ -240,57 +231,36 @@ class GanModel:
             return self.loss_handler.get_discriminator_loss_wasserstien(source_prediction, target_prediction)
 
     def _translate_to_vocabulary(self, embeddings):
-        if self.config['model']['loss_type'] == 'cross_entropy':
-            transferred_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(
-                embeddings)
-            return self.embedding_translator.translate_logits_to_words(transferred_logits)
-        if self.config['model']['loss_type'] == 'margin1' or self.config['model']['loss_type'] == 'margin2':
-            decoded_shape = tf.shape(embeddings)
+        decoded_shape = tf.shape(embeddings)
 
-            distance_tensors = []
-            for vocab_word_index in range(self.embedding_handler.get_vocabulary_length()):
-                relevant_w = self.embedding_container.w[vocab_word_index, :]
-                expanded_w = tf.expand_dims(tf.expand_dims(relevant_w, axis=0), axis=0)
-                tiled_w = tf.tile(expanded_w, [decoded_shape[0], decoded_shape[1], 1])
+        distance_tensors = []
+        for vocab_word_index in range(self.embedding_handler.get_vocabulary_length()):
+            relevant_w = self.embedding_container.w[vocab_word_index, :]
+            expanded_w = tf.expand_dims(tf.expand_dims(relevant_w, axis=0), axis=0)
+            tiled_w = tf.tile(expanded_w, [decoded_shape[0], decoded_shape[1], 1])
 
-                square = tf.square(embeddings - tiled_w)
-                per_vocab_distance = tf.reduce_sum(square, axis=-1)
-                distance_tensors.append(per_vocab_distance)
+            square = tf.square(embeddings - tiled_w)
+            per_vocab_distance = tf.reduce_sum(square, axis=-1)
+            distance_tensors.append(per_vocab_distance)
 
-            distance = tf.stack(distance_tensors, axis=-1)
-            best_match = tf.argmin(distance, axis=-1)
-            return best_match
+        distance = tf.stack(distance_tensors, axis=-1)
+        best_match = tf.argmin(distance, axis=-1)
+        return best_match
 
     def _get_reconstruction_loss(self):
         vocabulary_length = self.embedding_handler.get_vocabulary_length()
         input_shape = tf.shape(self.target_batch)
         padding_mask = tf.not_equal(self.target_batch, vocabulary_length)
         embedded_random_words = self.embedding_container.get_random_words_embeddings(
-            shape=(input_shape[0], input_shape[1], self.config['margin_loss1']['random_words_size'])
+            shape=(input_shape[0], input_shape[1], self.config['margin_loss2']['random_words_size'])
         )
-        if self.config['model']['loss_type'] == 'cross_entropy':
-            reconstructed_target_logits = self.embedding_translator.translate_embedding_to_vocabulary_logits(
-                self._teacher_forced_target)
-            return self.loss_handler.get_sentence_reconstruction_loss(self.target_batch, reconstructed_target_logits,
-                                                                      padding_mask)
-        if self.config['model']['loss_type'] == 'margin1':
-            distance_loss = self.loss_handler.get_distance_loss(self._target_embedding, self._teacher_forced_target,
-                                                                padding_mask)
-
-            margin = np.floor(np.sqrt(self.config['embedding']['word_size'] * 0.25))
-            margin_loss = self.loss_handler.get_margin_loss(self._teacher_forced_target, padding_mask,
-                                                            embedded_random_words, margin)
-            return distance_loss + margin_loss * self.config['margin_loss1']['margin_coefficient']
-        if self.config['model']['loss_type'] == 'margin2':
-            return self.loss_handler.get_margin_loss_v2(self._target_embedding, self._teacher_forced_target,
-                                                        embedded_random_words, padding_mask,
-                                                        self.config['margin_loss2']['margin'])
+        return self.loss_handler.get_margin_loss_v2(self._target_embedding, self._teacher_forced_target,
+                                                    embedded_random_words, padding_mask,
+                                                    self.config['margin_loss2']['margin'])
 
     def _get_generator_step_variables(self):
         result = self.encoder.get_trainable_parameters() + self.decoder.get_trainable_parameters() +  \
                  self.embedding_container.get_trainable_parameters()
-        if self.config['model']['loss_type'] == 'cross_entropy':
-            result += self.embedding_translator.get_trainable_parameters()
         return result
 
     def _get_discriminator_train_step(self):
