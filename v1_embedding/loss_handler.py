@@ -8,11 +8,6 @@ class LossHandler(BaseModel):
         BaseModel.__init__(self)
         self.vocabulary_length = vocabulary_length
 
-    def get_context_vector_distance_loss(self, encoded_source, encoded_dest):
-        with tf.variable_scope('ContextVectorDistanceLoss'):
-            squared_difference = tf.squared_difference(encoded_source, encoded_dest)
-            return tf.reduce_mean(squared_difference)
-
     def get_margin_loss_v2(self, true_embeddings, decoded_embeddings, random_words_embeddings, padding_mask, margin):
         len_random_words = tf.shape(random_words_embeddings)[2]
 

@@ -78,12 +78,6 @@ class GanModel:
             self._source_prediction, self._target_prediction)
         self.discriminator_loss = self.config['model']['discriminator_coefficient'] * discriminator_loss
 
-        # content vector reconstruction loss
-        encoded_again = self.encoder.encode_inputs_to_vector(self._transferred_source, None)
-        self.semantic_distance_loss = self.config['model']['semantic_distance_coefficient'] * \
-                                      self.loss_handler.get_context_vector_distance_loss(self._source_encoded,
-                                                                                         encoded_again)
-
         # target reconstruction loss
         self.reconstruction_loss = self.config['model']['reconstruction_coefficient'] * self._get_reconstruction_loss()
 
@@ -91,12 +85,6 @@ class GanModel:
         generator_loss = self.reconstruction_loss
         # flag indicating if we are starting with just generator training
         is_initial_generator_epochs = tf.less(self.epoch, self.config['model']['initial_generator_epochs'])
-        # if we are in the initial epochs just do reconstruction loss
-        generator_loss = generator_loss + tf.cond(
-            pred=is_initial_generator_epochs,
-            true_fn=lambda: 0.0,
-            false_fn=lambda: self.semantic_distance_loss,
-        )
         self._apply_discriminator_loss_for_generator = tf.logical_and(
             # is discriminator well behaved
             tf.logical_and(
@@ -311,7 +299,6 @@ class GanModel:
             accuracy_summary,
             discriminator_loss_summary,
             tf.summary.scalar('reconstruction_loss_on_generator_step', self.reconstruction_loss),
-            tf.summary.scalar('content_vector_loss_on_generator_step', self.semantic_distance_loss),
             tf.summary.scalar('generator_loss', self.generator_loss),
             # tf.summary.scalar('apply_discriminator_loss_for_generator', tf.cast(
             #     self._apply_discriminator_loss_for_generator, tf.int8)),
