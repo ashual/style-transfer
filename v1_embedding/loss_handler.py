@@ -35,22 +35,6 @@ class LossHandler(BaseModel):
 
         return sum / mask_sum
 
-    def get_discriminator_loss(self, prediction_transferred, prediction_target):
-        with tf.variable_scope('DiscriminatorLoss'):
-            transferred_accuracy = tf.reduce_mean(tf.cast(tf.less(prediction_transferred, 0.5), tf.float32))
-            target_accuracy = tf.reduce_mean(tf.cast(tf.greater_equal(prediction_target, 0.5), tf.float32))
-
-            target_loss = tf.reduce_mean(
-                tf.nn.sigmoid_cross_entropy_with_logits(logits=prediction_target, labels=tf.ones_like(prediction_target)))
-            transferred_loss = tf.reduce_mean(
-                tf.nn.sigmoid_cross_entropy_with_logits(logits=prediction_transferred, labels=tf.zeros_like(prediction_transferred)))
-
-            # total loss is the sum of losses
-            total_loss = transferred_loss + target_loss
-            # total accuracy is the avg of accuracies
-            total_accuracy = 0.5 * (transferred_accuracy + target_accuracy)
-            return total_loss, total_accuracy
-
     def get_discriminator_loss_wasserstien(self, prediction_transferred, prediction_target):
         with tf.variable_scope('DiscriminatorLoss'):
             transferred_accuracy = tf.reduce_mean(tf.cast(tf.less(prediction_transferred, 0.0), tf.float32))

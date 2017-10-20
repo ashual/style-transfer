@@ -74,7 +74,8 @@ class GanModel:
         self.prediction, self._source_prediction, self._target_prediction = self._predict()
 
         # discriminator loss and accuracy
-        discriminator_loss, self.accuracy = self._apply_discriminator_loss()
+        discriminator_loss, self.accuracy = self.loss_handler.get_discriminator_loss_wasserstien(
+            self._source_prediction, self._target_prediction)
         self.discriminator_loss = self.config['model']['discriminator_coefficient'] * discriminator_loss
 
         # content vector reconstruction loss
@@ -173,7 +174,6 @@ class GanModel:
         )
 
     def _init_discriminator(self):
-        is_w_loss = self.config['model']['discriminator_loss_type'] == 'wasserstein'
         if self.config['model']['discriminator_type'] == 'embedding':
             dense_inputs = self.config['discriminator_embedding']['encoder_hidden_states'][-1]
             if self.config['discriminator_embedding']['include_content_vector']:
@@ -181,14 +181,12 @@ class GanModel:
             return EmbeddingDiscriminator(self.config['discriminator_embedding']['encoder_hidden_states'],
                                           dense_inputs,
                                           self.config['discriminator_embedding']['hidden_states'],
-                                          is_w_loss,
                                           self.discriminator_dropout_placeholder,
                                           self.config['discriminator_embedding']['bidirectional'],
                                           self.config['model']['cell_type'])
         if self.config['model']['discriminator_type'] == 'content':
             return ContentDiscriminator(self.config['model']['encoder_hidden_states'][-1],
                                         self.config['discriminator_content']['hidden_states'],
-                                        is_w_loss,
                                         self.discriminator_dropout_placeholder)
 
     def _get_optimizer(self):
@@ -222,14 +220,6 @@ class GanModel:
         source_prediction, target_prediction = tf.split(prediction, [source_batch_size, source_batch_size], axis=0)
         return prediction, source_prediction, target_prediction
 
-    def _apply_discriminator_loss(self):
-        source_prediction = self._source_prediction
-        target_prediction = self._target_prediction
-        if self.config['model']['discriminator_loss_type'] == 'regular':
-            return self.loss_handler.get_discriminator_loss(source_prediction, target_prediction)
-        if self.config['model']['discriminator_loss_type'] == 'wasserstein':
-            return self.loss_handler.get_discriminator_loss_wasserstien(source_prediction, target_prediction)
-
     def _translate_to_vocabulary(self, embeddings):
         decoded_shape = tf.shape(embeddings)
 
@@ -258,11 +248,6 @@ class GanModel:
                                                     embedded_random_words, padding_mask,
                                                     self.config['margin_loss2']['margin'])
 
-    def _get_generator_step_variables(self):
-        result = self.encoder.get_trainable_parameters() + self.decoder.get_trainable_parameters() +  \
-                 self.embedding_container.get_trainable_parameters()
-        return result
-
     def _get_discriminator_train_step(self):
         # the embedding discriminator has batch norm that we need to update
         update_ops = None
@@ -281,19 +266,16 @@ class GanModel:
             else:
                 with tf.control_dependencies(update_ops):
                     discriminator_train_step = discriminator_optimizer.apply_gradients(discriminator_grads_and_vars)
-            if self.config['model']['discriminator_loss_type'] == 'regular':
-                return discriminator_train_step
-            if self.config['model']['discriminator_loss_type'] == 'wasserstein':
-                clip_val = self.config['wasserstein_loss']['clip_value']
-                clip_discriminator = [p.assign(tf.clip_by_value(p, -clip_val, clip_val)) for p in discriminator_var_list]
-                with tf.control_dependencies([discriminator_train_step]):
-                    discriminator_train_step = tf.group(*clip_discriminator)
-                return discriminator_train_step
+            clip_val = self.config['wasserstein_loss']['clip_value']
+            clip_discriminator = [p.assign(tf.clip_by_value(p, -clip_val, clip_val)) for p in discriminator_var_list]
+            with tf.control_dependencies([discriminator_train_step]):
+                return tf.group(*clip_discriminator)
 
     def _get_generator_train_step(self):
         with tf.variable_scope('TrainGeneratorSteps'):
             generator_optimizer = self._get_optimizer()
-            generator_var_list = self._get_generator_step_variables()
+            generator_var_list = self.encoder.get_trainable_parameters() + self.decoder.get_trainable_parameters() + \
+                                 self.embedding_container.get_trainable_parameters()
             generator_grads_and_vars = generator_optimizer.compute_gradients(
                 self.generator_loss,
                 colocate_gradients_with_ops=True,

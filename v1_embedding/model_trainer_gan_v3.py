@@ -49,8 +49,7 @@ class ModelTrainerGan(ModelTrainerBase):
         self.model = GanModel(self.config, self.operational_config, self.embedding_handler)
 
     def get_trainer_name(self):
-        return '{}_{}_{}'.format(self.__class__.__name__, self.config['model']['discriminator_type'],
-                                 self.config['model']['loss_type'])
+        return '{}_{}'.format(self.__class__.__name__, self.config['model']['discriminator_type'])
 
     def transfer_batch(self, sess, batch, epoch_num, return_result_as_summary=True, print_to_file=False):
         feed_dict = {
