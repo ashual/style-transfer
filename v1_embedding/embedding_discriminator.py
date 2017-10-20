@@ -4,12 +4,11 @@ from v1_embedding.embedding_encoder import EmbeddingEncoder
 
 
 class EmbeddingDiscriminator(BaseModel):
-    def __init__(self, encoder_hidden_states, dense_inputs, dense_hidden_states, is_w_loss, dropout_placeholder,
+    def __init__(self, encoder_hidden_states, dense_inputs, dense_hidden_states, dropout_placeholder,
                  bidirectional, cell_type, name=None):
         BaseModel.__init__(self, name)
         self.encoder = EmbeddingEncoder(encoder_hidden_states, dropout_placeholder, bidirectional, cell_type, name=self.name)
         self.sizes = [dense_inputs] + dense_hidden_states + [1]
-        self.is_w_loss = is_w_loss
         self.dropout_placeholder = dropout_placeholder
         self.w = []
         self.b = []
@@ -30,15 +29,8 @@ class EmbeddingDiscriminator(BaseModel):
                 current = rnn_res
             for i in range(len(self.w)):
                 current = tf.nn.dropout(current, 1.0 - self.dropout_placeholder)
-                # if w loss use relu
-                if self.is_w_loss:
-                    current = tf.matmul(current, self.w[i]) + self.b[i]
-                    if i < len(self.w) - 1:
-                        current = tf.nn.relu(current)
-                # else chain sigmoids
-                else:
-                    pre_activation = tf.matmul(current, self.w[i]) + self.b[i]
-                    offset = 0.5 * tf.ones_like(pre_activation) + pre_activation
-                    current = tf.nn.sigmoid(offset)
+                current = tf.matmul(current, self.w[i]) + self.b[i]
+                if i < len(self.w) - 1:
+                    current = tf.nn.relu(current)
             return current
 
