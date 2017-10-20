@@ -36,10 +36,7 @@ class EmbeddingEncoder(BaseModel):
             encoder_cells.append(cell)
         return encoder_cells
 
-    def encode_inputs_to_vector(self, inputs, input_lengths, domain_identifier=None):
-        with tf.variable_scope('{}/preprocessing'.format(self.name)):
-            encoder_inputs = self.concat_identifier(inputs, domain_identifier)
-
+    def encode_inputs_to_vector(self, inputs, input_lengths):
         # run the encoder
         with tf.variable_scope('{}/run'.format(self.name), reuse=self.reuse_flag):
             self.reuse_flag = True
@@ -49,13 +46,13 @@ class EmbeddingEncoder(BaseModel):
                 initial_state_bw = self.multilayer_encoder_bw.zero_state(batch_size, tf.float32)
                 initial_state_fw = self.multilayer_encoder_fw.zero_state(batch_size, tf.float32)
                 _, final_state = tf.nn.bidirectional_dynamic_rnn(self.multilayer_encoder_fw, self.multilayer_encoder_bw,
-                                                                 encoder_inputs, initial_state_fw=initial_state_fw,
+                                                                 inputs, initial_state_fw=initial_state_fw,
                                                                  initial_state_bw=initial_state_bw, time_major=False,
                                                                  sequence_length=input_lengths)
                 res = tf.concat((final_state[0][-1].h, final_state[1][-1].h), axis=-1)
             else:
                 initial_state = self.multilayer_encoder.zero_state(batch_size, tf.float32)
-                _, final_state = tf.nn.dynamic_rnn(self.multilayer_encoder, encoder_inputs,
+                _, final_state = tf.nn.dynamic_rnn(self.multilayer_encoder, inputs,
                                                    initial_state=initial_state,
                                                    time_major=False, sequence_length=input_lengths)
                 if self.cell_type == 'GRU':

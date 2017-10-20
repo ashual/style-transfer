@@ -78,7 +78,7 @@ class GanModel:
         self.discriminator_loss = self.config['model']['discriminator_coefficient'] * discriminator_loss
 
         # content vector reconstruction loss
-        encoded_again = self.encoder.encode_inputs_to_vector(self._transferred_source, None, domain_identifier=None)
+        encoded_again = self.encoder.encode_inputs_to_vector(self._transferred_source, None)
         self.semantic_distance_loss = self.config['model']['semantic_distance_coefficient'] * \
                                       self.loss_handler.get_context_vector_distance_loss(self._source_encoded,
                                                                                          encoded_again)
@@ -202,7 +202,7 @@ class GanModel:
 
     def _encode(self, inputs, input_lengths):
         embedding = self.embedding_container.embed_inputs(inputs)
-        encoded = self.encoder.encode_inputs_to_vector(embedding, input_lengths, domain_identifier=None)
+        encoded = self.encoder.encode_inputs_to_vector(embedding, input_lengths)
         return embedding, encoded
 
     def _predict(self):

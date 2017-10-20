@@ -32,16 +32,3 @@ class BaseModel:
         for v in self.get_trainable_parameters():
             res += BaseModel.create_summaries(v)
         return res
-
-    @staticmethod
-    def concat_identifier(inputs, identifier):
-        if identifier is None:
-            # result is (batch, time, embedding)
-            identified_inputs = inputs
-        else:
-            # result is (batch, time, embedding; domain)
-            batch_size = tf.shape(inputs)[0]
-            sentence_length = tf.shape(inputs)[1]
-            identifier_tiled = identifier * tf.ones([batch_size, sentence_length, 1])
-            identified_inputs = tf.concat((inputs, identifier_tiled), axis=2)
-        return identified_inputs
