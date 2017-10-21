@@ -8,6 +8,7 @@ from v1_embedding.embedding_encoder import EmbeddingEncoder
 from v1_embedding.iterative_policy import IterativePolicy
 from v1_embedding.loss_handler import LossHandler
 from v1_embedding.text_watcher import TextWatcher
+from v1_embedding.tf_counter import TfCounter
 
 
 # this model tries to transfer from one domain to another.
@@ -15,6 +16,8 @@ from v1_embedding.text_watcher import TextWatcher
 # 2. target are encoded and decoded (to target) reconstruction is applied between the origin and the result
 # 3. source is encoded decoded to target and encoded again, then L2 loss is applied between the context vectors.
 # 4. an adversarial component is trained to distinguish between target inputs and source inputs
+
+
 class GanModel:
     def __init__(self, config_file, operational_config_file, embedding_handler):
         self.config = config_file
@@ -29,13 +32,11 @@ class GanModel:
         self.source_batch = tf.placeholder(tf.int64, shape=(None, None))
         # placeholder for target sentences (batch, time)=> index of word s.t the padding is on the right
         self.target_batch = tf.placeholder(tf.int64, shape=(None, None))
-        # variable to store epoch
-        self.epoch, self.epoch_placeholder, self.assign_epoch = self._create_assignable_scalar(
-            'epoch', tf.int32, init_value=0
-        )
-        self._apply_discriminator_loss_for_generator_counter = tf.Variable(0.0, trainable=False, dtype=tf.float32)
-        self._generator_steps_counter = tf.Variable(0.0, trainable=False, dtype=tf.float32)
-        self._total_steps_counter = tf.Variable(0.0, trainable=False, dtype=tf.float32)
+        # variables to store counters
+        self.epoch_counter = TfCounter('epoch')
+        self._apply_discriminator_loss_for_generator_counter = TfCounter('apply_discriminator_loss_for_generator')
+        self._generator_steps_counter = TfCounter('generator_steps')
+        self._total_steps_counter = TfCounter('total_steps')
 
         self.source_lengths = tf.placeholder(tf.int32, shape=(None))
         self.target_lengths = tf.placeholder(tf.int32, shape=(None))
@@ -77,19 +78,18 @@ class GanModel:
         self.reconstruction_loss = self.config['model']['reconstruction_coefficient'] * self._get_reconstruction_loss()
 
         # generator loss
-        generator_loss = self.reconstruction_loss
         # flag indicating if we are starting with just generator training
-        is_initial_generator_epochs = tf.less(self.epoch, self.config['model']['initial_generator_epochs'])
-        self._apply_discriminator_loss_for_generator = tf.logical_and(
-            # is discriminator well behaved
-            tf.logical_and(
-                tf.greater(self.config['model']['maximal_loss_for_discriminator'], self.discriminator_loss),
-                tf.greater_equal(self.accuracy, self.config['model']['minimal_accuracy_for_discriminator'])
-            ),
-            # we are not in initial epochs
-            tf.logical_not(is_initial_generator_epochs)
+        is_initial_generator_epochs = tf.less(self.epoch_counter.count,
+                                              self.config['model']['initial_generator_epochs'])
+        self._apply_discriminator_loss_for_generator = tf.cond(
+            pred=is_initial_generator_epochs,
+            # if initial generator epoch - return false
+            true_fn=lambda: tf.constant(False),
+            # else, check that discriminator is accurate
+            false_fn=lambda: tf.greater_equal(self.accuracy, self.config['model']['minimal_accuracy_for_discriminator'])
         )
-        self.generator_loss = generator_loss + tf.cond(
+
+        self.generator_loss = self.reconstruction_loss + tf.cond(
             pred=self._apply_discriminator_loss_for_generator,
             true_fn=lambda: -self.discriminator_loss,
             false_fn=lambda: 0.0
@@ -99,8 +99,11 @@ class GanModel:
         with tf.variable_scope('TrainSteps'):
             self._discriminator_train_step = self._get_discriminator_train_step()
             self._generator_train_step = self._get_generator_train_step()
-            self.train_generator = tf.logical_or(self.policy.should_train_generator(), is_initial_generator_epochs)
-
+            self.train_generator = tf.cond(
+                pred=is_initial_generator_epochs,
+                true_fn=lambda: tf.constant(True),
+                false_fn=lambda: self.policy.should_train_generator()
+            )
             # controls which train step to take
             policy_selected_train_step = tf.cond(
                 self.train_generator,
@@ -111,8 +114,12 @@ class GanModel:
             counter_steps = tf.group(
                 self._increase_if(self._generator_steps_counter, self.train_generator),
                 self._increase_if(self._apply_discriminator_loss_for_generator_counter,
-                                  tf.logical_and(self.train_generator, self._apply_discriminator_loss_for_generator)),
-                tf.assign_add(self._total_steps_counter, 1.0)
+                                  tf.cond(
+                                      pred=self.train_generator,
+                                      true_fn=lambda: self._apply_discriminator_loss_for_generator,
+                                      false_fn=lambda: tf.constant(False)
+                                  )),
+                self._total_steps_counter.update
             )
 
             # after appropriate train step is executed, we notify the policy and count for tensorboard
@@ -142,14 +149,12 @@ class GanModel:
         # reconstruction
         self.reconstructed_targets_batch = self._translate_to_vocabulary(self._teacher_forced_target)
 
-    def _increase_if(self, variable, condition):
-        return tf.assign_add(
-            variable,
-            tf.cond(
-                pred=condition,
-                true_fn=lambda: 1.0,
-                false_fn=lambda: 0.0,
-            )
+    @staticmethod
+    def _increase_if(counter, condition):
+        return tf.cond(
+            pred=condition,
+            true_fn=lambda: counter.update,
+            false_fn=lambda: counter.count
         )
 
     def _init_discriminator(self):
@@ -264,17 +269,17 @@ class GanModel:
 
     def _create_ratio_summary(self, nominator, denominator):
         return tf.cond(
-            pred=tf.greater(denominator, 0.0),
-            true_fn=lambda: nominator / denominator,
+            pred=tf.greater(denominator, 0),
+            true_fn=lambda: tf.cast(nominator, tf.float32) / tf.cast(denominator, tf.float32),
             false_fn=lambda: 0.0
         )
 
     def _create_summaries(self):
-        epoch_summary = tf.summary.scalar('epoch', self.epoch)
+        epoch_summary = tf.summary.scalar('epoch', self.epoch_counter.count)
         # train_generator_summary = tf.summary.scalar('train_generator', tf.cast(self.train_generator, dtype=tf.int8)),
         train_generator_summary = tf.summary.scalar(
             'train_generator',
-            self._create_ratio_summary(self._generator_steps_counter, self._total_steps_counter)
+            self._create_ratio_summary(self._generator_steps_counter.count, self._total_steps_counter.count)
         )
         accuracy_summary = tf.summary.scalar('accuracy', self.accuracy)
         discriminator_loss_summary = tf.summary.scalar('discriminator_loss', self.discriminator_loss)
@@ -295,16 +300,10 @@ class GanModel:
             #     self._apply_discriminator_loss_for_generator, tf.int8)),
             tf.summary.scalar(
                 'apply_discriminator_loss_for_generator',
-                self._create_ratio_summary(self._apply_discriminator_loss_for_generator_counter,
-                                           self._generator_steps_counter)
+                self._create_ratio_summary(self._apply_discriminator_loss_for_generator_counter.count,
+                                           self._generator_steps_counter.count)
             )
         ])
         return discriminator_step_summaries, generator_step_summaries
 
-    @staticmethod
-    def _create_assignable_scalar(name, type, init_value):
-        scalar = tf.Variable(initial_value=init_value, trainable=False, name='{}_var'.format(name), dtype=type)
-        placeholder = tf.placeholder(dtype=type, shape=(), name='{}_assignment_placeholder'.format(name))
-        assignment_op = tf.assign(scalar, placeholder)
-        return scalar, placeholder, assignment_op
 

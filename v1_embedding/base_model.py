@@ -20,15 +20,3 @@ class BaseModel:
             self.trainable_parameters = [v for v in tf.trainable_variables() if v.name.startswith(self.name)]
         return self.trainable_parameters
 
-    @staticmethod
-    def create_summaries(v):
-        return [tf.summary.scalar(v.name + '_mean', tf.reduce_mean(v)),
-                tf.summary.scalar(v.name + '_l2_norm', tf.norm(v)),
-                tf.summary.scalar(v.name + '_max_norm', tf.reduce_max(tf.abs(v))),
-                tf.summary.histogram(v.name, v)]
-
-    def get_trainable_parameters_summaries(self):
-        res = []
-        for v in self.get_trainable_parameters():
-            res += BaseModel.create_summaries(v)
-        return res

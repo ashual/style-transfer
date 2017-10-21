@@ -26,7 +26,6 @@ model:
   reconstruction_coefficient: 10.0
   discriminator_coefficient: 0.00001
   minimal_accuracy_for_discriminator: 0.55
-  maximal_loss_for_discriminator: 99999999.9
   discriminator_type: 'embedding'
 #  discriminator_type: 'content'
   cell_type: 'LSTM'
@@ -45,7 +44,8 @@ discriminator_embedding:
   bidirectional: False
 
 discriminator_content:
-  hidden_states: [1500]
+#  hidden_states: [1500]
+  hidden_states: [10]
 
 wasserstein_loss:
   clip_value: 0.125

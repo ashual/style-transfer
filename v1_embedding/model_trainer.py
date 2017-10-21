@@ -275,7 +275,7 @@ class ModelTrainer:
             break
 
     def do_before_epoch(self, sess, global_step, epoch_num):
-        sess.run(self.model.assign_epoch, {self.model.epoch_placeholder: epoch_num})
+        sess.run(self.model.epoch_counter.update)
 
     def do_after_epoch(self, sess, global_step, epoch_num):
         if epoch_num % 10 == 0:
