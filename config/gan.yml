@@ -44,8 +44,8 @@ discriminator_embedding:
   bidirectional: False
 
 discriminator_content:
-#  hidden_states: [1500]
-  hidden_states: [10]
+  hidden_states: [1500]
+  #hidden_states: [10]
 
 wasserstein_loss:
   clip_value: 0.125
