@@ -9,19 +9,21 @@ class LossHandler(BaseModel):
         self.vocabulary_length = vocabulary_length
 
     def get_margin_loss_v2(self, true_embeddings, decoded_embeddings, random_words_embeddings, padding_mask, margin):
-        len_random_words = tf.shape(random_words_embeddings)[2]
+        per_word_distance = tf.sqrt(tf.reduce_sum(tf.squared_difference(true_embeddings, decoded_embeddings), axis=-1))
 
-        sq_difference = tf.sqrt(tf.reduce_sum(tf.squared_difference(true_embeddings, decoded_embeddings), axis=-1))
-        sq_difference_expand = tf.expand_dims(sq_difference, 2)
-        sq_difference_expand = tf.tile(sq_difference_expand, [1, 1, len_random_words])
+        if random_words_embeddings is not None:
+            len_random_words = tf.shape(random_words_embeddings)[2]
 
-        target_expand = tf.expand_dims(decoded_embeddings, 2)
-        target_expand = tf.tile(target_expand, [1, 1, len_random_words, 1])
-        per_random_word_distance = tf.sqrt(
-        tf.reduce_sum(tf.squared_difference(target_expand, random_words_embeddings), axis=-1))
+            sq_difference_expand = tf.expand_dims(per_word_distance, 2)
+            sq_difference_expand = tf.tile(sq_difference_expand, [1, 1, len_random_words])
 
-        per_word_margin_loss = tf.maximum(0.0, margin + sq_difference_expand - per_random_word_distance)
-        per_word_distance = tf.reduce_mean(per_word_margin_loss, axis=-1)
+            target_expand = tf.expand_dims(decoded_embeddings, 2)
+            target_expand = tf.tile(target_expand, [1, 1, len_random_words, 1])
+            per_random_word_distance = tf.sqrt(
+                tf.reduce_sum(tf.squared_difference(target_expand, random_words_embeddings), axis=-1))
+
+            per_word_margin_loss = tf.maximum(0.0, margin + sq_difference_expand - per_random_word_distance)
+            per_word_distance = tf.reduce_mean(per_word_margin_loss, axis=-1)
 
         mask = tf.where(padding_mask, tf.ones_like(padding_mask, dtype=tf.float32),
                         tf.zeros_like(padding_mask, dtype=tf.float32))
