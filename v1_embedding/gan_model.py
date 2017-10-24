@@ -22,6 +22,7 @@ class GanModel:
     def __init__(self, config_file, operational_config_file, embedding_handler):
         self.config = config_file
         self.operational_config = operational_config_file
+        self.do_tensorboard = operational_config_file['tensorboard_frequency'] > 0
         self.embedding_handler = embedding_handler
 
         # placeholders for dropouts
@@ -32,11 +33,13 @@ class GanModel:
         self.source_batch = tf.placeholder(tf.int64, shape=(None, None))
         # placeholder for target sentences (batch, time)=> index of word s.t the padding is on the right
         self.target_batch = tf.placeholder(tf.int64, shape=(None, None))
-        # variables to store counters
+        # epoch counter
         self.epoch_counter = TfCounter('epoch')
-        self._apply_discriminator_loss_for_generator_counter = TfCounter('apply_discriminator_loss_for_generator')
-        self._generator_steps_counter = TfCounter('generator_steps')
-        self._total_steps_counter = TfCounter('total_steps')
+        # variables to store counters (only if tensorboard is activated)
+        if self.do_tensorboard:
+            self._apply_discriminator_loss_for_generator_counter = TfCounter('apply_discriminator_loss_for_generator')
+            self._generator_steps_counter = TfCounter('generator_steps')
+            self._total_steps_counter = TfCounter('total_steps')
 
         self.source_lengths = tf.placeholder(tf.int32, shape=(None))
         self.target_lengths = tf.placeholder(tf.int32, shape=(None))
@@ -119,10 +122,12 @@ class GanModel:
                                       false_fn=lambda: tf.constant(False)
                                   )),
                 self._total_steps_counter.update
-            )
+            ) if self.do_tensorboard else None
 
             # after appropriate train step is executed, we notify the policy and count for tensorboard
-            with tf.control_dependencies([policy_selected_train_step, counter_steps]):
+            control_list = [policy_selected_train_step, counter_steps] if self.do_tensorboard else [
+                policy_selected_train_step]
+            with tf.control_dependencies(control_list):
                 # this is the master step to use to run a train step on the model
                 self.master_step = tf.cond(
                     # notify the policy only if we are not in the initial steps
@@ -131,17 +136,19 @@ class GanModel:
                     false_fn=lambda: self.policy.notify(),
                 )
 
-        # summaries
-        discriminator_step_summaries, generator_step_summaries = self._create_summaries()
-        # controls which summary step to take
-        self.summary_step = tf.cond(
-            self.train_generator,
-            lambda: generator_step_summaries,
-            lambda: discriminator_step_summaries
-        )
-        # to generate text in tensorboard use:
-        self.text_watcher = TextWatcher(['original_source', 'original_target', 'transferred', 'reconstructed'])
-        self.evaluation_summary = self.text_watcher.summary
+        self.summary_step, self.text_watcher, self.evaluation_summary = None, None, None
+        if self.do_tensorboard:
+            # summaries
+            discriminator_step_summaries, generator_step_summaries = self._create_summaries()
+            # controls which summary step to take
+            self.summary_step = tf.cond(
+                self.train_generator,
+                lambda: generator_step_summaries,
+                lambda: discriminator_step_summaries
+            )
+            # to generate text in tensorboard use:
+            self.text_watcher = TextWatcher(['original_source', 'original_target', 'transferred', 'reconstructed'])
+            self.evaluation_summary = self.text_watcher.summary
 
         # do transfer
         self.transferred_source_batch = self._translate_to_vocabulary(self._transferred_source)
