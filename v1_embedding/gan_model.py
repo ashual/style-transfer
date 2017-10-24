@@ -70,12 +70,11 @@ class GanModel:
         self.prediction, self._source_prediction, self._target_prediction = self._predict()
 
         # discriminator loss and accuracy
-        discriminator_loss, self.accuracy = self.loss_handler.get_discriminator_loss_wasserstien(
+        self.discriminator_loss, self.accuracy = self.loss_handler.get_discriminator_loss_wasserstien(
             self._source_prediction, self._target_prediction)
-        self.discriminator_loss = self.config['model']['discriminator_coefficient'] * discriminator_loss
 
         # target reconstruction loss
-        self.reconstruction_loss = self.config['model']['reconstruction_coefficient'] * self._get_reconstruction_loss()
+        self.reconstruction_loss = self._get_reconstruction_loss()
 
         # generator loss
         # flag indicating if we are starting with just generator training
@@ -91,7 +90,7 @@ class GanModel:
 
         self.generator_loss = self.reconstruction_loss + tf.cond(
             pred=self._apply_discriminator_loss_for_generator,
-            true_fn=lambda: -self.discriminator_loss,
+            true_fn=lambda: -self.config['model']['discriminator_coefficient'] * self.discriminator_loss,
             false_fn=lambda: 0.0
         )
 
@@ -223,11 +222,14 @@ class GanModel:
 
     def _get_reconstruction_loss(self):
         vocabulary_length = self.embedding_handler.get_vocabulary_length()
-        input_shape = tf.shape(self.target_batch)
+        random_words = self.config['margin_loss2']['random_words_size']
         padding_mask = tf.not_equal(self.target_batch, vocabulary_length)
-        embedded_random_words = self.embedding_container.get_random_words_embeddings(
-            shape=(input_shape[0], input_shape[1], self.config['margin_loss2']['random_words_size'])
-        )
+        embedded_random_words = None
+        if random_words > 0:
+            input_shape = tf.shape(self.target_batch)
+            embedded_random_words = self.embedding_container.get_random_words_embeddings(
+                shape=(input_shape[0], input_shape[1], random_words)
+            )
         return self.loss_handler.get_margin_loss_v2(self._target_embedding, self._teacher_forced_target,
                                                     embedded_random_words, padding_mask,
                                                     self.config['margin_loss2']['margin'])
