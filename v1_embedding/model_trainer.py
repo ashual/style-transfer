@@ -220,12 +220,13 @@ class ModelTrainer:
                     if train_summaries and extract_summaries:
                         summary_writer_train.add_summary(train_summaries, global_step=global_step)
                     if (global_step % self.operational_config['validation_batch_frequency']) == 1:
-                        for validation_batch in self.batch_iterator_validation:
-                            validation_summaries = self.do_validation_batch(sess, global_step, epoch_num, batch_index,
-                                                                            validation_batch, print_to_file=False)
-                            if validation_summaries and use_tensorboard:
-                                summary_writer_validation.add_summary(validation_summaries, global_step=global_step)
-                            break
+                        if use_tensorboard:
+                            for validation_batch in self.batch_iterator_validation:
+                                validation_summaries = self.do_validation_batch(sess, global_step, epoch_num, batch_index,
+                                                                                validation_batch, print_to_file=False)
+                                if validation_summaries:
+                                    summary_writer_validation.add_summary(validation_summaries, global_step=global_step)
+                                break
                     global_step += 1
                 self.do_after_epoch(sess, global_step, epoch_num)
             self.do_after_train_loop(sess)
