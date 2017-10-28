@@ -27,7 +27,6 @@ class MultiBatchIterator:
         contents = []
         validation_contents = []
         for dataset in datasets:
-            content, validation_content = dataset.get_content()
+            content = dataset.get_content()
             contents.append(content)
-            validation_contents.append(validation_content)
-        return contents, validation_contents
+        return contents

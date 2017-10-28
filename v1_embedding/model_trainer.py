@@ -27,12 +27,10 @@ class ModelTrainer:
 
         self.dataset_neg = YelpSentences(positive=False,
                                          limit_sentences=self.config['sentence']['limit'],
-                                         validation_limit_sentences=self.config['sentence']['validation_limit'],
                                          dataset_cache_dir=self.get_dataset_cache_dir(),
                                          dataset_name='neg')
         self.dataset_pos = YelpSentences(positive=True,
                                          limit_sentences=self.config['sentence']['limit'],
-                                         validation_limit_sentences=self.config['sentence']['validation_limit'],
                                          dataset_cache_dir=self.get_dataset_cache_dir(),
                                          dataset_name='pos')
         datasets = [self.dataset_neg, self.dataset_pos]
@@ -43,18 +41,13 @@ class ModelTrainer:
             self.config['embedding']['min_word_occurrences']
         )
 
-        contents, validation_contents = MultiBatchIterator.preprocess(datasets)
+        contents = MultiBatchIterator.preprocess(datasets)
         # iterators
         self.batch_iterator = MultiBatchIterator(contents,
                                                  self.embedding_handler,
                                                  self.config['sentence']['min_length'],
                                                  self.config['trainer']['batch_size'])
 
-        # iterators
-        self.batch_iterator_validation = MultiBatchIterator(validation_contents,
-                                                            self.embedding_handler,
-                                                            self.config['sentence']['min_length'],
-                                                            self.config['trainer']['validation_batch_size'])
         # set the model
         self.model = GanModel(self.config, self.operational_config, self.embedding_handler)
 
@@ -224,21 +217,18 @@ class ModelTrainer:
                     print('epoch {} of {}'.format(epoch_num + 1, self.config['trainer']['number_of_epochs']))
                     self.do_before_epoch(sess, global_step, epoch_num)
                     for batch_index, batch in enumerate(self.batch_iterator):
+                        if (global_step % self.operational_config['validation_batch_frequency']) == 1:
+                            validation_summaries = self.do_validation_batch(
+                                sess, global_step, epoch_num, batch, use_tensorboard, name
+                            )
+                            if validation_summaries:
+                                summary_writer_validation.add_summary(validation_summaries, global_step=global_step)
                         extract_summaries = use_tensorboard and \
                                             (global_step % self.operational_config['tensorboard_frequency'] == 1)
                         train_summaries = self.do_train_batch(sess, global_step, epoch_num, batch_index, batch,
                                                               train_statistics, extract_summaries=extract_summaries)
                         if train_summaries:
                             summary_writer_train.add_summary(train_summaries, global_step=global_step)
-                        if (global_step % self.operational_config['validation_batch_frequency']) == 1:
-                            for validation_batch in self.batch_iterator_validation:
-                                validation_summaries = self.do_validation_batch(
-                                    sess, global_step, epoch_num, validation_batch, use_tensorboard, name
-                                )
-                                if validation_summaries:
-                                    summary_writer_validation.add_summary(validation_summaries,
-                                                                          global_step=global_step)
-                                break
                         global_step += 1
                     self.do_after_epoch(sess, global_step, epoch_num)
             self.do_after_train_loop(sess)
@@ -320,7 +310,7 @@ class ModelTrainer:
         # make sure the model is correct:
         self.saver_wrapper.load_model(sess)
         print('model loaded, sample sentences:')
-        for batch in self.batch_iterator_validation:
+        for batch in self.batch_iterator:
             original_target, reconstructed, original_source, transferred = self.transfer_batch(sess, batch)
             for i in range(len(original_target)):
                 print('original_target: {}'.format(original_target[i]))
