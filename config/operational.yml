@@ -2,10 +2,7 @@ load_model: True
 print_device: False
 run_optimizer: True
 #if tensorboard_frequency is 0, tensorboard is not used
-tensorboard_frequency: 0
-#tensorboard_frequency: 1000
-#train_statistics_frequenc is 0, csv statistic file will not be generated
-train_statistics_frequency: 1000
-#train_statistics_frequency: 20
+#tensorboard_frequency: 0
+tensorboard_frequency: 1000
 validation_batch_frequency: 1000
 #validation_batch_frequency: 10
