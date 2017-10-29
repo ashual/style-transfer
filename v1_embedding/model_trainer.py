@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 from v1_embedding.saver_wrapper import SaverWrapper
 import yaml
 import datetime
@@ -74,6 +75,23 @@ class ModelTrainer:
     def get_trainer_name(self):
         return '{}_{}'.format(self.__class__.__name__, self.config['model']['discriminator_type'])
 
+    def translate_embeddings(self, embeddings):
+        decoded_shape = np.shape(embeddings)
+
+        distance_tensors = []
+        for vocab_word_index in range(self.embedding_handler.get_vocabulary_length()):
+            relevant_w = self.embedding_handler.embedding_np[vocab_word_index, :]
+            expanded_w = np.expand_dims(np.expand_dims(relevant_w, axis=0), axis=0)
+            tiled_w = np.tile(expanded_w, [decoded_shape[0], decoded_shape[1], 1])
+
+            square = np.square(embeddings - tiled_w)
+            per_vocab_distance = np.sum(square, axis=-1)
+            distance_tensors.append(per_vocab_distance)
+
+        distance = np.stack(distance_tensors, axis=-1)
+        best_match = np.argmin(distance, axis=-1)
+        return best_match
+
     def transfer_batch(self, sess, batch):
         feed_dict = {
             self.model.source_batch: batch[0].sentences,
@@ -86,6 +104,8 @@ class ModelTrainer:
         transferred_result, reconstruction_result = sess.run(
             [self.model.transferred_source_batch, self.model.reconstructed_targets_batch], feed_dict
         )
+        transferred_result = self.translate_embeddings(transferred_result)
+        reconstruction_result = self.translate_embeddings(reconstruction_result)
         end_of_sentence_index = self.embedding_handler.word_to_index[self.embedding_handler.end_of_sentence_token]
         # original source without paddings:
         original_source = self.remove_by_length(batch[0].sentences, batch[0].lengths)

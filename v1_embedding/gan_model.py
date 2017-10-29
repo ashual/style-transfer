@@ -63,8 +63,8 @@ class GanModel:
         # common steps:
         self._source_embedding, self._source_encoded = self._encode(self.source_batch, self.source_lengths)
         self._target_embedding, self._target_encoded = self._encode(self.target_batch, self.target_lengths)
-        self._transferred_source = self.decoder.do_iterative_decoding(self._source_encoded)
-        self._teacher_forced_target = self.decoder.do_teacher_forcing(
+        self.transferred_source_batch = self.decoder.do_iterative_decoding(self._source_encoded)
+        self.reconstructed_targets_batch = self.decoder.do_teacher_forcing(
             self._target_encoded, self._target_embedding[:, :-1, :], self.target_lengths
         )
 
@@ -147,11 +147,6 @@ class GanModel:
             self.text_watcher = TextWatcher(['original_source', 'original_target', 'transferred', 'reconstructed'])
             self.evaluation_summary = self.text_watcher.summary
 
-        # do transfer
-        self.transferred_source_batch = self._translate_to_vocabulary(self._transferred_source)
-        # reconstruction
-        self.reconstructed_targets_batch = self._translate_to_vocabulary(self._teacher_forced_target)
-
     @staticmethod
     def _increase_if(counter, condition):
         return tf.cond(
@@ -192,9 +187,9 @@ class GanModel:
 
     def _predict(self):
         if self.config['model']['discriminator_type'] == 'embedding':
-            sentence_length = tf.shape(self._teacher_forced_target)[1]
-            transferred_source_normalized = self._transferred_source[:, :sentence_length, :]
-            prediction_input = tf.concat((transferred_source_normalized, self._teacher_forced_target), axis=0)
+            sentence_length = tf.shape(self.reconstructed_targets_batch)[1]
+            transferred_source_normalized = self.transferred_source_batch[:, :sentence_length, :]
+            prediction_input = tf.concat((transferred_source_normalized, self.reconstructed_targets_batch), axis=0)
             if self.config['discriminator_embedding']['include_content_vector']:
                 encoded = tf.concat((self._source_encoded, self._target_encoded), axis=0)
             else:
@@ -207,23 +202,6 @@ class GanModel:
         source_prediction, target_prediction = tf.split(prediction, [source_batch_size, source_batch_size], axis=0)
         return prediction, source_prediction, target_prediction
 
-    def _translate_to_vocabulary(self, embeddings):
-        decoded_shape = tf.shape(embeddings)
-
-        distance_tensors = []
-        for vocab_word_index in range(self.embedding_handler.get_vocabulary_length()):
-            relevant_w = self.embedding_container.w[vocab_word_index, :]
-            expanded_w = tf.expand_dims(tf.expand_dims(relevant_w, axis=0), axis=0)
-            tiled_w = tf.tile(expanded_w, [decoded_shape[0], decoded_shape[1], 1])
-
-            square = tf.square(embeddings - tiled_w)
-            per_vocab_distance = tf.reduce_sum(square, axis=-1)
-            distance_tensors.append(per_vocab_distance)
-
-        distance = tf.stack(distance_tensors, axis=-1)
-        best_match = tf.argmin(distance, axis=-1)
-        return best_match
-
     def _get_reconstruction_loss(self):
         vocabulary_length = self.embedding_handler.get_vocabulary_length()
         random_words = self.config['margin_loss2']['random_words_size']
@@ -234,7 +212,7 @@ class GanModel:
             embedded_random_words = self.embedding_container.get_random_words_embeddings(
                 shape=(input_shape[0], input_shape[1], random_words)
             )
-        return self.loss_handler.get_margin_loss_v2(self._target_embedding, self._teacher_forced_target,
+        return self.loss_handler.get_margin_loss_v2(self._target_embedding, self.reconstructed_targets_batch,
                                                     embedded_random_words, padding_mask,
                                                     self.config['margin_loss2']['margin'])
 
