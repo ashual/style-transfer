@@ -113,8 +113,8 @@ class GanModel:
             )
             # steps to increase counters
             counter_steps = tf.group(
-                self._increase_if(self.generator_steps_counter, self.train_generator),
-                self._increase_if(self.apply_discriminator_loss_for_generator_counter,
+                self.generator_steps_counter.increase_if(self.train_generator),
+                self.apply_discriminator_loss_for_generator_counter.increase_if(
                                   tf.cond(
                                       pred=self.train_generator,
                                       true_fn=lambda: self._apply_discriminator_loss_for_generator,
@@ -146,14 +146,6 @@ class GanModel:
             # to generate text in tensorboard use:
             self.text_watcher = TextWatcher(['original_source', 'original_target', 'transferred', 'reconstructed'])
             self.evaluation_summary = self.text_watcher.summary
-
-    @staticmethod
-    def _increase_if(counter, condition):
-        return tf.cond(
-            pred=condition,
-            true_fn=lambda: counter.update,
-            false_fn=lambda: counter.count
-        )
 
     def _init_discriminator(self):
         if self.config['model']['discriminator_type'] == 'embedding':

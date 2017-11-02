@@ -1,14 +1,16 @@
-import tensorflow as tf
-import numpy as np
-from v1_embedding.saver_wrapper import SaverWrapper
-import yaml
 import datetime
 import os
+
+import numpy as np
+import tensorflow as tf
+import yaml
+
 from datasets.multi_batch_iterator import MultiBatchIterator
 from datasets.yelp_helpers import YelpSentences
 from v1_embedding.gan_model import GanModel
 from v1_embedding.logger import init_logger
 from v1_embedding.pre_trained_embedding_handler import PreTrainedEmbeddingHandler
+from v1_embedding.saver_wrapper import SaverWrapper
 
 
 class ModelTrainer:
