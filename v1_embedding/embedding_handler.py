@@ -85,8 +85,8 @@ class EmbeddingHandler:
     def read_data(datasets):
         data = []
         for dataset in datasets:
-            content, validation_content = dataset.get_content()
-            for sentence in content + validation_content:
+            content = dataset.get_content()
+            for sentence in content:
                 data.extend(word_tokenize(sentence))
         return data
 

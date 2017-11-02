@@ -35,11 +35,10 @@ class GanModel:
         self.target_batch = tf.placeholder(tf.int64, shape=(None, None))
         # epoch counter
         self.epoch_counter = TfCounter('epoch')
-        # variables to store counters (only if tensorboard is activated)
-        if self.do_tensorboard:
-            self._apply_discriminator_loss_for_generator_counter = TfCounter('apply_discriminator_loss_for_generator')
-            self._generator_steps_counter = TfCounter('generator_steps')
-            self._total_steps_counter = TfCounter('total_steps')
+        # variables to store counters
+        self.apply_discriminator_loss_for_generator_counter = TfCounter('apply_discriminator_loss_for_generator')
+        self.generator_steps_counter = TfCounter('generator_steps')
+        self.total_steps_counter = TfCounter('total_steps')
 
         self.source_lengths = tf.placeholder(tf.int32, shape=(None))
         self.target_lengths = tf.placeholder(tf.int32, shape=(None))
@@ -64,8 +63,8 @@ class GanModel:
         # common steps:
         self._source_embedding, self._source_encoded = self._encode(self.source_batch, self.source_lengths)
         self._target_embedding, self._target_encoded = self._encode(self.target_batch, self.target_lengths)
-        self._transferred_source = self.decoder.do_iterative_decoding(self._source_encoded)
-        self._teacher_forced_target = self.decoder.do_teacher_forcing(
+        self.transferred_source_batch = self.decoder.do_iterative_decoding(self._source_encoded)
+        self.reconstructed_targets_batch = self.decoder.do_teacher_forcing(
             self._target_encoded, self._target_embedding[:, :-1, :], self.target_lengths
         )
 
@@ -114,20 +113,18 @@ class GanModel:
             )
             # steps to increase counters
             counter_steps = tf.group(
-                self._increase_if(self._generator_steps_counter, self.train_generator),
-                self._increase_if(self._apply_discriminator_loss_for_generator_counter,
+                self.generator_steps_counter.increase_if(self.train_generator),
+                self.apply_discriminator_loss_for_generator_counter.increase_if(
                                   tf.cond(
                                       pred=self.train_generator,
                                       true_fn=lambda: self._apply_discriminator_loss_for_generator,
                                       false_fn=lambda: tf.constant(False)
                                   )),
-                self._total_steps_counter.update
-            ) if self.do_tensorboard else None
+                self.total_steps_counter.update
+            )
 
             # after appropriate train step is executed, we notify the policy and count for tensorboard
-            control_list = [policy_selected_train_step, counter_steps] if self.do_tensorboard else [
-                policy_selected_train_step]
-            with tf.control_dependencies(control_list):
+            with tf.control_dependencies([policy_selected_train_step, counter_steps]):
                 # this is the master step to use to run a train step on the model
                 self.master_step = tf.cond(
                     # notify the policy only if we are not in the initial steps
@@ -149,19 +146,6 @@ class GanModel:
             # to generate text in tensorboard use:
             self.text_watcher = TextWatcher(['original_source', 'original_target', 'transferred', 'reconstructed'])
             self.evaluation_summary = self.text_watcher.summary
-
-        # do transfer
-        self.transferred_source_batch = self._translate_to_vocabulary(self._transferred_source)
-        # reconstruction
-        self.reconstructed_targets_batch = self._translate_to_vocabulary(self._teacher_forced_target)
-
-    @staticmethod
-    def _increase_if(counter, condition):
-        return tf.cond(
-            pred=condition,
-            true_fn=lambda: counter.update,
-            false_fn=lambda: counter.count
-        )
 
     def _init_discriminator(self):
         if self.config['model']['discriminator_type'] == 'embedding':
@@ -195,9 +179,9 @@ class GanModel:
 
     def _predict(self):
         if self.config['model']['discriminator_type'] == 'embedding':
-            sentence_length = tf.shape(self._teacher_forced_target)[1]
-            transferred_source_normalized = self._transferred_source[:, :sentence_length, :]
-            prediction_input = tf.concat((transferred_source_normalized, self._teacher_forced_target), axis=0)
+            sentence_length = tf.shape(self.reconstructed_targets_batch)[1]
+            transferred_source_normalized = self.transferred_source_batch[:, :sentence_length, :]
+            prediction_input = tf.concat((transferred_source_normalized, self.reconstructed_targets_batch), axis=0)
             if self.config['discriminator_embedding']['include_content_vector']:
                 encoded = tf.concat((self._source_encoded, self._target_encoded), axis=0)
             else:
@@ -210,23 +194,6 @@ class GanModel:
         source_prediction, target_prediction = tf.split(prediction, [source_batch_size, source_batch_size], axis=0)
         return prediction, source_prediction, target_prediction
 
-    def _translate_to_vocabulary(self, embeddings):
-        decoded_shape = tf.shape(embeddings)
-
-        distance_tensors = []
-        for vocab_word_index in range(self.embedding_handler.get_vocabulary_length()):
-            relevant_w = self.embedding_container.w[vocab_word_index, :]
-            expanded_w = tf.expand_dims(tf.expand_dims(relevant_w, axis=0), axis=0)
-            tiled_w = tf.tile(expanded_w, [decoded_shape[0], decoded_shape[1], 1])
-
-            square = tf.square(embeddings - tiled_w)
-            per_vocab_distance = tf.reduce_sum(square, axis=-1)
-            distance_tensors.append(per_vocab_distance)
-
-        distance = tf.stack(distance_tensors, axis=-1)
-        best_match = tf.argmin(distance, axis=-1)
-        return best_match
-
     def _get_reconstruction_loss(self):
         vocabulary_length = self.embedding_handler.get_vocabulary_length()
         random_words = self.config['margin_loss2']['random_words_size']
@@ -237,7 +204,7 @@ class GanModel:
             embedded_random_words = self.embedding_container.get_random_words_embeddings(
                 shape=(input_shape[0], input_shape[1], random_words)
             )
-        return self.loss_handler.get_margin_loss_v2(self._target_embedding, self._teacher_forced_target,
+        return self.loss_handler.get_margin_loss_v2(self._target_embedding, self.reconstructed_targets_batch,
                                                     embedded_random_words, padding_mask,
                                                     self.config['margin_loss2']['margin'])
 
@@ -288,7 +255,7 @@ class GanModel:
         # train_generator_summary = tf.summary.scalar('train_generator', tf.cast(self.train_generator, dtype=tf.int8)),
         train_generator_summary = tf.summary.scalar(
             'train_generator',
-            self._create_ratio_summary(self._generator_steps_counter.count, self._total_steps_counter.count)
+            self._create_ratio_summary(self.generator_steps_counter.count, self.total_steps_counter.count)
         )
         accuracy_summary = tf.summary.scalar('accuracy', self.accuracy)
         discriminator_loss_summary = tf.summary.scalar('discriminator_loss', self.discriminator_loss)
@@ -309,8 +276,8 @@ class GanModel:
             #     self._apply_discriminator_loss_for_generator, tf.int8)),
             tf.summary.scalar(
                 'apply_discriminator_loss_for_generator',
-                self._create_ratio_summary(self._apply_discriminator_loss_for_generator_counter.count,
-                                           self._generator_steps_counter.count)
+                self._create_ratio_summary(self.apply_discriminator_loss_for_generator_counter.count,
+                                           self.generator_steps_counter.count)
             )
         ])
         return discriminator_step_summaries, generator_step_summaries

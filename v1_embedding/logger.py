@@ -20,11 +20,10 @@ class MyLogger:
         self.logfile.flush()
 
 
-def init_logger():
+def init_logger(name):
     if not os.path.exists('logs'):
         os.makedirs('logs')
-    now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    log_file_name = os.path.join('logs', '{}.log'.format(now))
+    log_file_name = os.path.join('logs', '{}_out_log.log'.format(name))
     writer = MyLogger(sys.stdout, log_file_name)
     sys.stdout = writer
     sys.stderr = writer
