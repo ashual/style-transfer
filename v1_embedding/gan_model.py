@@ -98,8 +98,6 @@ class GanModel:
 
         # train steps
         with tf.variable_scope('TrainSteps'):
-            self._discriminator_train_step = self._get_discriminator_train_step()
-            self._generator_train_step = self._get_generator_train_step()
             self.train_generator = tf.cond(
                 pred=is_initial_generator_epochs,
                 true_fn=lambda: tf.constant(True),
@@ -107,9 +105,9 @@ class GanModel:
             )
             # controls which train step to take
             policy_selected_train_step = tf.cond(
-                self.train_generator,
-                lambda: self._generator_train_step,
-                lambda: self._discriminator_train_step
+                pred=self.train_generator,
+                true_fn=self._get_generator_train_step,
+                false_fn=self._get_discriminator_train_step
             )
             # steps to increase counters
             counter_steps = tf.group(
