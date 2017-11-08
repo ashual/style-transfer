@@ -163,8 +163,9 @@ class GanModel:
                                         self.config['discriminator_content']['hidden_states'],
                                         self.discriminator_dropout_placeholder)
 
-    def _get_optimizer(self):
-        learn_rate = self.config['model']['learn_rate']
+    def _get_optimizer(self, is_generator):
+        learn_rate = self.config['model']['generator_learn_rate'] if is_generator else self.config['model'][
+            'discriminator_learn_rate']
         if self.config['model']['optimizer'] == 'gd':
             return tf.train.GradientDescentOptimizer(learn_rate)
         if self.config['model']['optimizer'] == 'adam':
@@ -215,7 +216,7 @@ class GanModel:
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
         with tf.variable_scope('TrainDiscriminatorSteps'):
-            discriminator_optimizer = self._get_optimizer()
+            discriminator_optimizer = self._get_optimizer(False)
             discriminator_var_list = self.discriminator.get_trainable_parameters()
 
             discriminator_grads_and_vars = discriminator_optimizer.compute_gradients(
@@ -233,7 +234,7 @@ class GanModel:
 
     def _get_generator_train_step(self):
         with tf.variable_scope('TrainGeneratorSteps'):
-            generator_optimizer = self._get_optimizer()
+            generator_optimizer = self._get_optimizer(True)
             generator_var_list = self.encoder.get_trainable_parameters() + self.decoder.get_trainable_parameters() + \
                                  self.embedding_container.get_trainable_parameters()
             generator_grads_and_vars = generator_optimizer.compute_gradients(
