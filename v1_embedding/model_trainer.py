@@ -128,11 +128,12 @@ class ModelTrainer:
             self.model.dropout_placeholder: self.config['model']['dropout'],
             self.model.discriminator_dropout_placeholder: self.config['model']['discriminator_dropout'],
         }
-        summary = None
+        train_step, summary_step = self.get_train_step_and_summary(epoch_num, global_step)
         if extract_summaries:
-            _, summary = sess.run([self.model.master_step, self.model.summary_step], feed_dict)
+            _, summary = sess.run([train_step, summary_step], feed_dict)
         else:
-            _ = sess.run(self.model.master_step, feed_dict)
+            summary = None
+            _ = sess.run(train_step, feed_dict)
         return summary
 
     def do_validation_batch(self, sess, global_step, epoch_num, batch, extract_summary, name):
@@ -229,6 +230,18 @@ class ModelTrainer:
         distance = np.stack(distance_tensors, axis=-1)
         best_match = np.argmin(distance, axis=-1)
         return best_match
+
+    def get_train_step_and_summary(self, epoch, global_step):
+        if self.should_train_generator(epoch, global_step):
+            return self.model.generator_train_step, self.model.generator_step_summaries
+        return self.model.discriminator_train_step, self.model.discriminator_step_summaries
+
+    def should_train_generator(self, epoch, global_step):
+        if epoch < self.config['trainer']['initial_generator_epochs']:
+            return True
+        generator_steps = self.config['trainer']['min_generator_steps']
+        discriminator_steps = self.config['trainer']['min_discriminator_steps']
+        return global_step % (generator_steps + discriminator_steps) < generator_steps
 
     @staticmethod
     def print_to_file(global_step, epoch_number, sentences, file_name):
