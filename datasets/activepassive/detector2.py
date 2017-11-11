@@ -3,7 +3,7 @@ import urllib.parse
 from nltk import sent_tokenize
 # import re
 import os
-# import json
+import json
 
 URL = 'https://datayze.com/supportcode/callback/passive.php'
 # headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
@@ -43,24 +43,24 @@ def is_valid_sentence(sent, min_words, max_words):
 #     for root, subdirs, files in os.walk():
 
 
-# status_file = open('status.text', 'r')
+status_file = open('status.text', 'r')
 source_file = open('plain_full_length.text', 'r')
 active_file = open('active.text', 'a')
 passive_file = open('passive.text', 'a')
 i = j = k = 0
 # cur_line = int(status_file.readline())
 # cur_line = 0
-# x = json.load(status_file)
-# if x:
-#     cur_line = int(x)
-# else:
-#     cur_line = 0
-# status_file.close()
-# status_file = open('status.text', 'w')
-# for i in range(cur_line):
-#     source_file.readline()
+x = json.load(status_file)
+if x:
+    cur_line = int(x)
+else:
+    cur_line = 0
+status_file.close()
+status_file = open('status.text', 'w')
+for i in range(cur_line):
+    source_file.readline()
 for line in source_file:
-    # cur_line += 1
+    cur_line += 1
     # status_file.write(str(cur_line))
     # json.dump(cur_line, status_file)
     for sentence in sent_tokenize(line):
