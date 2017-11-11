@@ -4,7 +4,11 @@ from nltk import sent_tokenize
 # import re
 import os
 # import json
-
+from datasets.activepassive.ispassive import Tagger
+# import sys
+#
+# reload(sys)
+# sys.setdefaultencoding('utf-8')
 URL = 'https://datayze.com/supportcode/callback/passive.php'
 # headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
 # TODO: decide if to be sentences are passive or not for us
@@ -38,16 +42,10 @@ def is_valid_sentence(sent, min_words, max_words):
     # return re.match(r'^[A-Z ]{1,9}: [A-Za-z,\?\.\ !\']*$', strip_sent) and min_words <= sent_len <= max_words
     return min_words <= sent_len <= max_words
 
-#
-# def process_oanc():
-#     for root, subdirs, files in os.walk():
-
 
 # status_file = open('status.text', 'r')
-source_file = open('plain_full_length.text', 'r')
 active_file = open('active.text', 'a')
 passive_file = open('passive.text', 'a')
-i = j = k = 0
 # cur_line = int(status_file.readline())
 # cur_line = 0
 # x = json.load(status_file)
@@ -59,22 +57,46 @@ i = j = k = 0
 # status_file = open('status.text', 'w')
 # for i in range(cur_line):
 #     source_file.readline()
-for line in source_file:
-    # cur_line += 1
-    # status_file.write(str(cur_line))
-    # json.dump(cur_line, status_file)
-    for sentence in sent_tokenize(line):
-        i += 1
-        if i % 10 == 0:
+t = Tagger()
 
-            print("found ", k, " passive and ", j, " active valid sentences out of ", i,
-                  " processed sentences")
-        if is_valid_sentence(sentence, min_sen_len, max_sen_len):
-            analyzed_voice = get_voice(sentence)
-            if analyzed_voice == 'a':
-                j += 1
-                active_file.write(sentence + os.linesep)
-            elif analyzed_voice == 'p':
-                k += 1
-                passive_file.write(sentence + os.linesep)
 
+def analyze_file(source_filename):
+    i = j = k = 0
+    source_file = open(source_filename, 'r', encoding='utf-8')
+    print('analyzing %s \n' % source_filename)
+    for line in source_file:
+        # cur_line += 1
+        # status_file.write(str(cur_line))
+        # json.dump(cur_line, status_file)
+        for sentence in sent_tokenize(line):
+            i += 1
+            if i % 1 == 0:
+
+                print("found ", k, " passive and ", j, " active valid sentences out of ", i,
+                      " processed sentences")
+            if is_valid_sentence(sentence, min_sen_len, max_sen_len):
+                # analyzed_voice = get_voice(sentence)
+                is_passive = t.is_passive(sentence)
+                # if analyzed_voice == 'a':
+                if not is_passive:
+                    j += 1
+                    active_file.write(sentence + os.linesep)
+                # elif analyzed_voice == 'p':
+                else:
+                    k += 1
+                    passive_file.write(sentence + os.linesep)
+
+
+def analyze_oanc():
+    root = 'OANC-GrAF/data'
+
+    for subdir, dirs, files in os.walk(root):
+        for file in files:
+            if file.endswith('txt'):
+                source_filename = os.path.join(subdir, file)
+                analyze_file(source_filename)
+            #
+
+
+# analyze_oanc()
+analyze_file('plain_full_length.text')
