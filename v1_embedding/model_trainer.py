@@ -22,11 +22,13 @@ class ModelTrainer:
         self.embedding_dir = os.path.join(self.work_dir, 'embedding')
         self.summaries_dir = os.path.join(self.work_dir, 'tensorboard')
 
-        self.dataset_neg = YelpSentences(positive=False,
+        # take the positive dataset
+        self.dataset_neg = YelpSentences(positive=not self.operational_config['positive_is_positive'],
                                          limit_sentences=self.config['sentence']['limit'],
                                          dataset_cache_dir=self.dataset_cache_dir,
                                          dataset_name='neg')
-        self.dataset_pos = YelpSentences(positive=True,
+        # take the positive dataset
+        self.dataset_pos = YelpSentences(positive=self.operational_config['positive_is_positive'],
                                          limit_sentences=self.config['sentence']['limit'],
                                          dataset_cache_dir=self.dataset_cache_dir,
                                          dataset_name='pos')
