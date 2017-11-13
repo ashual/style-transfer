@@ -5,10 +5,10 @@ trainer:
 #  batch_size: 10
   min_generator_steps: 10
   min_discriminator_steps: 1
-
-model:
   initial_generator_epochs: 8
 #  initial_generator_epochs: 2
+
+model:
   encoder_hidden_states: [1500, 1000, 500]
 #  encoder_hidden_states: [100]
   decoder_hidden_states: [1000, 1500]
@@ -60,6 +60,6 @@ embedding:
 sentence:
   limit: 300000
 #  limit: 150
-  min_length: 6
+  min_length: 15
 #  min_length: 3
   max_length: 15

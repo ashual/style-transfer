@@ -81,7 +81,7 @@ class GanModel:
         # generator loss
         # flag indicating if we are starting with just generator training
         is_initial_generator_epochs = tf.less(self.epoch_counter.count,
-                                              self.config['model']['initial_generator_epochs'])
+                                              self.config['trainer']['initial_generator_epochs'])
         self._apply_discriminator_loss_for_generator = tf.cond(
             pred=is_initial_generator_epochs,
             # if initial generator epoch - return false
@@ -98,51 +98,26 @@ class GanModel:
 
         # train steps
         with tf.variable_scope('TrainSteps'):
-            self._discriminator_train_step = self._get_discriminator_train_step()
-            self._generator_train_step = self._get_generator_train_step()
-            self.train_generator = tf.cond(
-                pred=is_initial_generator_epochs,
-                true_fn=lambda: tf.constant(True),
-                false_fn=lambda: self.policy.should_train_generator()
-            )
-            # controls which train step to take
-            policy_selected_train_step = tf.cond(
-                self.train_generator,
-                lambda: self._generator_train_step,
-                lambda: self._discriminator_train_step
-            )
-            # steps to increase counters
-            counter_steps = tf.group(
-                self.generator_steps_counter.increase_if(self.train_generator),
-                self.apply_discriminator_loss_for_generator_counter.increase_if(
-                                  tf.cond(
-                                      pred=self.train_generator,
-                                      true_fn=lambda: self._apply_discriminator_loss_for_generator,
-                                      false_fn=lambda: tf.constant(False)
-                                  )),
-                self.total_steps_counter.update
-            )
+            # raise total steps counter
+            with tf.control_dependencies([self.total_steps_counter.update]):
+                # discriminator step
+                self.discriminator_train_step = self._get_discriminator_train_step()
+                with tf.control_dependencies([
+                    # raise generator steps counter
+                    self.generator_steps_counter.update,
+                    # see if we should increase the apply discriminator counter
+                    self.apply_discriminator_loss_for_generator_counter.increase_if(
+                        self._apply_discriminator_loss_for_generator)
+                ]):
+                    # generator train step
+                    self.generator_train_step = self._get_generator_train_step()
 
-            # after appropriate train step is executed, we notify the policy and count for tensorboard
-            with tf.control_dependencies([policy_selected_train_step, counter_steps]):
-                # this is the master step to use to run a train step on the model
-                self.master_step = tf.cond(
-                    # notify the policy only if we are not in the initial steps
-                    pred=is_initial_generator_epochs,
-                    true_fn=lambda: tf.no_op(),
-                    false_fn=lambda: self.policy.notify(),
-                )
-
-        self.summary_step, self.text_watcher, self.evaluation_summary = None, None, None
+        # init steps to None in case tensorboard is not used
+        self.discriminator_step_summaries, self.generator_step_summaries = None, None
+        self.text_watcher, self.evaluation_summary = None, None
         if self.do_tensorboard:
             # summaries
-            discriminator_step_summaries, generator_step_summaries = self._create_summaries()
-            # controls which summary step to take
-            self.summary_step = tf.cond(
-                self.train_generator,
-                lambda: generator_step_summaries,
-                lambda: discriminator_step_summaries
-            )
+            self.discriminator_step_summaries, self.generator_step_summaries = self._create_summaries()
             # to generate text in tensorboard use:
             self.text_watcher = TextWatcher(['original_source', 'original_target', 'transferred', 'reconstructed'])
             self.evaluation_summary = self.text_watcher.summary
