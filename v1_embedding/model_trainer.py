@@ -1,6 +1,5 @@
 import datetime
 import os
-
 import numpy as np
 import tensorflow as tf
 import yaml
@@ -18,24 +17,24 @@ class ModelTrainer:
         self.config = config_file
         self.operational_config = operational_config_file
 
-        self.work_dir = None
-        self.dataset_cache_dir = None
-        self.embedding_dir = None
-        self.summaries_dir = None
+        self.work_dir = os.path.join(os.getcwd(), 'models', self.get_trainer_name())
+        self.dataset_cache_dir = os.path.join(self.work_dir, 'dataset_cache')
+        self.embedding_dir = os.path.join(self.work_dir, 'embedding')
+        self.summaries_dir = os.path.join(self.work_dir, 'tensorboard')
 
-        self.saver_wrapper = None
-
-        self.dataset_neg = YelpSentences(positive=False,
+        # take the positive dataset
+        self.dataset_neg = YelpSentences(positive=not self.operational_config['positive_is_positive'],
                                          limit_sentences=self.config['sentence']['limit'],
-                                         dataset_cache_dir=self.get_dataset_cache_dir(),
+                                         dataset_cache_dir=self.dataset_cache_dir,
                                          dataset_name='neg')
-        self.dataset_pos = YelpSentences(positive=True,
+        # take the positive dataset
+        self.dataset_pos = YelpSentences(positive=self.operational_config['positive_is_positive'],
                                          limit_sentences=self.config['sentence']['limit'],
-                                         dataset_cache_dir=self.get_dataset_cache_dir(),
+                                         dataset_cache_dir=self.dataset_cache_dir,
                                          dataset_name='pos')
         datasets = [self.dataset_neg, self.dataset_pos]
         self.embedding_handler = PreTrainedEmbeddingHandler(
-            self.get_embedding_dir(),
+            self.embedding_dir,
             datasets,
             self.config['embedding']['word_size'],
             self.config['embedding']['min_word_occurrences']
@@ -50,32 +49,12 @@ class ModelTrainer:
 
         # set the model
         self.model = GanModel(self.config, self.operational_config, self.embedding_handler)
-
-    def get_work_dir(self):
-        if self.work_dir is None:
-            self.work_dir = os.path.join(os.getcwd(), 'models', self.get_trainer_name())
-        return self.work_dir
-
-    def get_dataset_cache_dir(self):
-        if self.dataset_cache_dir is None:
-            self.dataset_cache_dir = os.path.join(self.get_work_dir(), 'dataset_cache')
-        return self.dataset_cache_dir
-
-    def get_embedding_dir(self):
-        if self.embedding_dir is None:
-            self.embedding_dir = os.path.join(self.get_work_dir(), 'embedding')
-        return self.embedding_dir
-
-    def get_summaries_dir(self):
-        if self.summaries_dir is None:
-            self.summaries_dir = os.path.join(self.get_work_dir(), 'tensorboard')
-        return self.summaries_dir
+        self.saver_wrapper = SaverWrapper(self.work_dir, self.get_trainer_name())
 
     def get_trainer_name(self):
         return '{}_{}'.format(self.__class__.__name__, self.config['model']['discriminator_type'])
 
     def do_train_loop(self, name):
-        self.saver_wrapper = SaverWrapper(self.get_work_dir(), self.get_trainer_name())
         session_config = tf.ConfigProto(log_device_placement=self.operational_config['print_device'],
                                         allow_soft_placement=True)
         session_config.gpu_options.allow_growth = True
@@ -83,10 +62,10 @@ class ModelTrainer:
             session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
         with tf.Session(config=session_config) as sess:
             use_tensorboard = self.operational_config['tensorboard_frequency'] > 0
-            summary_writer_train = tf.summary.FileWriter(os.path.join(self.get_summaries_dir(), 'train'),
+            summary_writer_train = tf.summary.FileWriter(os.path.join(self.summaries_dir, 'train'),
                                                          sess.graph) if use_tensorboard else None
             summary_writer_validation = tf.summary.FileWriter(
-                os.path.join(self.get_summaries_dir(), 'validation')) if use_tensorboard else None
+                os.path.join(self.summaries_dir, 'validation')) if use_tensorboard else None
 
             sess.run(tf.global_variables_initializer())
             if self.operational_config['load_model']:

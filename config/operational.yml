@@ -6,3 +6,4 @@ run_optimizer: True
 tensorboard_frequency: 1000
 validation_batch_frequency: 1000
 #validation_batch_frequency: 10
+positive_is_positive: True
