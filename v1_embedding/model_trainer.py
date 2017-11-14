@@ -24,11 +24,11 @@ class ModelTrainer:
 
         self.dataset_active = PassiveActiveSentences(passive=False,
                                                      limit_sentences=self.config['sentence']['limit'],
-                                                     dataset_cache_dir=self.get_dataset_cache_dir(),
+                                                     dataset_cache_dir=self.dataset_cache_dir,
                                                      dataset_name='active')
         self.dataset_passive = PassiveActiveSentences(passive=True,
                                                       limit_sentences=self.config['sentence']['limit'],
-                                                      dataset_cache_dir=self.get_dataset_cache_dir(),
+                                                      dataset_cache_dir=self.dataset_cache_dir,
                                                       dataset_name='passive')
         datasets = [self.dataset_active, self.dataset_passive]
         self.embedding_handler = PreTrainedEmbeddingHandler(
