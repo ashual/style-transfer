@@ -5,7 +5,7 @@ import tensorflow as tf
 import yaml
 
 from datasets.multi_batch_iterator import MultiBatchIterator
-from datasets.yelp_helpers import YelpSentences
+from datasets.passive_active_helpers import PassiveActiveSentences
 from v1_embedding.gan_model import GanModel
 from v1_embedding.logger import init_logger
 from v1_embedding.pre_trained_embedding_handler import PreTrainedEmbeddingHandler
@@ -22,17 +22,15 @@ class ModelTrainer:
         self.embedding_dir = os.path.join(self.work_dir, 'embedding')
         self.summaries_dir = os.path.join(self.work_dir, 'tensorboard')
 
-        # take the positive dataset
-        self.dataset_neg = YelpSentences(positive=not self.operational_config['positive_is_positive'],
-                                         limit_sentences=self.config['sentence']['limit'],
-                                         dataset_cache_dir=self.dataset_cache_dir,
-                                         dataset_name='neg')
-        # take the positive dataset
-        self.dataset_pos = YelpSentences(positive=self.operational_config['positive_is_positive'],
-                                         limit_sentences=self.config['sentence']['limit'],
-                                         dataset_cache_dir=self.dataset_cache_dir,
-                                         dataset_name='pos')
-        datasets = [self.dataset_neg, self.dataset_pos]
+        self.dataset_active = PassiveActiveSentences(passive=False,
+                                                     limit_sentences=self.config['sentence']['limit'],
+                                                     dataset_cache_dir=self.get_dataset_cache_dir(),
+                                                     dataset_name='active')
+        self.dataset_passive = PassiveActiveSentences(passive=True,
+                                                      limit_sentences=self.config['sentence']['limit'],
+                                                      dataset_cache_dir=self.get_dataset_cache_dir(),
+                                                      dataset_name='passive')
+        datasets = [self.dataset_active, self.dataset_passive]
         self.embedding_handler = PreTrainedEmbeddingHandler(
             self.embedding_dir,
             datasets,
