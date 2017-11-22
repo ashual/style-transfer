@@ -1,5 +1,5 @@
 trainer:
-  number_of_epochs: 100
+  number_of_epochs: 50
 #  number_of_epochs: 30
   batch_size: 100
 #  batch_size: 10
