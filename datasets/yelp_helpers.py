@@ -9,9 +9,9 @@ class YelpSentences(Dataset):
 
     def get_content_actual(self):
         if self.positive:
-            with open('../language-style-transfer/data/yelp/sentiment.train.1') as yelp:
+            with open('datasets/yelp/regina-data/sentiment.train.1') as yelp:
                 content = yelp.readlines()
         else:
-            with open('../language-style-transfer/data/yelp/sentiment.train.0') as yelp:
+            with open('datasets/yelp/regina-data/sentiment.train.0') as yelp:
                 content = yelp.readlines()
         return content
