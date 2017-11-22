@@ -36,7 +36,7 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 
 
-filenames = ["datasets/yelp/neg.txt", "datasets/yelp/pos.txt"]
+filenames = ["regular.txt", "simple.txt"]
 with open("config/gan.yml", 'r') as ymlfile:
     config = yaml.load(ymlfile)
 embedding_size = config['embedding']['word_size'] # Dimension of the embedding vector.
