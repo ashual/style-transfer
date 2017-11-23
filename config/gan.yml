@@ -58,7 +58,7 @@ embedding:
 #  lower_range: 3.0
 
 sentence:
-  limit: 300000
+  limit: 110295
 #  limit: 150
   min_length: 15
 #  min_length: 3

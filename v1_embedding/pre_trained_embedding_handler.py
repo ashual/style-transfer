@@ -10,7 +10,7 @@ class PreTrainedEmbeddingHandler(EmbeddingHandler):
         if not self.initialized_from_cache:
             if embedding_size == 100 or embedding_size == 200:
                 self.pretrained_embedding_file = \
-                    join(getcwd(), 'data', "embeddings-53708-{}-2.txt".format(embedding_size))
+                    join(getcwd(), 'data', "embeddings-55109-{}-2-simple-english.txt".format(embedding_size))
             else:
                 raise Exception('We should train different embedding file')
             print('counting words in pretrained embedding file')
