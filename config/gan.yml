@@ -49,7 +49,7 @@ wasserstein_loss:
   clip_value: 0.125
 
 embedding:
-  min_word_occurrences: 5
+  min_word_occurrences: 2
   word_size: 200
   should_train: False
 
@@ -58,7 +58,7 @@ embedding:
 #  lower_range: 3.0
 
 sentence:
-  limit: 179218
+  limit: 300000
 #  limit: 150
   min_length: 15
 #  min_length: 3
