@@ -24,15 +24,17 @@ if __name__ == "__main__":
     with open('input.txt') as f:
         content = f.readlines()
 
-    batch_iterator = BatchIterator(content, model.embedding_handler, config['sentence']['min_length'], 100)
-    with tf.Session() as sess:
-        model_trainer.saver_wrapper.load_model(sess)
-        for b in batch_iterator:
-            new_batch = [b, b] # fake multi batch
-            _, _, original_source, transferred = model_trainer.transfer_batch(sess, new_batch)
-            for i in range(len(original_source)):
-                print('original_source: {}'.format(original_source[i]))
-                print('transferred: {}'.format(transferred[i]))
-            break
+    batch_iterator = BatchIterator(content, model.embedding_handler, config['sentence']['min_length'], 100,
+                                   shuffle_sentences=False)
+    with open('output.txt', 'w') as f:
+        with tf.Session() as sess:
+            model_trainer.saver_wrapper.load_model(sess)
+            for b in batch_iterator:
+                new_batch = [b, b] # fake multi batch
+                _, _, original_source, transferred = model_trainer.transfer_batch(sess, new_batch)
+                for i in range(len(original_source)):
+                    print('original_source: {}'.format(original_source[i]))
+                    print('transferred: {}'.format(transferred[i]))
+                    f.write("%s" % transferred[i])
 
 
