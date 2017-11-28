@@ -35,6 +35,6 @@ if __name__ == "__main__":
                 for i in range(len(original_source)):
                     print('original_source: {}'.format(original_source[i]))
                     print('transferred: {}'.format(transferred[i]))
-                    f.write("%s" % transferred[i])
+                    f.write("{}\n".format(transferred[i]))
 
 
