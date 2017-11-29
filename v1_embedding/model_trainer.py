@@ -8,7 +8,8 @@ from datasets.multi_batch_iterator import MultiBatchIterator
 from datasets.yelp_helpers import YelpSentences
 from v1_embedding.gan_model import GanModel
 from v1_embedding.logger import init_logger
-from v1_embedding.pre_trained_embedding_handler import PreTrainedEmbeddingHandler
+from v1_embedding.word_indexing_embedding_handler import WordIndexingEmbeddingHandler
+# from v1_embedding.pre_trained_embedding_handler import PreTrainedEmbeddingHandler
 from v1_embedding.saver_wrapper import SaverWrapper
 
 
@@ -33,7 +34,7 @@ class ModelTrainer:
                                          dataset_cache_dir=self.dataset_cache_dir,
                                          dataset_name='pos')
         datasets = [self.dataset_neg, self.dataset_pos]
-        self.embedding_handler = PreTrainedEmbeddingHandler(
+        self.embedding_handler = WordIndexingEmbeddingHandler(
             self.embedding_dir,
             datasets,
             self.config['embedding']['word_size'],
