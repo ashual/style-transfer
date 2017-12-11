@@ -6,15 +6,21 @@ import yaml
 
 from datasets.multi_batch_iterator import MultiBatchIterator
 from datasets.yelp_helpers import YelpSentences
+from datasets.batch_iterator import BatchIterator
 from v1_embedding.gan_model import GanModel
 from v1_embedding.logger import init_logger
 from v1_embedding.pre_trained_embedding_handler import PreTrainedEmbeddingHandler
 from v1_embedding.saver_wrapper import SaverWrapper
+from regina_files.classifier import Classifier
+from regina_files.language_model import LanguageModel
 
 
 class ModelTrainer:
     def __init__(self, config_file, operational_config_file):
         self.config = config_file
+        self.classifier = Classifier()
+        self.language_model = LanguageModel()
+
         self.operational_config = operational_config_file
 
         self.work_dir = os.path.join(os.getcwd(), 'models', self.get_trainer_name())
@@ -48,8 +54,11 @@ class ModelTrainer:
                                                  self.config['trainer']['batch_size'])
 
         # set the model
-        self.model = GanModel(self.config, self.operational_config, self.embedding_handler)
-        self.saver_wrapper = SaverWrapper(self.work_dir, self.get_trainer_name())
+        self.main_graph = tf.Graph()
+        with self.main_graph.as_default():
+            self.model = GanModel(self.config, self.operational_config, self.embedding_handler)
+            self.saver_wrapper_classifier = SaverWrapper(self.work_dir, 'classifier')
+            self.saver_wrapper_language_model = SaverWrapper(self.work_dir, 'language_model')
 
     def get_trainer_name(self):
         return '{}_{}'.format(self.__class__.__name__, self.config['model']['discriminator_type'])
@@ -60,7 +69,7 @@ class ModelTrainer:
         session_config.gpu_options.allow_growth = True
         if self.operational_config['run_optimizer']:
             session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
-        with tf.Session(config=session_config) as sess:
+        with tf.Session(config=session_config, graph=self.main_graph) as sess:
             use_tensorboard = self.operational_config['tensorboard_frequency'] > 0
             summary_writer_train = tf.summary.FileWriter(os.path.join(self.summaries_dir, 'train'),
                                                          sess.graph) if use_tensorboard else None
@@ -69,13 +78,13 @@ class ModelTrainer:
 
             sess.run(tf.global_variables_initializer())
             if self.operational_config['load_model']:
-                self.saver_wrapper.load_model(sess)
+                self.saver_wrapper_classifier.load_model(sess)
 
             self.do_before_train_loop(sess)
             global_step = 0
             for epoch_num in range(self.config['trainer']['number_of_epochs']):
                 print('epoch {} of {}'.format(epoch_num + 1, self.config['trainer']['number_of_epochs']))
-                self.do_before_epoch(sess, global_step, epoch_num)
+                self.do_before_epoch(sess)
                 for batch_index, batch in enumerate(self.batch_iterator):
                     if (global_step % self.operational_config['validation_batch_frequency']) == 1:
                         validation_summaries = self.do_validation_batch(
@@ -85,12 +94,12 @@ class ModelTrainer:
                             summary_writer_validation.add_summary(validation_summaries, global_step=global_step)
                     extract_summaries = use_tensorboard and \
                                         (global_step % self.operational_config['tensorboard_frequency'] == 1)
-                    train_summaries = self.do_train_batch(sess, global_step, epoch_num, batch_index, batch,
+                    train_summaries = self.do_train_batch(sess, global_step, epoch_num, batch,
                                                           extract_summaries=extract_summaries)
                     if train_summaries:
                         summary_writer_train.add_summary(train_summaries, global_step=global_step)
                     global_step += 1
-                self.do_after_epoch(sess, global_step, epoch_num)
+                self.do_after_epoch(sess, global_step)
             self.do_after_train_loop(sess)
 
     def do_before_train_loop(self, sess):
@@ -98,7 +107,7 @@ class ModelTrainer:
             self.model.embedding_container.embedding_placeholder: self.embedding_handler.embedding_np
         })
 
-    def do_train_batch(self, sess, global_step, epoch_num, batch_index, batch, extract_summaries):
+    def do_train_batch(self, sess, global_step, epoch_num, batch, extract_summaries):
         feed_dict = {
             self.model.source_batch: batch[0].sentences,
             self.model.target_batch: batch[1].sentences,
@@ -133,27 +142,40 @@ class ModelTrainer:
                 }) if extract_summary else None
 
     def do_after_train_loop(self, sess):
-        # make sure the model is correct:
-        self.saver_wrapper.load_model(sess)
-        print('model loaded, sample sentences:')
-        for batch in self.batch_iterator:
-            original_target, reconstructed, original_source, transferred = self.transfer_batch(sess, batch)
-            for i in range(len(original_target)):
-                print('original_target: {}'.format(original_target[i]))
-                print('reconstructed: {}'.format(reconstructed[i]))
-                print('original_source: {}'.format(original_source[i]))
-                print('transferred: {}'.format(transferred[i]))
-            break
+        self.saver_wrapper_classifier.load_model(sess)
+        tsf_sents = self.transfer(sess, './datasets/yelp/regina-data/sentiment.test.0')
+        classifier_accuracy = self.classifier.test(tsf_sents)
+        language_model_perplexity = self.language_model.test(tsf_sents)
+        print('classifier model loaded, accuracy: {}, language model: {}'.format(classifier_accuracy,
+                                                                                 language_model_perplexity))
+        self.saver_wrapper_language_model.load_model(sess)
+        tsf_sents = self.transfer(sess, './datasets/yelp/regina-data/sentiment.test.0')
+        classifier_accuracy = self.classifier.test(tsf_sents)
+        language_model_perplexity = self.language_model.test(tsf_sents)
+        print('language model loaded, accuracy: {}, language model: {}'.format(classifier_accuracy,
+                                                                               language_model_perplexity))
 
-    def do_before_epoch(self, sess, global_step, epoch_num):
+    def do_before_epoch(self, sess):
         sess.run(self.model.epoch_counter.update)
 
-    def do_after_epoch(self, sess, global_step, epoch_num):
-        if epoch_num % 10 == 0:
-            # activate the saver
-            self.saver_wrapper.save_model(sess, global_step=global_step)
+    def do_after_epoch(self, sess, global_step):
+        tsf_sents = self.transfer(sess, './datasets/yelp/regina-data/sentiment.dev.short.0')
+        self.model.classifier = self.classifier.test(tsf_sents)
+        self.model.language_model = self.language_model.test(tsf_sents)
+        # TODO: Tom can you please add self.model.classifier and self.model.language_model to tensorboard?
+        #sess.run([self.model.classifier, self.model.language_model])
 
-    def transfer_batch(self, sess, batch):
+        if self.model.classifier > self.model.best_classifier:
+            print('Best accuracy (), saving model'.format(self.model.classifier))
+            self.model.best_classifier = self.model.classifier
+            self.saver_wrapper_classifier.save_model(sess, global_step=global_step)
+
+        if self.model.language_model < self.model.best_language_model:
+            print('Best perplexity (), saving model'.format(self.model.language_model))
+            self.model.best_language_model = self.model.language_model
+            self.saver_wrapper_language_model.save_model(sess, global_step=global_step)
+
+    def transfer_batch(self, sess, batch, is_string=True):
         feed_dict = {
             self.model.source_batch: batch[0].sentences,
             self.model.target_batch: batch[1].sentences,
@@ -185,13 +207,22 @@ class ModelTrainer:
                 reconstructed.append(s[:s.tolist().index(end_of_sentence_index) + 1])
             else:
                 reconstructed.append(s)
-        return self.translate_to_string(original_target), \
-               self.translate_to_string(reconstructed), \
-               self.translate_to_string(original_source), \
-               self.translate_to_string(transferred)
+        if is_string:
+            return self.translate_to_string(original_target), \
+                   self.translate_to_string(reconstructed), \
+                   self.translate_to_string(original_source), \
+                   self.translate_to_string(transferred)
+        else:
+            return self.translate_to_array(original_target),\
+                   self.translate_to_array(reconstructed),\
+                   self.translate_to_array(original_source),\
+                   self.translate_to_array(transferred)
 
     def translate_to_string(self, indices):
         return [' '.join(s) for s in self.embedding_handler.get_index_to_word(indices)]
+
+    def translate_to_array(self, indices):
+        return [s for s in self.embedding_handler.get_index_to_word(indices)]
 
     def translate_embeddings(self, embeddings):
         decoded_shape = np.shape(embeddings)
@@ -222,6 +253,21 @@ class ModelTrainer:
         discriminator_steps = self.config['trainer']['min_discriminator_steps']
         return global_step % (generator_steps + discriminator_steps) < generator_steps
 
+    def transfer(self, sess, input_file):
+        with open(input_file) as f:
+            content = f.readlines()
+        batch_iterator = BatchIterator(content, self.model.embedding_handler, self.config['sentence']['min_length'],
+                                       100, shuffle_sentences=False)
+        t_sent = []
+        for b in batch_iterator:
+            new_batch = [b, b]  # fake multi batch
+            _, _, _, t = self.transfer_batch(sess, new_batch, is_string=False)
+            wo_end = []
+            for sent in t:
+                wo_end.append([x for x in sent if x is not 'END'])
+            t_sent += wo_end
+        return t_sent
+
     @staticmethod
     def print_to_file(global_step, epoch_number, sentences, file_name):
         with open(file_name, 'a+') as f:
@@ -235,6 +281,7 @@ class ModelTrainer:
         return [[
             word for word_index, word in enumerate(sentence) if word_index < lengths[sentence_index]
         ] for sentence_index, sentence in enumerate(sentences)]
+
 
 if __name__ == "__main__":
     name = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

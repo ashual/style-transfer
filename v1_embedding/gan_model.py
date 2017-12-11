@@ -35,6 +35,10 @@ class GanModel:
         self.target_batch = tf.placeholder(tf.int64, shape=(None, None))
         # epoch counter
         self.epoch_counter = TfCounter('epoch')
+        self.best_classifier = 0.0
+        self.best_language_model = 1000.0
+        self.classifier = tf.Variable(0.0, dtype=tf.float32, trainable=False, name="classifier")
+        self.language_model = tf.Variable(1000.0, dtype=tf.float32, trainable=False, name="language_model")
         # variables to store counters
         self.apply_discriminator_loss_for_generator_counter = TfCounter('apply_discriminator_loss_for_generator')
         self.generator_steps_counter = TfCounter('generator_steps')
