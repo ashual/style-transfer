@@ -28,7 +28,7 @@ if __name__ == "__main__":
                                    shuffle_sentences=False)
     with open('output.txt', 'w') as f:
         with tf.Session() as sess:
-            model_trainer.saver_wrapper.load_model(sess)
+            model_trainer.saver_wrapper_classifier.load_model(sess)
             for b in batch_iterator:
                 new_batch = [b, b] # fake multi batch
                 _, _, original_source, transferred = model_trainer.transfer_batch(sess, new_batch)
@@ -36,5 +36,3 @@ if __name__ == "__main__":
                     print('original_source: {}'.format(original_source[i]))
                     print('transferred: {}'.format(transferred[i]))
                     f.write("{}\n".format(transferred[i]))
-
-
