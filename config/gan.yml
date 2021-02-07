@@ -13,7 +13,8 @@ model:
 #  encoder_hidden_states: [100]
   decoder_hidden_states: [1000, 1500]
 #  decoder_hidden_states: [50]
-  learn_rate: 0.0035
+  generator_learn_rate: 0.0035
+  discriminator_learn_rate: 0.0035
 #  optimizer: 'gd'
 #  optimizer: 'adam'
   optimizer: 'rmsp'
